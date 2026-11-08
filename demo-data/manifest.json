@@ -1,0 +1,20 @@
+{
+  "format": "four-sights-demo-snapshot",
+  "version": 1,
+  "demo": true,
+  "exportedAt": "2026-11-08T17:24:01.917Z",
+  "incidents": [
+    {
+      "id": "219bd966-e2fa-4415-a623-458783ac448a",
+      "record": "incidents/219bd966-e2fa-4415-a623-458783ac448a.json",
+      "photo": "incidents/219bd966-e2fa-4415-a623-458783ac448a.jpg",
+      "sha256": "fc5399d05abf11c60ca9aadbd204284eab72e4dd7142726ea2225f29258a1d66"
+    },
+    {
+      "id": "803f3365-9675-4d26-9b01-ba331b424f8d",
+      "record": "incidents/803f3365-9675-4d26-9b01-ba331b424f8d.json",
+      "photo": "incidents/803f3365-9675-4d26-9b01-ba331b424f8d.jpg",
+      "sha256": "af7dd691cb8f70e288ec5369ab45680cac03aadb332bfef10a9bf9f431ce0dd6"
+    }
+  ]
+}

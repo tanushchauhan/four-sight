@@ -16,7 +16,9 @@
     "eval:scenes": "tsx src/scenes/eval.ts",
     "latency": "tsx src/scenes/latency.ts",
     "prada:check": "tsx src/prada-check.ts",
-    "migrate:spacetime": "tsx src/shared/migrate.ts"
+    "migrate:spacetime": "tsx src/shared/migrate.ts",
+    "demo:export": "tsx src/shared/demo-snapshot.ts export ../demo-data",
+    "demo:restore": "tsx src/shared/demo-snapshot.ts restore ../demo-data"
   },
   "dependencies": {
     "jpeg-js": "^0.4.4",

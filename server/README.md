@@ -93,3 +93,11 @@ The migration was verified against the actual local server, including a full
 server restart with preserved audit-event counts, incident records, reviewed
 status, and matching photo hashes. Normal tests skip that integration check unless
 `SPACETIME_TEST_DB` is set. Table/reducer details: [docs/spacetime.md](../docs/spacetime.md).
+
+## Git-shared demo evidence
+
+`demo-data/` contains selected, clearly labeled staged inspection records and
+photos that can be restored without copying database credentials. After starting
+the local stack, run `npm --prefix agent run demo:restore` from the repository root.
+See `demo-data/README.md` for the snapshot format and scope. Raw runtime database
+files remain ignored by Git.

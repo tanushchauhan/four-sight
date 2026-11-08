@@ -1,0 +1,38 @@
+{
+  "id": "219bd966-e2fa-4415-a623-458783ac448a",
+  "incident": true,
+  "title": "DEMO — reflective hallway floor inspection",
+  "category": "other",
+  "severity": "unknown",
+  "confidence": 0.72,
+  "observations": [
+    "The camera shows a glossy hallway floor with reflections of lights and surrounding features.",
+    "Original Nemotron observation, unverified: Floor surface is highly reflective and appears wet across much of the visible hallway",
+    "Original Nemotron observation, unverified: Reflections of overhead lights and wall features are visible on the floor",
+    "Original Nemotron observation, unverified: Blue vertical object near far end of hallway",
+    "Original Nemotron observation, unverified: No visible standing water pools, spills, or active leak source",
+    "Original Nemotron observation, unverified: No visible structural damage, fire damage, debris, or electrical hazards"
+  ],
+  "uncertainties": [
+    "STAGED DEMONSTRATION ONLY — no verified property damage or insurance loss.",
+    "The original model labeled the floor wet; reflectivity alone does not establish water or a leak.",
+    "Human inspection is needed to establish floor condition.",
+    "Whether the wetness is from cleaning, a spill, or an ongoing leak",
+    "Source of moisture cannot be determined from this view",
+    "Extent of wet area beyond the frame is unknown",
+    "Slip hazard potential is possible but not confirmed"
+  ],
+  "survey": "DEMO — staged inspection examples; not a real insurance loss",
+  "location": "Viewpoint 1 — staged hallway walkthrough",
+  "capturedAt": 1794157769281,
+  "recordedAt": 1794158098937,
+  "robotId": 1,
+  "position": null,
+  "snapshotId": "prada-1794157769281-6",
+  "imageSha256": "fc5399d05abf11c60ca9aadbd204284eab72e4dd7142726ea2225f29258a1d66",
+  "model": "nvidia/nemotron-3.5-super-vl-120b-a12b",
+  "status": "needs_review",
+  "reviewNote": "",
+  "reviewedAt": null,
+  "demo": true
+}
