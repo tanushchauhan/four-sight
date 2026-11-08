@@ -32,7 +32,7 @@ flowchart LR
     PI["Pi (Python)<br/>gait, search, detection"]
     ESP["ESP32-S3<br/>pan-tilt mount, sensors"]
   end
-  PHONE["iPhone headset app<br/>(Unity CardboardXR)"]
+  PHONE["iPhone headset app<br/>(Swift visor)"]
   STDB[("SpacetimeDB<br/>tables + reducers")]
   AGENT["Nemotron agent<br/>(Node + TS SDK)"]
   NIM["NVIDIA API<br/>Nemotron models"]
@@ -55,7 +55,7 @@ Rules:
 ```
 robot/       Python on the Pi: gait, search, detection, video + control server, Spacetime HTTP client
 mount/       ESP32-S3 firmware: pan-tilt servos, drop sensor, beacon latch
-headset/     Unity CardboardXR visor: stereo view and head tracking. Home-screen launch is 3DoF, camera off, 60 fps
+headset/     Swift visor: stereo view of the robot camera. Open headset/ios/Visor.xcodeproj
 server/      SpacetimeDB module (TypeScript)
 agent/       Node agent: Spacetime TypeScript SDK + Nemotron
 hardware/    headset print files, mount brackets, wiring notes
@@ -67,7 +67,7 @@ docs/        plan.md
 | Area | Owns | Owner |
 | --- | --- | --- |
 | Robot | `robot/`: autonomy, detection, video + control server | _TBD_ |
-| Headset | `headset/`: Unity CardboardXR visor | _TBD_ |
+| Headset | `headset/ios`: Swift visor | _TBD_ |
 | Agent | `server/`, `agent/` | _TBD_ |
 | Hardware | `mount/`, `hardware/`, demo set | _TBD_ |
 
@@ -77,7 +77,7 @@ Everything below is a **proposal**; change it, but change it here so everyone bu
 
 ### Robot ↔ headset (direct, local Wi-Fi)
 
-- **Video:** Pi serves MJPEG over HTTP on `stream_port` (8080). `GET /stream` is `multipart/x-mixed-replace; boundary=frame`, one JPEG per part (`Content-Type: image/jpeg` and `Content-Length`). `GET /frame` is the latest JPEG once. The visor opens it with `CARDBOARDXR_stream=http://<pi>:8080/stream` and shows that picture in both eyes. Until the camera is connected, `python -m picrawler_control.stream` sends a test picture; the camera later calls `FrameBuffer.publish` with JPEG bytes and the HTTP shape stays the same. Target: under ~200 ms. Move to WebRTC only if MJPEG is too late.
+- **Video:** Pi serves MJPEG over HTTP on `stream_port` (8080). `GET /stream` is `multipart/x-mixed-replace; boundary=frame`, one JPEG per part (`Content-Type: image/jpeg` and `Content-Length`). `GET /frame` is the latest JPEG once. The Swift visor opens `http://<pi>:8080/stream` and shows that picture in both eyes. Until the camera is connected, `python -m picrawler_control.stream` sends a test picture; the camera later calls `FrameBuffer.publish` with JPEG bytes and the HTTP shape stays the same. Target: under ~200 ms. Move to WebRTC only if MJPEG is too late.
 - **Control:** WebSocket server on the Pi, JSON messages.
 
 Phone → Pi:
