@@ -17,7 +17,7 @@ prada is our PiCrawler: Raspberry Pi 5 Model B (4 GB), SunFounder Robot HAT v4, 
 | File | What it is |
 | --- | --- |
 | `install.sh` | Idempotent setup: packages, pinned vendor libraries, `pinctrl`, I2C/GPIO access, venv, calibration restore, token, services |
-| `prada.toml` | Bridge config: loopback only, every gait at speed 100 |
+| `prada.toml` | Bridge config: loopback only, every gait at speed 80 |
 | `picrawler.config` | Saved calibration offsets (copied to `~/.config/.picrawler.config` if missing) |
 | `system/prada-server.service` | Bridge server in hardware mode |
 | `system/prada-joystick.service` | Bluetooth relay from the Arduino 101 joystick |
