@@ -27,10 +27,9 @@ test("workflow: hidden person behind the couch gets a second look from another s
   assert.deepEqual([...new Set(r.toolCalls.map((t) => t.agent))].sort(), ["system", "triage_decision", "workflow"].filter((a) => r.toolCalls.some((t) => t.agent === a)).sort());
   assert.equal(r.toolCalls.filter((t) => t.agent === "triage_decision").length, 1);
   assert.ok(names.includes("notify_responders") && names.includes("dispatch_responders"));
-  assert.ok(!names.includes("drop_beacon"), "beacon is for red only");
 });
 
-test("workflow: unresponsive red survivor → movement check, SMS, dispatch, beacon", async () => {
+test("workflow: unresponsive red survivor → movement check, SMS, dispatch", async () => {
   const { deps, ctx, state, robot } = wf();
   await robot.navigateTo(7.2, 2.4);
   const c = await state.reportDetection(1, 7.2, 1.0, 0.8, "x");
@@ -38,11 +37,10 @@ test("workflow: unresponsive red survivor → movement check, SMS, dispatch, bea
   const r = await runDetectionWorkflow(ctx.event, ctx, deps);
   const names = r.toolCalls.map((t) => t.name);
   assert.equal((await state.getCases())[0]!.triage, "red");
-  for (const n of ["speak", "listen", "check_movement", "notify_responders", "dispatch_responders", "drop_beacon", "request_takeover"]) assert.ok(names.includes(n), `missing ${n}`);
+  for (const n of ["speak", "listen", "check_movement", "notify_responders", "dispatch_responders", "request_takeover"]) assert.ok(names.includes(n), `missing ${n}`);
   const questions = r.toolCalls.filter((t) => t.name === "speak" && /[?]$/.test((t.args as { text: string }).text));
   assert.equal(questions.length, 1, "stop asking after no answer");
   assert.ok(r.toolCalls.some((t) => t.name === "speak" && /Help is on the way/.test((t.args as { text: string }).text)), "reassures the survivor");
-  assert.equal(deps.memo.beaconCase, c!.id);
 });
 
 test("workflow: nothing there → two 'no' looks, case deprioritized, no dispatch, no model call", async () => {

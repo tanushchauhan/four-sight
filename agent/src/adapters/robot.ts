@@ -32,7 +32,6 @@ export interface RobotCapabilities {
   move: boolean;
   /** It has a pan-tilt camera mount the agent can aim. */
   aim: boolean;
-  beacon: boolean;
 }
 
 export interface RobotAdapter {
@@ -52,7 +51,6 @@ export interface RobotAdapter {
    * speech-to-text): that is NOT evidence the survivor is unresponsive.
    */
   listen(seconds: number): Promise<ListenResult>;
-  dropBeacon(): Promise<{ ok: boolean; reason?: string }>;
   returnToStart(): Promise<MoveResult>;
   setMode(mode: RobotMode): Promise<RobotState>;
   close?(): Promise<void>;

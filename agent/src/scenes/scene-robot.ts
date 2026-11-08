@@ -191,10 +191,6 @@ export class SceneRobot implements RobotAdapter {
     return { transcript: t };
   }
 
-  dropBeacon() {
-    return this.inner.dropBeacon();
-  }
-
   returnToStart() {
     return this.inner.returnToStart();
   }

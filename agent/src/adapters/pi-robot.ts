@@ -80,7 +80,6 @@ export class PiRobot implements RobotAdapter {
   takeSnapshot() { return this.call<Snapshot>("take_snapshot"); }
   speak(text: string) { return this.call<{ ok: boolean }>("speak", { text }, 30_000); }
   listen(seconds: number) { return this.call<{ transcript: string | null }>("listen", { seconds }, (seconds + 15) * 1000); }
-  dropBeacon() { return this.call<{ ok: boolean; reason?: string }>("drop_beacon"); }
   returnToStart() { return this.call<MoveResult>("return_to_start", {}, 180_000); }
   setMode(mode: RobotMode) { return this.call<RobotState>("set_mode", { mode }); }
 

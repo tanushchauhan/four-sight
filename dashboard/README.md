@@ -17,7 +17,6 @@ Options: `--robot prada` (SSH alias or user@host), `--port 8090`, `--interval 5`
 - Camera: most recent JPEG returned by `/frame`, refreshed once per probe. This does not prove the underlying sensor is still producing fresh frames.
 - Joystick: BlueZ connection state for the project's Arduino (`98:4F:EE:0F:35:0C`). This does not indicate enable state or fresh joystick packets.
 - Headset: an established TCP connection on the head-steering port 8766. Authentication/steering readiness is not inferred.
-- Beacon: explicitly not integrated. No heartbeat exists in its current firmware.
 
 Status probes do not send motor commands, restart services, read the control token, or read battery hardware. Debug takeover is described below. Stale/unreachable telemetry is cleared instead of shown as current. Power flags are not a battery gauge. The dashboard can run without internet, provided the Mac can reach Prada. A Mac on the upstream side of a second Mac's Internet Sharing may not be able to initiate connections into the robot LAN; run this server on the downstream Mac or provide a suitable route.
 
@@ -156,7 +155,7 @@ is serialized and both sources fold into the same encounter.
 
 A sighting stops exploration before opening the agent case. The real Prada path posts
 one immediate responder/phone alert, says one fixed greeting, and waits for takeover.
-It does not infer injuries, interview the person, run simulated dispatches, drop a beacon,
+It does not infer injuries, interview the person, run simulated dispatches,
 or narrate periodic status reports. Nemotron handles grounded operator questions using
 fresh dashboard facts; it cannot call action tools in this real-robot demo path.
 

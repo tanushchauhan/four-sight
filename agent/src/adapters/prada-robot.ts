@@ -25,7 +25,7 @@ export interface PradaRobotOptions {
 const NOT_DRIVABLE = "prada is joystick-only: the agent cannot drive it. Ask the rescuer to move the robot (push_headset_alert).";
 
 export class PradaRobot implements RobotAdapter {
-  readonly capabilities: RobotCapabilities = { move: false, aim: false, beacon: false };
+  readonly capabilities: RobotCapabilities = { move: false, aim: false };
   private readonly speaker: PiSpeaker;
   private readonly fetchImpl: typeof fetch;
   private mode: RobotMode = "searching";
@@ -67,10 +67,6 @@ export class PradaRobot implements RobotAdapter {
   async pointCamera(): Promise<RobotState> {
     throw new Error("prada has no pan-tilt camera mount yet: the camera points where the robot faces.");
   }
-  async dropBeacon(): Promise<{ ok: boolean; reason?: string }> {
-    return { ok: false, reason: "beacon not integrated on prada" };
-  }
-
   async setMode(mode: RobotMode): Promise<RobotState> {
     this.mode = mode;
     return this.getState();

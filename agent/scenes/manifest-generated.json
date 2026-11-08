@@ -225,11 +225,10 @@
         ],
         "mustNotDo": [
           "dispatch_responders",
-          "drop_beacon",
           "notify_responders",
           "request_takeover"
         ],
-        "notes": "Frame 1 is ambiguous: the agent should take a closer/second look (and may speak/listen and hear nothing) rather than dispatch. The close-up shows it is a jacket and a backpack, so it should close the case as no person and not dispatch, beacon, or text responders."
+        "notes": "Frame 1 is ambiguous: the agent should take a closer/second look (and may speak/listen and hear nothing) rather than dispatch. The close-up shows it is a jacket and a backpack, so it should close the case as no person and not dispatch or text responders."
       },
       "source": {
         "kind": "generated",

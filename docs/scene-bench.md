@@ -57,6 +57,6 @@ Scene format (`agent/src/scenes/types.ts`):
 | `GET /api/scenes` | `{scenes, llmAvailable, defaults, models}`; frame images become `/scenes/images/...` URLs |
 | `POST /api/runs` | Body `{sceneId?, upload?: {dataUrl, name?, replies?, detectorConfidence?}, agentMode?: "team"\|"single", llm?: "nvidia"\|"mock", approvals?: "auto"\|"ask"}` returns `{runId, scene}` |
 | `GET /api/runs/:id/events` | Server-sent events, replayed to late subscribers: `status`, `log` (event, thought, tool, done; with agent and depth), `frame`, `speech`, `confirm`, `state`, `result`, `error` |
-| `POST /api/runs/:id/confirm` | `{id, approved}` answers a dispatch or beacon approval when `approvals: "ask"` |
+| `POST /api/runs/:id/confirm` | `{id, approved}` answers a dispatch approval when `approvals: "ask"` |
 
 The server binds to `127.0.0.1` only. `WEB_PORT` and `WEB_HOST` override the address. The NVIDIA key is read from `agent/.env` on the server and never sent to the page.

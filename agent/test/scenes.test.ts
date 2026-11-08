@@ -56,7 +56,7 @@ const empty: Scene = {
   frames: [{ image: "images/a.jpg", caption: "Rubble, nobody", trigger: "start" }],
   detectorConfidence: 0.35,
   replies: [],
-  expected: { personPresent: false, triage: "unknown", mustDo: [], mustNotDo: ["dispatch_responders", "drop_beacon"], notes: "" },
+  expected: { personPresent: false, triage: "unknown", mustDo: [], mustNotDo: ["dispatch_responders"], notes: "" },
 };
 
 const config = loadConfig({ LLM_MODE: "mock" });

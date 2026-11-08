@@ -142,7 +142,6 @@ export class MockPlanner implements ChatModel {
       }
       return say(`Triage agent says ${color}. Queue the takeover${calls.length > 1 ? ", text responders and request dispatch" : ""}.`, ...calls);
     }
-    if (color === "red" && count(h, "drop_beacon") === 0) return say("Red case: mark it with the only beacon.", call("drop_beacon", { case_id: caseId }));
     return finish(`Case ${caseId} handled: ${color}${count(h, "notify_responders") ? ", responders notified" : ""}.`);
   }
 
@@ -247,7 +246,6 @@ export class MockPlanner implements ChatModel {
         call("dispatch_responders", { case_id: caseId }),
       );
     }
-    if (color === "red" && count(h, "drop_beacon") === 0) return say("Mark the red case with the beacon.", call("drop_beacon", { case_id: caseId }));
     return finish(`Case ${caseId} triaged ${color}, takeover queued${count(h, "notify_responders") ? ", responders notified" : ""}.`);
   }
 
