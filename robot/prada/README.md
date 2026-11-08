@@ -100,7 +100,15 @@ Get the token with `ssh prada sudo cat /etc/picrawler-control.env`.
 
 Camera Module 3 (Sony IMX708, with autofocus) on **CAM0**. Ubuntu's libcamera 0.2 can't drive the Pi 5 camera pipeline, so `build-camera.sh` builds Raspberry Pi's `libcamera` and `rpicam-apps` (pinned tags) into `/usr/local`; it skips itself once `rpicam-hello --list-cameras` sees the sensor.
 
-`prada-camera` runs `stream.py --camera`, which reads `rpicam-vid --codec mjpeg` at **120 fps** (768x432 from the IMX708's 1536x864 mode, JPEG quality 60, about 20 Mbit/s on the hotspot, continuous autofocus, rotated 180 degrees for prada's mount). The service log prints the measured fps every 10 s and publishes each JPEG to the stream's `FrameBuffer`. It listens on IPv4 (`--host 0.0.0.0`) so the visor on the hotspot can reach `http://<prada-ipv4>:8080/stream`; the control socket stays on loopback. A Mac on the same hotspot often has only IPv6, so view it through a tunnel instead:
+`prada-camera` runs `stream.py --camera`, which reads `rpicam-vid --codec mjpeg` at **120 fps** (768x432 from the IMX708's 1536x864 mode, JPEG quality 60, continuous autofocus, rotated 180 degrees for prada's mount) and publishes each JPEG to the stream's `FrameBuffer`. The service log prints the measured fps every 10 s. It listens on IPv4 (`--host 0.0.0.0`) so the visor on the hotspot can reach it; the control socket stays on loopback.
+
+Watch it from any device on `liquid-iv-iot` at `http://<prada-ipv4>:8080/stream` (`prada.sh status` prints the address; it was `172.20.10.3`).
+
+**Measured over the hotspot** (Mac on the hotspot, direct, no tunnel): 113-117 fps delivered, 11-12 Mbit/s, 11-13 KB per frame, median 6-7 ms between frames with occasional 100-250 ms Wi-Fi hiccups. Busy, bright scenes can reach about 25 KB per frame (about 24 Mbit/s); if a viewer starts dropping frames, lower `--quality` in `prada-camera.service`.
+
+The stream never queues for a slow viewer: each client socket keeps only a few frames in flight and skips frames it can't take yet, so a slow link gets fewer, newer frames instead of growing lag. Before that change, 120 fps over a slow path built up a 2.8 MB backlog (over a second of lag).
+
+If a Mac on the hotspot only gets IPv6, an SSH tunnel works, but it adds its own buffering, so judge lag from a direct IPv4 connection:
 
 ```bash
 ssh -N -L 18080:127.0.0.1:8080 prada &
