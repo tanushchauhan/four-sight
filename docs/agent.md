@@ -296,3 +296,60 @@ const feed = await startOperatorFeed(voice, { host: "0.0.0.0", port: 8788 }); //
 4. Optionally play a short tone before `critical` lines. Approvals still need an answer on the console or headset UI (`resolve_confirmation`). The voice only says that one is waiting.
 
 **Not verified.** Real speech output and voice choice on iOS Safari and Android Chrome, and how the page behaves in the background on a phone. The tests cover the rewrite rules, dedupe, pacing, the feed (SSE replay, recent, the page) and the browser port matching the TypeScript rules.
+
+## Running on the real robot (`ROBOT_MODE=prada`)
+
+What the agent can and can't do with prada today:
+
+| Capability | How | Notes |
+| --- | --- | --- |
+| **See** | `GET http://prada.local:8080/frame` (latest JPEG from the camera service) | Frames larger than 170 KB are shrunk in pure JS (`jpeg-js`) before going to Nemotron VL |
+| **Speak** | `POST http://prada.local:8081/say` (speech service, Piper/espeak-ng on the Pi) | The scripted questions and reassurances are pre-rendered on the Pi |
+| **Listen** | `POST http://prada.local:8081/listen` (USB mic → silence check → whisper.cpp on the Pi) | A missing mic or speech-to-text is reported as **unavailable**, never as "no answer"; the triage decision is told so and won't call someone red for not answering |
+| **Move / aim** | Not available | prada is joystick and head-steering only, and has no pan-tilt mount. Those tools refuse with a clear error. For a second look, the workflow asks the rescuer by voice to turn the robot ("Turn the robot toward the person for a better look"), waits `SECOND_LOOK_WAIT_MS`, and grabs a new frame |
+| **Start a case** | The visor's YOLO detector → `POST /api/detections` | No autonomous search: the agent waits for detections |
+
+### Inputs: video for the trigger, stills and clips for Nemotron
+
+- **Video:** only YOLO on the phone sees it, at about 15 checks a second.
+- **Nemotron:** looks at single frames on demand (at the trigger, for a second look, for the 2-frame movement check, and for re-checks).
+- **Audio:** about 5 s is recorded after each question.
+
+### Detection intake (on the agent's feed server, port 8788)
+
+```
+POST /api/detections   Authorization: Bearer <AGENT_TOKEN>
+{"source":"visor","confidence":0.83,"count":1,"box":null,"frame_time":1762600000000}
+→ 202 {"ok":true,"case_id":3,"new_case":true}
+→ 200 {"ok":true,"ignored":"active_case"|"cooldown"|"low_confidence","case_id":3|null}
+GET /api/status → {"ok":true,"active_case":3|null,"last_sighting_ms_ago":1200|null}
+```
+
+- **Sightings:** confidence below 0.5 is ignored. While a case is open, sightings fold into it.
+  - If more people appear, the case is re-checked.
+  - While the person is still in view, it's re-checked every 45 s, up to 4 times.
+- **Closing:** a case closes after 120 s with no sightings. A case judged a false alarm closes with a 30 s cooldown.
+- **One case per sighting:** prada has no localization, so each sighting episode becomes one case.
+- **The visor side:** `headset/ios/Visor/AgentLink.swift` sends when YOLO sees a person in 3 of its last 5 results at confidence 0.5 or higher, with a 30 s cooldown. It is **not built yet**; see `headset/ios/README.md`.
+
+### Setup on the demo laptop
+
+```bash
+# agent/.env
+ROBOT_MODE=prada
+ROBOT_CONTROL_TOKEN=<from /etc/picrawler-control.env on prada>
+AGENT_TOKEN=<long random string, also typed into the visor>
+OPERATOR_FEED_HOST=0.0.0.0          # so the phone can reach :8788
+CAMERA_URL=http://prada.local:8080  # or the Pi's IP
+SPEAKER_URL=http://prada.local:8081
+```
+
+1. `npm run prada:check -- --say --listen` checks each link: camera, speech health, Nemotron VL on a live frame, speaker and mic.
+2. `npm start` runs the agent. It waits for the visor, or you can type a voice command.
+3. Open `http://<laptop>:8788/operator` for spoken updates.
+
+Test the intake without the visor:
+
+```bash
+curl -X POST -H "Authorization: Bearer $AGENT_TOKEN" -H "Content-Type: application/json" -d '{"source":"curl","confidence":0.9,"count":1}' http://localhost:8788/api/detections
+```

@@ -21,7 +21,12 @@ export interface Config {
   /** Step budget for each delegated agent run. */
   subMaxSteps: number;
 
-  robotMode: "sim" | "pi";
+  /** sim = simulated robot; prada = the real robot (camera /frame + speech service, agent can't drive); pi = legacy WebSocket command adapter. */
+  robotMode: "sim" | "pi" | "prada";
+  cameraUrl: string;
+  /** Shared secret the visor sends with POST /api/detections. */
+  agentToken: string;
+  secondLookWaitMs: number;
   robotId: number;
   piWsUrl: string;
   /** Robot loudspeaker: off, or pi = the Pi speech service. */
@@ -93,7 +98,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     searchModel: env.SEARCH_MODEL || "nvidia/nemotron-3.5-bolt-e4b",
     subMaxSteps: num(env.SUB_MAX_STEPS, 16, "SUB_MAX_STEPS"),
 
-    robotMode: pick(env.ROBOT_MODE, ["sim", "pi"], "sim", "ROBOT_MODE"),
+    robotMode: pick(env.ROBOT_MODE, ["sim", "pi", "prada"], "sim", "ROBOT_MODE"),
+    cameraUrl: env.CAMERA_URL || "http://prada.local:8080",
+    agentToken: env.AGENT_TOKEN ?? "",
+    secondLookWaitMs: num(env.SECOND_LOOK_WAIT_MS, 2500, "SECOND_LOOK_WAIT_MS"),
     robotId: num(env.ROBOT_ID, 1, "ROBOT_ID"),
     piWsUrl: env.PI_WS_URL || "ws://raspberrypi.local:8765",
     speakerMode: pick(env.SPEAKER_MODE, ["off", "pi"], "off", "SPEAKER_MODE"),
@@ -126,6 +134,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
 
   if (cfg.llmMode === "nvidia" && !cfg.nvidiaApiKey) {
     throw new Error("LLM_MODE=nvidia needs NVIDIA_API_KEY (get one at build.nvidia.com). Use LLM_MODE=mock to run offline.");
+  }
+  if (cfg.robotMode === "prada" && !cfg.robotControlToken) {
+    throw new Error("ROBOT_MODE=prada needs ROBOT_CONTROL_TOKEN (from /etc/picrawler-control.env on prada) for the speech service.");
   }
   if (cfg.speakerMode === "pi" && !cfg.robotControlToken) {
     throw new Error("SPEAKER_MODE=pi needs ROBOT_CONTROL_TOKEN (the same secret as /etc/picrawler-control.env on prada).");

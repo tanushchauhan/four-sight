@@ -171,7 +171,9 @@ async function instantAlert(ctx: ToolContext, r: { personVisible: string; confid
   if (ctx.trace.some((t) => t.name === "instant_alert" && (t.args as { case_id?: number }).case_id === ev.caseId)) return;
   const c = (await ctx.state.getCases()).find((x) => x.id === ev.caseId);
   if (!c) return;
-  await ctx.state.pushAlert(`Person seen, case ${c.id} at (${round(c.x, 1)}, ${round(c.y, 1)}): ${r.description.slice(0, 120)}`, "warning");
+  // Robots without localization (prada) only have placeholder coordinates: don't read them out.
+  const where = ctx.robot.capabilities?.move === false ? "in front of the robot" : `at (${round(c.x, 1)}, ${round(c.y, 1)})`;
+  await ctx.state.pushAlert(`Person seen, case ${c.id} ${where}: ${r.description.slice(0, 120)}`, "warning");
   const req = (await ctx.state.getTakeoverRequests()).find((q) => q.caseId === c.id && q.status === "waiting");
   if (req && req.priority < 80) await ctx.state.setPriority(req.id, 80, "person confirmed by camera; triage in progress");
   ctx.trace.push({ agent: "system", name: "instant_alert", args: { case_id: c.id }, ok: true, result: { alerted: true, request_id: req?.id ?? null }, ms: 0, at: Date.now() });
@@ -405,7 +407,9 @@ const notifyResponders: Tool = {
     const c = await findCase(ctx, a.case_id as number);
     const body = [
       `RESCUE ROBOT: case ${c.id}, triage ${c.triage.toUpperCase()} (provisional, AI-assessed)`,
-      `Location: x=${round(c.x, 1)} m, y=${round(c.y, 1)} m from entry`,
+      ctx.robot.capabilities?.move === false
+        ? "Location: where the rescue robot is now (no map position; follow the robot / beacon)"
+        : `Location: x=${round(c.x, 1)} m, y=${round(c.y, 1)} m from entry`,
       c.description ? `Seen: ${c.description}` : null,
       `Note: ${a.message}`,
     ]

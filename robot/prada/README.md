@@ -37,14 +37,14 @@ None of these move servos. The robot moves only after the joystick is clicked an
 | File | What it is |
 | --- | --- |
 | `prada.sh` | The one entry point above |
-| `install.sh` | Idempotent setup: packages, pinned vendor libraries, `pinctrl`, I2C/GPIO access, venv, optional Piper voice, calibration restore, token, services |
+| `install.sh` | Idempotent setup: packages, pinned vendor libraries, `pinctrl`, I2C/GPIO access, venv, optional Piper voice, pinned whisper.cpp and its model, calibration restore, token, services |
 | `prada.toml` | Bridge config: loopback only, every gait at speed 80 |
 | `picrawler.config` | Saved calibration offsets (copied to `~/.config/.picrawler.config` if missing) |
 | `system/prada-server.service` | Bridge server in hardware mode |
 | `system/prada-joystick.service` | Bluetooth relay from the Arduino 101 joystick |
 | `system/prada-camera.service` | Camera MJPEG stream on port 8080 |
 | `system/prada-speaker.service` | Turns on the HAT speaker amplifier at boot |
-| `system/prada-speech.service` | Text to speech for the rescue agent on port 8081 |
+| `system/prada-speech.service` | Text to speech and listening for the rescue agent on port 8081 |
 | `build-camera.sh` | Builds Raspberry Pi libcamera and rpicam-apps (run by `install.sh`) |
 | `system/60-picrawler-gpiomem.rules` | Gives the `gpio` group the Pi 5 GPIO memory windows that `pinctrl` needs |
 | `system/picrawler-lock.conf` | Recreates `/run/lock/picrawler-control.lock` at boot |
@@ -159,6 +159,41 @@ Test the speaker without the service: `sudo systemctl stop prada-speech`, then `
 Turn speech off: `sudo systemctl disable --now prada-speech` stops it and keeps it from starting at boot. `prada.sh start`, `restart` and `update` (when running) start it again, because it is in `SERVICES` in `prada.sh`; take it out of that list in the repo to keep it off for good.
 
 On a laptop, without a speaker: `ROBOT_CONTROL_TOKEN=... robot/.venv/bin/python -m picrawler_control.speech --config robot/config/control.toml --dry-run`.
+
+### Listening
+
+`POST /listen` records from the USB microphone and returns what the survivor said, transcribed offline by whisper.cpp on the Pi.
+
+```bash
+curl -X POST -m 45 -H "Authorization: Bearer $ROBOT_CONTROL_TOKEN" -H 'Content-Type: application/json' \
+  -d '{"seconds":5}' http://prada.local:8081/listen
+```
+
+| Answer | When |
+| --- | --- |
+| 200 `{"ok":true,"transcript":"I'm here, my leg is stuck","silent":false,"rms":812.4,"voiced_ratio":0.31,"engine":"whisper.cpp","record_ms":5040,"stt_ms":2210,"stt_unavailable":false}` | Recorded. `transcript` is `null` when `silent` (no voice, speech to text skipped), when whisper heard only non-speech, or when `stt_unavailable` (no whisper.cpp or model; `engine` is `none`) |
+| 409 `{"ok":false,"error":"speaker busy"}` | Something was still queued or playing after 15 s |
+| 409 `{"ok":false,"error":"already listening"}` | Another `/listen` is running |
+| 503 `{"ok":false,"error":"no microphone"}` | No capture device was found at startup |
+| 500 `{"ok":false,"error":"listen failed: ..."}` | `arecord` or whisper.cpp failed (for example "Device or resource busy") |
+
+- **Body:** optional. `{"seconds": n}` with n from 1 to 10 (default 5); fractions round up to whole seconds, since `arecord -d` takes whole seconds. Same auth and strict JSON rules as `/say`.
+- **Order:** waits until nothing is queued or playing (up to 15 s), then 150 ms for the speaker to go quiet, so prada does not record itself. While the microphone is open, new `/say` lines (interrupts too) wait and play right after recording. Then `arecord -q -D <mic> -f S16_LE -r 16000 -c 1 -d <seconds>`, killed after seconds + 5.
+- **Silence:** each 30 ms frame whose RMS reaches `speech_vad_rms` (default 500, on int16) counts as voice. Under 0.2 s of voice is `silent: true` and whisper is not run: on silence Whisper tends to invent "Thank you." `rms` and `voiced_ratio` are in the answer and the log to tune the threshold.
+- **Speech to text:** `whisper-cli -m ~/.local/share/whisper/ggml-base.en.bin -f <wav> -nt -np -l en -t 4`; tags like `[BLANK_AUDIO]`, `(silence)` and `*coughs*` are removed. `install.sh` builds whisper.cpp `v1.9.4` into `~/vendor/whisper.cpp` and downloads the model (148 MB, sha256 checked) if missing; offline it warns and `/listen` answers with `stt_unavailable: true`.
+- **Microphone:** `speech_mic = "auto"` runs `arecord -l` at startup and takes the first capture card that is not the HAT, preferring names with USB, as `plughw:<card>,<device>`. `/health` shows `mic` and `stt`; `prada.sh status` prints them. Card numbers can change if USB devices are plugged in a different order; restart `prada-speech` after replugging, or pin it with `speech_mic = "plughw:CARD=Device,DEV=0"` (the card id from `arecord -l`).
+- **Audio files:** each recording lives in a temporary directory that is deleted after the answer. `speech_keep_audio = true` keeps them in `/tmp/prada-listen-*/` and logs the path.
+- **Latency:** about seconds + 0.2 s to record, then speech to text: expect roughly 1 to 3 s for 5 s of speech with `base.en` on a Pi 5 (not yet measured here). Clients should allow 45 s (15 s speaker wait, 10 s recording, whisper).
+- **Limits:** one microphone and one listen at a time. Echo is avoided only by waiting for playback, not by echo cancellation. Engines, fans, wind or sirens near the robot can pass the voice check and give poor transcripts; raise `speech_vad_rms` or keep the robot quiet while listening. English only (`base.en`).
+
+Find and test the microphone without the service (`sudo systemctl stop prada-speech` first):
+
+```bash
+arecord -l          # look for the USB card, e.g. "card 2: Device [USB PnP Sound Device], device 0"
+arecord -D plughw:2,0 -d 3 -f S16_LE -r 16000 t.wav && aplay -D plughw:sndrpihifiberry t.wav
+alsamixer -c 2      # F4 for capture; raise Mic if the recording is quiet
+~/vendor/whisper.cpp/build/bin/whisper-cli -m ~/.local/share/whisper/ggml-base.en.bin -f t.wav -nt -np -l en
+```
 
 ## SSH from a laptop
 

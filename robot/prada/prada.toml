@@ -12,3 +12,15 @@ dry_gait_seconds = 0.15
 # Text to speech (speech.py, prada-speech.service) on the Robot HAT v4 speaker.
 speech_port = 8081
 speech_device = "plughw:sndrpihifiberry"
+# Listening (POST /listen) on a USB microphone. "auto" picks the first capture
+# card in `arecord -l` that is not the HAT, preferring USB, as plughw:<card>,<device>.
+# Set an ALSA name instead to pin it, e.g. speech_mic = "plughw:CARD=Device,DEV=0".
+speech_mic = "auto"
+# whisper.cpp CLI ("auto": ~/vendor/whisper.cpp/build/bin/whisper-cli, then PATH) and model.
+speech_stt_bin = "auto"
+speech_stt_model = "~/.local/share/whisper/ggml-base.en.bin"
+# int16 RMS a 30 ms frame needs to count as voice (50 to 20000). Under 0.2 s of
+# voice is reported as silent and not transcribed. Raise it in a noisy place.
+speech_vad_rms = 500
+# true keeps each recording in /tmp/prada-listen-*/ (logged) for debugging.
+speech_keep_audio = false

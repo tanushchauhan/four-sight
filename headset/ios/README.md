@@ -58,3 +58,63 @@ robot stops. Verify turn direction at low speed with space around the robot.
 The deployment config now scales gait speed from 20 to 80 instead of a fixed 80;
 head steering is capped at 0.4 input (approximately speed 38). Physical speed and
 head-to-camera latency have not yet been calibrated.
+
+## Agent trigger
+
+**Unbuilt and untested on device.** This was written on a machine without Xcode; build it and run
+the checks below before relying on it.
+
+When the on-phone detector stably sees a person on the robot feed, the visor tells the Nemotron agent
+to open a case and start triage (`headset/ios/Visor/AgentLink.swift`). It sends:
+
+```
+POST <agent URL>/api/detections
+Content-Type: application/json
+Authorization: Bearer <agent token>
+
+{"source":"visor","confidence":0.83,"count":1,"box":null,"frame_time":1762600000000}
+```
+
+`confidence` is the highest person confidence in the result, `count` the number of people, and
+`frame_time` epoch milliseconds when the trigger fired. `box` is always `null` for now: the detector
+does not publish the box yet, and the agent accepts `null`.
+
+**When.** Only when Notify agent is on, a token is entered, and the robot feed is the active source
+and live (the phone camera never notifies the agent). A detector result is a hit when it has at least
+one person at confidence 0.5 or more. The visor posts once 3 of the last 5 results are hits, then
+waits 30 s before it can post again. A result with no person clears the run. While someone stays
+in view it re-posts every 30 s; the agent folds these into the open case
+(`ignored: active_case`), which also keeps that case open. Each post has a 3 s timeout and is
+retried at most twice, 1 s apart, only for network errors and HTTP 5xx. Posting never waits on or
+affects detection or video.
+
+**Settings** (robot feed section):
+- **Agent URL.** Saved between launches. Leave it blank to use `http://<camera host>:8788`. The agent
+  usually runs on a laptop, so enter `http://<laptop IP>:8788` there.
+- **Agent token.** The agent's `AGENT_TOKEN`. Kept in memory only, never saved: re-enter it after
+  each launch.
+- **Notify agent.** Turns on by itself when a token is entered.
+- The status line shows `Agent: off`, `idle`, `notifying…`, `notified case N`,
+  `ignored (cooldown)` or `ignored (active_case), case N`, `unreachable`, `bad token`, or
+  `error (…)`. The lens HUD's Coordinator readout shows the same state.
+
+**Agent side.** Run it with `ROBOT_MODE=prada`, `AGENT_TOKEN=<long random string>` and
+`OPERATOR_FEED_HOST=0.0.0.0` so the phone on the hotspot can reach port 8788. Allow port 8788
+through the laptop firewall.
+
+**Test the agent without the visor** (from any machine on the hotspot):
+
+```sh
+curl -i -X POST http://<laptop IP>:8788/api/detections \
+  -H "Content-Type: application/json" -H "Authorization: Bearer $AGENT_TOKEN" \
+  -d '{"source":"visor","confidence":0.8,"count":1,"box":null,"frame_time":1762600000000}'
+# 202 {"ok":true,"case_id":1,"new_case":true}; repeat → 200 {"ok":true,"ignored":"active_case",...}
+curl -i -X POST http://<laptop IP>:8788/api/detections -H "Authorization: Bearer wrong" -d '{}'
+# 401
+curl http://<laptop IP>:8788/api/status
+```
+
+**Test from the visor.** Enter the laptop URL and token, connect the robot feed, and point the robot
+camera at a person for about a second. The status should show `notified case N`, and the agent
+console should log a `detection` event. Then stop the agent and repeat: the status should show
+`unreachable` within about 10 s, while the video and survivor highlight keep running.

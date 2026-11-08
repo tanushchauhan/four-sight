@@ -7,7 +7,7 @@
 #   start     start the server, the joystick relay, the camera stream and speech
 #   stop      stop all four
 #   restart   restart all four
-#   status    show service state, HAT, battery, joystick, camera and speech
+#   status    show service state, HAT, battery, joystick, camera, speech, mic and stt
 #   logs      follow all four services' logs
 #   keyboard  stop the joystick relay so a laptop keyboard controller can connect
 #
@@ -57,7 +57,11 @@ case "${1:-help}" in
       printf '%-16s %s\n' "camera" "http://$(hostname).local:8080/stream  (also http://$(hostname -I | awk '{print $1}'):8080/stream)"
     fi
     if systemctl is-active --quiet prada-speech; then
-      printf '%-16s %s\n' "speech" "$(curl -s -m 2 http://127.0.0.1:8081/health || echo 'no answer on :8081')"
+      health="$(curl -s -m 2 http://127.0.0.1:8081/health || true)"
+      printf '%-16s %s\n' "speech" "${health:-no answer on :8081}"
+      if [[ -n "$health" ]]; then
+        printf '%-16s %s\n' "listening" "$(python3 -c 'import json, sys; h = json.load(sys.stdin); print("mic", h.get("mic") or "none", "/ stt", h.get("stt") or "none")' <<<"$health" 2>/dev/null || echo '?')"
+      fi
     fi
     ;;
   logs)

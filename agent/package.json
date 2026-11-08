@@ -14,9 +14,11 @@
     "typecheck": "tsc --noEmit",
     "web": "tsx src/web/server.ts",
     "eval:scenes": "tsx src/scenes/eval.ts",
-    "latency": "tsx src/scenes/latency.ts"
+    "latency": "tsx src/scenes/latency.ts",
+    "prada:check": "tsx src/prada-check.ts"
   },
   "dependencies": {
+    "jpeg-js": "^0.4.4",
     "openai": "^7.53.0",
     "ws": "^8.22.1"
   },

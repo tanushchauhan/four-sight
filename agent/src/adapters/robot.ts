@@ -20,7 +20,23 @@ export interface SweepResult {
  * Everything the agent can make the robot do. Implemented by SimRobot (offline)
  * and PiRobot (WebSocket to the Pi). Units: meters, degrees.
  */
+export interface ListenResult {
+  transcript: string | null;
+  unavailable?: boolean;
+  reason?: string;
+}
+
+/** What the robot can physically do. Missing = everything (sim robots). */
+export interface RobotCapabilities {
+  /** The agent can drive it (move, turn, navigate, sweep, return). */
+  move: boolean;
+  /** It has a pan-tilt camera mount the agent can aim. */
+  aim: boolean;
+  beacon: boolean;
+}
+
 export interface RobotAdapter {
+  readonly capabilities?: RobotCapabilities;
   getState(): Promise<RobotState>;
   getSensors(): Promise<SensorReadings>;
   move(meters: number): Promise<MoveResult>;
@@ -31,7 +47,11 @@ export interface RobotAdapter {
   takeSnapshot(): Promise<Snapshot>;
   speak(text: string): Promise<{ ok: boolean }>;
   /** Record from the robot mic and transcribe. transcript is null if nothing was heard. */
-  listen(seconds: number): Promise<{ transcript: string | null }>;
+  /**
+   * transcript null = silence. unavailable = the robot could not listen at all (no mic, no
+   * speech-to-text): that is NOT evidence the survivor is unresponsive.
+   */
+  listen(seconds: number): Promise<ListenResult>;
   dropBeacon(): Promise<{ ok: boolean; reason?: string }>;
   returnToStart(): Promise<MoveResult>;
   setMode(mode: RobotMode): Promise<RobotState>;

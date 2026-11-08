@@ -118,6 +118,52 @@ for f in "$PIPER_VOICE.onnx" "$PIPER_VOICE.onnx.json"; do
 done
 sync
 
+step "Speech to text (whisper.cpp, pinned; optional)"
+# POST /listen records from the USB microphone and transcribes with whisper.cpp.
+# Built once from a pinned tag; the model is fetched once from a pinned commit
+# and checked. If either fails (offline), keep going: /listen still records and
+# answers with stt_unavailable: true.
+WHISPER_TAG=v1.9.4
+WHISPER_SRC="$VENDOR/whisper.cpp"
+WHISPER_CLI="$WHISPER_SRC/build/bin/whisper-cli"
+WHISPER_DIR="$HOME/.local/share/whisper"
+WHISPER_MODEL=ggml-base.en.bin
+WHISPER_MODEL_URL="https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/$WHISPER_MODEL"
+WHISPER_MODEL_SHA256=a03779c86df3323075f5e796cb2ce5029f00ec8869eee3fdfb897afe36c6d002
+build_whisper() {  # every step checked by hand: set -e does not apply inside `if`
+  if [[ ! -d "$WHISPER_SRC/.git" ]]; then
+    git clone -q --depth 1 --branch "$WHISPER_TAG" https://github.com/ggml-org/whisper.cpp.git "$WHISPER_SRC" || return 1
+  fi
+  git -C "$WHISPER_SRC" -c advice.detachedHead=false checkout -q "$WHISPER_TAG" || return 1
+  cmake -S "$WHISPER_SRC" -B "$WHISPER_SRC/build" -DCMAKE_BUILD_TYPE=Release -DGGML_NATIVE=ON \
+    -DBUILD_SHARED_LIBS=OFF -DWHISPER_BUILD_TESTS=OFF >/dev/null || return 1
+  cmake --build "$WHISPER_SRC/build" -j 4 --target whisper-cli >/dev/null || return 1
+  [[ -x "$WHISPER_CLI" ]]
+}
+if [[ -x "$WHISPER_CLI" ]]; then
+  echo "keeping $WHISPER_CLI"
+elif echo "building whisper.cpp $WHISPER_TAG (a few minutes)" && build_whisper; then
+  echo "built $WHISPER_CLI"
+else
+  echo "WARNING: could not build whisper.cpp (offline?); /listen will report stt_unavailable"
+fi
+mkdir -p "$WHISPER_DIR"
+if [[ -s "$WHISPER_DIR/$WHISPER_MODEL" ]]; then
+  echo "keeping $WHISPER_DIR/$WHISPER_MODEL"
+elif curl -fsSL --retry 2 --connect-timeout 10 -o "$WHISPER_DIR/$WHISPER_MODEL.tmp" "$WHISPER_MODEL_URL" \
+    && echo "$WHISPER_MODEL_SHA256  $WHISPER_DIR/$WHISPER_MODEL.tmp" | sha256sum -c --quiet - \
+    && mv -f "$WHISPER_DIR/$WHISPER_MODEL.tmp" "$WHISPER_DIR/$WHISPER_MODEL"; then
+  echo "downloaded $WHISPER_DIR/$WHISPER_MODEL"
+else
+  rm -f "$WHISPER_DIR/$WHISPER_MODEL.tmp"
+  echo "WARNING: could not download $WHISPER_MODEL (offline?); /listen will report stt_unavailable"
+fi
+sync
+# Recording needs the audio group (added above; prada-speech gets it on start).
+if [[ " $(id -nG liquidiv) " == *" audio "* ]]; then echo "liquidiv is in the audio group (may record)"
+else echo "WARNING: liquidiv is not in the audio group; /listen cannot open the microphone"; fi
+arecord -l 2>/dev/null | grep '^card' || echo "WARNING: no capture card in arecord -l; plug in the USB microphone"
+
 step "Camera (Raspberry Pi libcamera + rpicam-apps)"
 "$PRADA/build-camera.sh"
 

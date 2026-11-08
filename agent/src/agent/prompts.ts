@@ -64,5 +64,6 @@ export const TRIAGE_DECISION_PROMPT = `ROLE: triage_decision
 You decide a provisional START triage color for one possible casualty found by a rescue robot. The robot has already looked (vision results), spoken to the person and listened, and may have checked for movement and heat. You get that evidence as JSON. Call set_triage exactly once, then stop.
 Colors: red = immediate (unresponsive to voice, not moving/breathing visibly, heavy bleeding, airway problem); yellow = delayed (serious or trapped but responsive); green = minor, can move; black = obviously deceased (do not use from one image alone); unknown = no person confirmed.
 Rules: weigh ALL evidence; a person who answers questions sensibly is not red unless there is heavy bleeding; no answer + no movement = red; no answer but moving = red or yellow (say which and why); if vision never confirmed a real person, use unknown.
+If "listening" says UNAVAILABLE, the robot could not hear at all: missing answers mean nothing. Decide from vision and movement, and say in the description that responsiveness is unknown.
 The description: 1-3 sentences of what was seen AND heard, the color reason, and how sure you are. No medical certainty.
 ${SAFETY}`;

@@ -11,13 +11,16 @@ struct VisorView: View {
     @StateObject private var steering = HeadSteering()
     @StateObject private var survivorDetector = SurvivorDetector()
     @StateObject private var survivorFeedback = SurvivorFeedback()
+    @StateObject private var agent = AgentLink()
     @AppStorage("cameraURL") private var address = "http://prada.local:8080/stream"
+    @AppStorage("agentURL") private var agentAddress = ""
     @AppStorage("cameraSource") private var sourceName = CameraSource.robot.rawValue
     @State private var phone = PhoneCamera()
     @State private var settings = true
     @State private var radarTime = Date()
     @State private var layerStatus = "Lens layer: drawing"
     @FocusState private var focused: Control?
+    @FocusState private var agentField: AgentField?
     @Environment(\.scenePhase) private var scenePhase
 
     private enum Control: Hashable {
@@ -72,6 +75,7 @@ struct VisorView: View {
             value: "84% · Good · 42°",
             detail: "Battery · link · thermal · simulated"
         )
+        briefing.coordinator = agent.coordinatorFeed
         if source == .phone {
             briefing.camera = .ready(value: "Phone", detail: "")
             return briefing
@@ -127,7 +131,7 @@ struct VisorView: View {
         }
         .onChange(of: controller.status) { _, status in
             if source == .robot, status == "Live" {
-                if focused == nil { settings = false }
+                if focused == nil, agentField == nil { settings = false }
                 steering.start(address: address, video: controller)
             } else {
                 steering.stop()
@@ -135,6 +139,10 @@ struct VisorView: View {
         }
         .onChange(of: survivorDetector.state) { oldState, newState in
             survivorFeedback.update(from: oldState, to: newState)
+        }
+        .onReceive(survivorDetector.$state) { state in
+            agent.observe(state, address: agentAddress, camera: address,
+                          robotLive: source == .robot && controller.status == "Live")
         }
     }
 
@@ -214,6 +222,8 @@ struct VisorView: View {
                         .foregroundStyle(VisorToken.ink.color)
                         .tint(VisorToken.ink.color)
                 }
+                rule
+                cell { AgentSettings(link: agent, address: $agentAddress, cameraAddress: address, focus: $agentField) }
             }
             rule
             VStack(spacing: VisorToken.spaceSm) {

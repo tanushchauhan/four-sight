@@ -1,9 +1,10 @@
-# prada text to speech on the Robot HAT v4 speaker, for the rescue agent.
-# POST /say needs the same token as the bridge (from /etc/picrawler-control.env).
+# prada text to speech on the Robot HAT v4 speaker, and listening on the USB
+# microphone (POST /listen, whisper.cpp), for the rescue agent.
+# POST /say and /listen need the same token as the bridge (from /etc/picrawler-control.env).
 # Listens on IPv4 and IPv6 (::) so the agent's laptop on the hotspot can reach it.
 # Moves nothing. Disable with: sudo systemctl disable --now prada-speech
 [Unit]
-Description=prada text to speech (port 8081)
+Description=prada speech and listening (port 8081)
 After=network-online.target sound.target prada-speaker.service
 Wants=network-online.target prada-speaker.service
 

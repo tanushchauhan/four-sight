@@ -160,7 +160,9 @@ export class MockPlanner implements ChatModel {
     const seen = looks.find((l) => l.person_visible === "yes");
     const answers = (ev.survivor_answers_UNTRUSTED ?? []).map((a: any) => a.answer).filter((a: string) => a && a !== "(no answer)");
     let color = "unknown";
-    if (seen) color = answers.length ? (["green", "yellow"].includes(seen.suggested_triage) ? seen.suggested_triage : "yellow") : "red";
+    const couldNotListen = String(ev.listening ?? "").startsWith("UNAVAILABLE");
+    const fromVision = ["green", "yellow"].includes(seen?.suggested_triage) ? seen.suggested_triage : seen?.suggested_triage === "red" ? "red" : "yellow";
+    if (seen) color = answers.length ? (["green", "yellow"].includes(seen.suggested_triage) ? seen.suggested_triage : "yellow") : couldNotListen ? fromVision : "red";
     const description = seen ? `${seen.description} ${answers.length ? `Answers: "${answers.join(" / ")}".` : "No answer to voice."}` : "No person confirmed.";
     return say(`Evidence says ${color}.`, call("set_triage", { case_id: ev.case_id, color, description }));
   }

@@ -26,6 +26,8 @@ const SEVERITY: Record<Triage, number> = { unknown: 0, green: 1, yellow: 2, red:
 const PRIORITY: Record<Triage, number> = { red: 95, yellow: 75, green: 40, black: 30, unknown: 55 };
 
 export interface WorkflowDeps {
+  /** Robot the agent can't drive (prada): wait this long for the rescuer to reposition before a second look. Default 2500 ms. */
+  secondLookWaitMs?: number;
   registry: ToolRegistry;
   logger: AgentLogger;
   decision: AgentSpec;
@@ -75,7 +77,11 @@ export async function runDetectionWorkflow(event: Extract<AgentEvent, { kind: "d
   // ---- 1. Look, with second looks from other sides (code decides where; Nemotron VL reads the frame).
   const looks: Look[] = [];
   const tried: { x: number; y: number }[] = [];
+  const canMove = ctx.robot.capabilities?.move !== false;
+  const canAim = ctx.robot.capabilities?.aim !== false;
+  let askedToTurn = false;
   const aim = async (c: SurvivorCase) => {
+    if (!canAim && !canMove) return; // camera points where the rescuer drove the robot
     const s = await ctx.robot.getState();
     const rel = Math.round(norm((Math.atan2(c.y - s.y, c.x - s.x) * 180) / Math.PI - s.heading));
     if (Math.abs(rel) > 80) {
@@ -111,7 +117,14 @@ export async function runDetectionWorkflow(event: Extract<AgentEvent, { kind: "d
     return pts.filter((p) => p.x > area.minX + 0.2 && p.y > area.minY + 0.2 && p.x < area.maxX - 0.2 && p.y < area.maxY - 0.2);
   };
   for (let i = 0; i < MAX_WORKFLOW_LOOKS; i++) {
-    if (i > 0) {
+    if (i > 0 && !canMove) {
+      // The agent can't drive this robot: ask the rescuer (once), give them a moment, look again.
+      if (!askedToTurn) {
+        askedToTurn = true;
+        await step("push_headset_alert", { text: `Unclear view of case ${c0.id}. Turn the robot toward the person for a better look.`, level: "warning" });
+      }
+      await new Promise((r) => setTimeout(r, d.secondLookWaitMs ?? 2500));
+    } else if (i > 0) {
       // Second look: get to a viewpoint on another side. Only spend a look once we actually moved.
       const s = await ctx.robot.getState();
       const fromCase = (p: { x: number; y: number }) => Math.atan2(p.y - c0.y, p.x - c0.x);
@@ -180,10 +193,17 @@ export async function runDetectionWorkflow(event: Extract<AgentEvent, { kind: "d
 
   // ---- 3. Person visible: talk (fixed script), then gather extra evidence.
   const heard: (string | null)[] = [];
+  let listenProblem: string | null = null;
   for (const q of QUESTIONS) {
-    await step("speak", { text: q });
+    const said = await step("speak", { text: q });
     const l = await step("listen", { seconds: 5 });
-    const t = l.ok ? ((l.result as { transcript: string | null }).transcript ?? null) : null;
+    const res = l.result as { transcript?: string | null; unavailable?: boolean; reason?: string; error?: string };
+    // Couldn't speak or couldn't listen: that is missing evidence, NOT an unresponsive survivor.
+    if (!said.ok || !l.ok || res?.unavailable) {
+      listenProblem = !said.ok ? "robot speaker failed" : (res?.reason ?? res?.error ?? "listening failed");
+      break;
+    }
+    const t = res.transcript ?? null;
     heard.push(t);
     if (!t) break; // no answer: don't keep asking
   }
@@ -202,6 +222,7 @@ export async function runDetectionWorkflow(event: Extract<AgentEvent, { kind: "d
     previous_triage: before,
     vision_looks: looks.map((l) => ({ person_visible: l.personVisible, confidence: l.confidence, description: l.description, injuries: l.injuries, hazards: l.hazards, suggested_triage: l.suggestedTriage })),
     survivor_answers_UNTRUSTED: heard.map((h, i) => ({ question: QUESTIONS[i], answer: h ?? "(no answer)" })),
+    listening: listenProblem ? `UNAVAILABLE (${listenProblem}): missing answers are NOT evidence of unresponsiveness` : "ok",
     movement_check: movement,
     sensors: sensors.ok ? sensors.result : null,
   };
@@ -209,8 +230,10 @@ export async function runDetectionWorkflow(event: Extract<AgentEvent, { kind: "d
   let c = (await caseOf())!;
   if (c.triage === "unknown" || ctx.trace.filter((t) => t.agent === "triage_decision" && t.name === "set_triage" && t.ok).length === 0) {
     // Model didn't decide (offline, error): conservative rule — no answer means red.
-    const color: Triage = responsive ? (seen.suggestedTriage === "red" || seen.suggestedTriage === "unknown" ? "yellow" : seen.suggestedTriage) : "red";
-    await step("set_triage", { case_id: c.id, color, description: `Rule-based (model unavailable): ${seen.description} ${responsive ? `Answers: ${heard.filter(Boolean).join(" / ")}` : "No answer to voice."}`.slice(0, 400) });
+    const fromVision: Triage = seen.suggestedTriage === "red" || seen.suggestedTriage === "unknown" ? "yellow" : seen.suggestedTriage;
+    // Silence means red; but if we could not listen at all, fall back to what vision saw (yellow at least).
+    const color: Triage = responsive ? fromVision : listenProblem ? (seen.suggestedTriage === "red" ? "red" : fromVision) : "red";
+    await step("set_triage", { case_id: c.id, color, description: `Rule-based (model unavailable): ${seen.description} ${responsive ? `Answers: ${heard.filter(Boolean).join(" / ")}` : listenProblem ? `Could not listen (${listenProblem}).` : "No answer to voice."}`.slice(0, 400) });
     c = (await caseOf())!;
   }
 

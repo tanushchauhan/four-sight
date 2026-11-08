@@ -31,6 +31,8 @@ export interface FeedOptions {
   pingMs?: number;
   /** Utterances replayed to a new SSE client. Default 5. */
   replay?: number;
+  /** Extra routes (e.g. the agent's POST /api/detections). Return true if handled. Runs before the GET-only check. */
+  routes?: (req: IncomingMessage, res: ServerResponse, url: URL) => Promise<boolean>;
 }
 
 export interface OperatorFeed {
@@ -103,6 +105,7 @@ export async function startOperatorFeed(voice: OperatorVoice, o: FeedOptions = {
         res.writeHead(204, { ...CORS, "Access-Control-Max-Age": "600" });
         return res.end();
       }
+      if (o.routes && (await o.routes(req, res, url))) return;
       if (req.method !== "GET" && req.method !== "HEAD") return sendJson(res, 405, { error: "method not allowed" });
       if (p === "/api/operator/feed") return feed(req, res, url);
       if (p === "/api/operator/recent") {

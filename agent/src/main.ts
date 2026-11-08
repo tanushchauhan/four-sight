@@ -1,7 +1,9 @@
 import { createInterface } from "node:readline";
 import { MemoryState } from "./adapters/memory-state.js";
 import { loadConfig, loadEnvFile } from "./config.js";
+import { DetectionIntake } from "./agent/intake.js";
 import { startOperatorFeed } from "./operator/feed-server.js";
+import { OperatorVoice } from "./operator/voice.js";
 import { buildApp } from "./wiring.js";
 
 /**
@@ -48,10 +50,20 @@ rl.on("line", async (raw) => {
   }
 });
 
-if (app.voice) {
-  const feed = await startOperatorFeed(app.voice, { host: config.operatorFeedHost, port: config.operatorFeedPort });
-  logger.info(`Operator voice: open ${feed.url.replace("127.0.0.1", "localhost")}/operator on the rescuer's phone or laptop and tap "enable voice"`);
+// On the real robot the visor's YOLO detector starts each case through POST /api/detections.
+const intake =
+  config.robotMode === "prada" ? new DetectionIntake(app.state, (e) => runner.push(e), { token: config.agentToken, robotId: config.robotId }) : null;
+if (app.voice || intake) {
+  const feed = await startOperatorFeed(app.voice ?? new OperatorVoice(), { host: config.operatorFeedHost, port: config.operatorFeedPort, routes: intake?.routes });
+  const url = feed.url.replace("127.0.0.1", "localhost");
+  if (app.voice) logger.info(`Operator voice: open ${url}/operator on the rescuer's phone or laptop and tap "enable voice"`);
+  if (intake) {
+    intake.start();
+    logger.info(`Detections: the visor posts to ${url}/api/detections${config.agentToken ? "" : "  (set AGENT_TOKEN first!)"}${config.operatorFeedHost === "127.0.0.1" ? "  (set OPERATOR_FEED_HOST=0.0.0.0 so the phone can reach it)" : ""}`);
+  }
 }
 
-runner.startMission(process.argv.slice(2).join(" ") || undefined);
+// The agent can't drive prada, so there is no autonomous search mission: it waits for detections.
+if (config.robotMode === "prada") logger.info("prada mode: waiting for the visor to report a person (or type a voice command).");
+else runner.startMission(process.argv.slice(2).join(" ") || undefined);
 await runner.runForever(config.watchIntervalMs);

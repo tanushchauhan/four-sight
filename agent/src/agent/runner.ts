@@ -75,6 +75,8 @@ export class AgentRunner {
   }
 
   push(e: AgentEvent): void {
+    // A detection pushed from outside (the visor intake) must not be queued again by the watcher in tick().
+    if (e.kind === "detection") this.handledCases.add(e.caseId);
     this.queue.push(e);
   }
 

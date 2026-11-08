@@ -13,6 +13,12 @@ class Config:
     speech_voice: str = "~/.local/share/piper/en_US-lessac-medium.onnx"
     speech_device: str = "plughw:sndrpihifiberry"
     speech_cache: str = "~/.cache/prada-speech"
+    # Listening (POST /listen): microphone and offline speech to text.
+    speech_mic: str = "auto"  # "auto" picks the first capture card that is not the HAT
+    speech_stt_bin: str = "auto"  # whisper.cpp CLI; "auto" looks in ~/vendor/whisper.cpp then PATH
+    speech_stt_model: str = "~/.local/share/whisper/ggml-base.en.bin"
+    speech_vad_rms: int = 500  # int16 RMS a 30 ms frame needs to count as voice
+    speech_keep_audio: bool = False  # keep recorded WAVs in /tmp for debugging
     timeout: float = 0.5
     deadzone: float = 0.15
     min_speed: int = 20
@@ -23,7 +29,8 @@ class Config:
     def __post_init__(self):
         if not isinstance(self.host, str) or not self.host:
             raise ValueError("host must be a nonempty string")
-        for name in ("speech_voice", "speech_device", "speech_cache"):
+        for name in ("speech_voice", "speech_device", "speech_cache", "speech_mic", "speech_stt_bin",
+                     "speech_stt_model"):
             value = getattr(self, name)
             # These become subprocess arguments; a leading "-" would read as an option.
             if not isinstance(value, str) or not value or value.startswith("-"):
@@ -31,6 +38,10 @@ class Config:
         for name in ("port", "stream_port", "speech_port", "min_speed", "max_speed"):
             if type(getattr(self, name)) is not int:
                 raise ValueError(f"{name} must be an integer")
+        if type(self.speech_vad_rms) is not int or not 50 <= self.speech_vad_rms <= 20000:
+            raise ValueError("speech_vad_rms must be an integer from 50 to 20000")
+        if type(self.speech_keep_audio) is not bool:
+            raise ValueError("speech_keep_audio must be true or false")
         for name in ("timeout", "deadzone", "poll_interval", "dry_gait_seconds"):
             value = getattr(self, name)
             if type(value) not in (int, float) or not math.isfinite(value):

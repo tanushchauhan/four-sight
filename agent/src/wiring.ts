@@ -4,6 +4,7 @@ import { PiRobot } from "./adapters/pi-robot.js";
 import type { RobotAdapter } from "./adapters/robot.js";
 import { SimRobot, defaultWorld } from "./adapters/sim-robot.js";
 import { PiSpeaker, withSpeaker } from "./adapters/speaker.js";
+import { PradaRobot } from "./adapters/prada-robot.js";
 import { SpacetimeState } from "./adapters/spacetime-state.js";
 import type { StateStore } from "./adapters/state.js";
 import { AgentLogger } from "./agent/logger.js";
@@ -40,7 +41,9 @@ export function buildApp(config: Config, opts: { print?: (l: string) => void; lo
       : new MemoryState({ area: config.searchArea, autoConfirm: config.autoConfirm });
 
   const baseRobot: RobotAdapter =
-    config.robotMode === "pi"
+    config.robotMode === "prada"
+      ? new PradaRobot({ cameraUrl: config.cameraUrl, speechUrl: config.speakerUrl, token: config.robotControlToken, id: config.robotId })
+      : config.robotMode === "pi"
       ? new PiRobot(config.piWsUrl)
       : new SimRobot({
           id: config.robotId,
@@ -58,7 +61,8 @@ export function buildApp(config: Config, opts: { print?: (l: string) => void; lo
     };
   }
 
-  const robot = config.speakerMode === "pi" ? withSpeaker(baseRobot, new PiSpeaker(config.speakerUrl, config.robotControlToken)) : baseRobot;
+  // prada already speaks through its speech service; SPEAKER_MODE=pi adds the real speaker to the sim robot.
+  const robot = config.speakerMode === "pi" && config.robotMode !== "prada" ? withSpeaker(baseRobot, new PiSpeaker(config.speakerUrl, config.robotControlToken)) : baseRobot;
 
   const notifier: Notifier =
     config.notifyMode === "twilio"
@@ -99,7 +103,7 @@ export function buildApp(config: Config, opts: { print?: (l: string) => void; lo
         );
 
   const workflow =
-    config.detectionMode === "workflow" ? { registry: base, logger, decision: buildTriageDecision(base, modelFor(config.triageModel)), memo: newMemo() } : undefined;
+    config.detectionMode === "workflow" ? { registry: base, logger, decision: buildTriageDecision(base, modelFor(config.triageModel)), memo: newMemo(), secondLookWaitMs: config.secondLookWaitMs } : undefined;
 
   const runner = new AgentRunner({
     team,
