@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>[hidden]{display:none!important}body{margin:0}</style>
+<title>iPhone Build Architecture</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: same 16:9 recording frame as the headset timeline. Header with walkthrough steps, diagram on the left, explainer card on the right. */
+:root{
+  --bg:#f3f1ee; --surface:#ffffff; --ink:#1b1d24; --muted:#636775; --line:#d9d6d1; --grid:#e8e5e0;
+  --hw:#a8692c; --os:#2f6fd0; --app:#7b4fc9; --out:#0f8a7a; --heat:#c23b5a;
+  --focus:#1b1d24;
+  --f-display:"Big Shoulders Display","Arial Narrow",Impact,sans-serif;
+  --f-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#12141a; --surface:#1b1e26; --ink:#eceae6; --muted:#9a9eab; --line:#2e323d; --grid:#232731;
+  --hw:#e0a060; --os:#6ea3f5; --app:#ad8cf0; --out:#3fc4b0; --heat:#f07a93; --focus:#eceae6; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#12141a; --surface:#1b1e26; --ink:#eceae6; --muted:#9a9eab; --line:#2e323d; --grid:#232731;
+  --hw:#e0a060; --os:#6ea3f5; --app:#ad8cf0; --out:#3fc4b0; --heat:#f07a93; --focus:#eceae6; color-scheme:dark}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);line-height:1.4;display:grid;place-items:center;overflow:hidden}
+.frame{container-type:size;width:min(100vw,calc(100dvh*16/9));height:min(100dvh,calc(100vw*9/16));
+  padding-block:2.2cqh;padding-left:max(2cqw,env(safe-area-inset-left,0px));padding-right:max(2cqw,env(safe-area-inset-right,0px));
+  display:grid;grid-template-columns:minmax(0,1fr) 27cqw;grid-template-rows:auto auto minmax(0,1fr);gap:1.6cqh 1.6cqw}
+header{grid-column:1/-1;display:flex;align-items:flex-end;justify-content:space-between;gap:2cqw}
+h1{font-family:var(--f-display);font-weight:800;font-size:3.3cqw;line-height:.9;margin:0;letter-spacing:.01em}
+h1 small{display:block;font:500 .95cqw var(--f-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:.6cqh}
+.steps{display:flex;gap:.5cqw;flex-shrink:0}
+.steps button{font:600 1.05cqw var(--f-body);color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:.6cqw;padding:.55cqw 1cqw;cursor:pointer;display:grid;gap:.15cqw;text-align:left;min-width:7.4cqw}
+.steps button span{font:500 .8cqw var(--f-mono);color:var(--muted);letter-spacing:.04em}
+.steps button[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.steps button[aria-pressed="true"] span{color:var(--bg);opacity:.75}
+.legend{grid-column:1;display:flex;flex-wrap:wrap;gap:.4cqw 1.2cqw;align-items:center;font:500 .85cqw var(--f-body);color:var(--muted)}
+.legend i{display:inline-block;width:.7cqw;height:.7cqw;border-radius:.15cqw;margin-right:.4cqw;vertical-align:middle}
+.hint{grid-column:2;grid-row:2;align-self:center;font:500 .85cqw var(--f-mono);color:var(--muted);letter-spacing:.05em;text-transform:uppercase}
+.stage{grid-column:1;grid-row:3;min-height:0;background:var(--surface);border:1px solid var(--line);border-radius:1cqw;overflow:hidden}
+svg{display:block;width:100%;height:100%}
+svg text{font-family:var(--f-body);fill:var(--ink)}
+.col-h{font-family:var(--f-display);font-weight:600;font-size:19px;letter-spacing:.08em;text-transform:uppercase;fill:var(--muted)}
+.node{cursor:pointer;transition:opacity .45s ease}
+.node rect.box{fill:var(--surface);stroke-width:2}
+.node rect.band{opacity:.12}
+.node .t{font-size:17.5px;font-weight:600}
+.node .s{font-family:var(--f-mono);font-size:12.5px;fill:var(--muted)}
+.node:hover rect.box{stroke-width:3}
+.node.sel rect.box{stroke-width:4}
+.node:focus-visible{outline:none}
+.node:focus-visible rect.box{stroke-width:4;stroke-dasharray:6 3}
+.edge{fill:none;stroke:var(--muted);stroke-width:1.6;opacity:.45;transition:opacity .45s ease,stroke-width .3s}
+.edge-lbl{font-family:var(--f-mono);font-size:12.5px;fill:var(--muted);transition:opacity .45s ease}
+.focus .node.dim{opacity:.16}
+.focus .edge.dim,.focus .edge-lbl.dim{opacity:.06}
+.focus .edge.hot{opacity:1;stroke-width:2.6;stroke-dasharray:7 7;animation:flow 1s linear infinite}
+.focus .edge-lbl.hot{opacity:1;fill:var(--ink)}
+@keyframes flow{to{stroke-dashoffset:-14}}
+@media (prefers-reduced-motion:reduce){.focus .edge.hot{animation:none}.node,.edge,.edge-lbl{transition:none}}
+.card{grid-column:2;grid-row:3;min-height:0;display:flex;flex-direction:column;gap:1.2cqh;background:var(--surface);border:1px solid var(--line);border-radius:1cqw;padding:1.4cqw;border-top:.45cqw solid var(--c,var(--ink));overflow:hidden}
+.eyebrow{font:500 .8cqw var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--c,var(--muted))}
+.card h2{font-family:var(--f-display);font-weight:800;font-size:2.4cqw;line-height:.95;margin:0}
+.card p{margin:0;font-size:1.05cqw}
+.stats{display:grid;gap:.9cqh;margin:0;padding:0;list-style:none}
+.stats li{display:grid;grid-template-columns:8.5cqw minmax(0,1fr);gap:.8cqw;align-items:baseline;border-top:1px solid var(--line);padding-top:.9cqh}
+.stats b{font:600 1.5cqw var(--f-display);letter-spacing:.01em;color:var(--c,var(--ink))}
+.stats span{font-size:.9cqw;color:var(--muted)}
+.tags{display:flex;flex-wrap:wrap;gap:.4cqw}
+.tag{font:500 .72cqw var(--f-mono);border:1px solid var(--line);border-radius:.35cqw;padding:.15cqw .5cqw;color:var(--muted)}
+.nav{margin-top:auto;display:flex;align-items:center;gap:.6cqw}
+.nav button{font:500 .85cqw var(--f-body);background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:.5cqw;padding:.45cqw .9cqw;cursor:pointer;white-space:nowrap}
+.count{font:.75cqw var(--f-mono);color:var(--muted);flex:1;text-align:center}
+button:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+@media (max-width:760px),(max-aspect-ratio:1/1){
+  body{display:block;overflow:auto}
+  .frame{container-type:inline-size;width:100%;height:auto;grid-template-columns:1fr;grid-template-rows:none;padding-block:16px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));gap:12px}
+  header{flex-direction:column;align-items:flex-start}
+  h1{font-size:9cqw} h1 small{font-size:11px}
+  .steps{flex-wrap:wrap}.steps button{font-size:14px;min-width:0;padding:8px 12px}.steps button span{font-size:11px}
+  .legend,.hint{grid-column:1;grid-row:auto;font-size:12px}.legend i{width:10px;height:10px}
+  .stage{grid-row:auto;overflow-x:auto}
+  svg{min-width:760px;height:auto}
+  .card{grid-column:1;grid-row:auto;padding:16px;gap:10px}
+  .card h2{font-size:30px}.eyebrow,.tag,.count{font-size:12px}.card p{font-size:15px}
+  .stats li{grid-template-columns:110px 1fr}.stats b{font-size:22px}.stats span{font-size:13px}
+  .nav button{font-size:13px;padding:8px 14px}
+}
+</style>
+
+</head>
+<body>
+<main class="frame">
+  <header>
+    <h1><small>Phone VR on an iPhone 15 Pro</small>Inside the iPhone build</h1>
+    <div class="steps" role="group" aria-label="Walkthrough">
+      <button data-s="0" aria-pressed="true">Overview<span>All parts</span></button>
+      <button data-s="1" aria-pressed="false">1 · Head<span>Where am I?</span></button>
+      <button data-s="2" aria-pressed="false">2 · Hands<span>What am I doing?</span></button>
+      <button data-s="3" aria-pressed="false">3 · Room<span>What's around me?</span></button>
+      <button data-s="4" aria-pressed="false">4 · Render<span>Two eyes</span></button>
+      <button data-s="5" aria-pressed="false">5 · Heat<span>Staying cool</span></button>
+    </div>
+  </header>
+  <div class="legend">
+    <span><i style="background:var(--hw)"></i>iPhone hardware</span>
+    <span><i style="background:var(--os)"></i>Frameworks and SDKs</span>
+    <span><i style="background:var(--app)"></i>The app</span>
+    <span><i style="background:var(--heat)"></i>Heat control</span>
+  </div>
+  <div class="hint" id="hint">Overview</div>
+  <div class="stage"><svg id="d" viewBox="0 60 1270 740" role="img" aria-label="Architecture diagram of the iPhone build"></svg></div>
+  <section class="card" id="card" aria-live="polite"></section>
+</main>
+
+<script>
+const COL={hw:"--hw",os:"--os",app:"--app",out:"--out",heat:"--heat"};
+const LAYER={hw:"iPhone hardware",os:"Frameworks and SDKs",app:"The app",out:"What you see",heat:"Heat control"};
+const COLS=[["Hardware",15],["Frameworks",270],["Perception",525],["Experience",780],["Output",1035]];
+const W=220,H=78;
+const N={
+ imu:{x:15,y:80,k:"hw",t:"Gyro + accelerometer",s:"motion sensors · 100 Hz",
+  p:"The phone's motion sensors report how it is rotating, 100 times a second. Fast and smooth, but on their own they slowly drift and know nothing about position.",
+  st:[["100 Hz","gyroscope updates"],["Rotation","only, no position"]]},
+ cam:{x:15,y:230,k:"hw",t:"Rear wide camera",s:"one camera for everything",
+  p:"A hole in the viewer leaves the rear camera clear. That one camera feeds room tracking, hand tracking and the passthrough view at the same time.",
+  st:[["1","camera for everything"],["Mono","passthrough: both eyes see the same image"]]},
+ lidar:{x:15,y:380,k:"hw",t:"LiDAR scanner",s:"depth sensor · Pro models",
+  p:"The LiDAR scanner measures real distances in the room. Here it's used to measure the size of your palm, so hand depth is calibrated instead of guessed.",
+  st:[["30 cm","test hold distance"],["26.5 → 30.5 cm","camera-only guess vs. with LiDAR"]]},
+ soc:{x:15,y:700,k:"hw",t:"A17 Pro chip",s:"CPU · GPU · Neural Engine",
+  p:"Every part of the pipeline shares one chip, in a sealed box against your face with no fan. This is where the frame budget and the heat both come from.",
+  st:[["3 nm","chip process"],["1 chip","shared by tracking, AI and rendering"]]},
+ arkit:{x:270,y:230,k:"os",t:"ARKit",s:"via Unity AR Foundation",
+  p:"ARKit matches features in the camera image frame to frame and combines them with motion data. That gives the phone's position in the room, plus planes, light and the camera image.",
+  st:[["~58 Hz","position updates"],["6DoF","lean, crouch, walk"]],tg:["Visual-inertial odometry","Planes","Light estimation"]},
+ infer:{x:270,y:530,k:"os",t:"Unity Inference Engine",s:"runs AI models on device",
+  p:"Unity's built-in runtime for neural networks. It runs Google's MediaPipe hand models directly inside the app, with no cloud and no internet connection.",
+  st:[["2","hand models"],["0","network calls"]]},
+ thermal:{x:270,y:700,k:"heat",t:"iOS thermal state",s:"nominal → fair → serious",
+  p:"iOS reports how hot the phone is getting. On top of slowing the chip itself, iOS dims the screen when it's hot, whatever the app asks for.",
+  st:[["~3 min","average to reach \"fair\" with hands, 6DoF and passthrough on"],["Dims","the screen when hot"]]},
+ fusion:{x:525,y:80,k:"app",t:"Head tracking",s:"fusion + prediction",
+  p:"Blends the fast gyroscope with ARKit's slower but accurate position. The gyro keeps turns smooth, ARKit corrects drift and adds position, and the result is predicted slightly ahead so turns don't lag.",
+  st:[["100 Hz","rotation in"],["~58 Hz","position corrections"],["Ported","from Google's open-source Cardboard code"]]},
+ world:{x:525,y:230,k:"app",t:"Room understanding",s:"planes · anchors · light",
+  p:"ARKit finds floors and tables, so virtual objects can be placed on real surfaces and stay put. It also estimates the room's brightness for lighting and shadows.",
+  st:[["Planes","floors and tables"],["Overall","brightness only, so shadows point straight down"]]},
+ passthru:{x:525,y:380,k:"app",t:"Passthrough",s:"camera image as backdrop",
+  p:"The camera image is drawn behind the virtual scene so you can see your room. With one camera it's flat: both eyes get the same picture.",
+  st:[["Mono","one camera, no depth between eyes"]]},
+ hands:{x:525,y:530,k:"app",t:"Hand tracking",s:"palm → 21 joints",
+  p:"Each camera frame is prepared for the AI models, a palm detector finds your hand, and a second model places 21 points on it. Jumps where the model mistakes your hand for its mirror image are filtered out.",
+  st:[["21","points per hand"],["27–31 ms","preparing each image on the main processor"],["Up to 180°","orientation flips filtered out"]],tg:["MediaPipe","BlazePalm","LiDAR-calibrated depth"]},
+ governor:{x:525,y:700,k:"heat",t:"Thermal governor",s:"trades speed for heat",
+  p:"Watches the thermal state and steps the frame rate down from 120 to 60 to 30 as the phone warms. Running hand tracking less often cools things a lot, but makes hands feel laggy.",
+  st:[["120 → 60 → 30","fps steps"],["10 Hz","hand tracking: cooler but laggy"]]},
+ interact:{x:780,y:530,k:"app",t:"Look and pinch",s:"XR Hands + Interaction",
+  p:"Your head aims and a pinch clicks, like Vision Pro. A whole-hand grab picks things up and throws them. Turning your palm toward you opens the settings and the app library.",
+  st:[["Pinch","to click"],["Palm up","opens the menu"]]},
+ demos:{x:780,y:230,k:"app",t:"Demos and menus",s:"5 demos + palm menu",
+  p:"Five small demos in one app, opened from a library that floats in front of you. Text is drawn about 1.6 times larger than headset guidelines so it stays readable through the lenses.",
+  st:[["5","demos"],["1.6×","larger text than headset guidelines"]]},
+ lens:{x:780,y:700,k:"os",t:"Viewer lens profile",s:"from the viewer’s QR code",
+  p:"Every viewer has different lenses. Scanning its QR code loads the exact lens settings, so the image can be pre-warped to match.",
+  st:[["QR","code on the viewer"]]},
+ render:{x:1035,y:380,k:"app",t:"Stereo renderer",s:"Cardboard SDK lens math",
+  p:"The app draws the two eyes itself: the scene is drawn twice, once per eye, and each image is pre-warped so the magnifying lenses straighten it back out. The lens math is ported from Google's open-source Cardboard SDK rather than used as a plugin, because Unity only runs one XR system at a time and ARKit needs that slot.",
+  st:[["~120 fps","no hand in view"],["52–103 fps","with a hand in view"]]},
+ screen:{x:1035,y:530,k:"hw",t:"120 Hz screen",s:"→ lenses → your eyes",
+  p:"The phone screen sits a few centimetres from your eyes behind magnifying lenses. It's held at 90% brightness because the lenses dim the picture.",
+  st:[["120 Hz","ProMotion display"],["90%","brightness while in the viewer"],["~½","the sharpness of a modern headset"]]}
+};
+const E=[
+ ["imu","fusion","rotation · 100 Hz"],["cam","arkit",""],["lidar","arkit",""],["arkit","fusion","position"],
+ ["arkit","world",""],["arkit","passthru","camera image"],["arkit","hands",""],["soc","infer",""],["infer","hands",""],
+ ["hands","interact",""],["fusion","demos","head pose"],["world","demos",""],["interact","demos","pinch / grab"],
+ ["demos","render",""],["passthru","render","background"],["lens","render",""],["render","screen",""],
+ ["soc","thermal",""],["thermal","governor",""],["governor","render","fps cap",655],["governor","hands","rate"]
+];
+const STEPS=[
+ {t:"Overview",nodes:null,c:"--ink",e:"Five layers",
+  p:"Everything runs on the phone. iPhone hardware feeds Apple's ARKit and Unity's AI runtime, the app turns that into head, hand and room tracking, and the app's own stereo renderer draws it for each eye, with lens math from the Cardboard SDK. A thermal governor watches the heat the whole time.",
+  st:[]},
+ {t:"Where am I looking?",nodes:["imu","cam","arkit","fusion","lidar"],c:"--app",e:"Step 1 · Head tracking",
+  p:"The gyroscope gives smooth rotation 100 times a second but drifts. ARKit uses the camera to work out where the phone actually is in the room. The app blends the two, then predicts a little ahead so turns don't lag. That's what lets you lean in and walk around, which old Cardboard couldn't do.",
+  st:[["100 Hz","gyro rotation"],["~58 Hz","ARKit position"],["6DoF","rotation + position"]]},
+ {t:"Where are my hands?",nodes:["cam","lidar","arkit","soc","infer","hands","interact"],c:"--app",e:"Step 2 · Hand tracking",
+  p:"Each camera frame is handed to two small AI models running on the phone: one finds your palm, the other places 21 points on your hand. LiDAR measures your palm's real size so depth isn't just a guess. Then look and pinch turns those points into clicks and grabs.",
+  st:[["21","points per hand"],["26.5 → 30.5 cm","depth error fixed by LiDAR"],["52–103 fps","frame rate with a hand in view"]]},
+ {t:"What's around me?",nodes:["cam","arkit","world","passthru","demos"],c:"--app",e:"Step 3 · The room",
+  p:"The same camera lets ARKit find your floor and tables, anchor objects to them, and estimate the light. The camera image itself becomes the passthrough background, so you can see your room with virtual objects sitting in it.",
+  st:[["Planes","floors and tables"],["Anchors","objects stay put"],["Mono","passthrough from one camera"]]},
+ {t:"Two eyes, one screen",nodes:["fusion","demos","passthru","lens","render","screen","interact","world"],c:"--os",e:"Step 4 · Rendering",
+  p:"The scene is drawn twice, once for each eye, using the head pose. Each image is pre-warped using the viewer's lens profile so the lenses straighten it out again. The app does this itself, with lens math ported from Google's open-source Cardboard SDK, because Unity only allows one XR system at a time and ARKit needs it.",
+  st:[["~120 fps","matches the 120 Hz screen"],["2","images per frame"],["QR","lens profile per viewer"]]},
+ {t:"Staying cool",nodes:["soc","thermal","governor","render","hands"],c:"--heat",e:"Step 5 · Heat",
+  p:"Camera, AR tracking, two AI models and stereo rendering all run on one chip, in a sealed box, with no fan. With hand tracking, 6DoF and passthrough all running, iOS reports the phone as warm after about three minutes on average. The governor steps the frame rate down and iOS dims the screen. It's the biggest limit on phone VR today.",
+  st:[["~3 min","average to thermal state \"fair\""],["120 → 60 → 30","frame rate steps"],["10 Hz","cooler hand tracking, but laggy"]]}
+];
+const svg=document.getElementById("d"), NS="http://www.w3.org/2000/svg";
+const el=(t,a={},p)=>{const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);if(p)p.appendChild(e);return e};
+const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+let step=0, selNode=null;
+
+function port(a,b){
+  const A=N[a],B=N[b];
+  if(B.x>A.x) return {x1:A.x+W,y1:A.y+H/2,x2:B.x,y2:B.y+H/2,h:true};
+  if(B.x<A.x) return {x1:A.x,y1:A.y+H/2,x2:B.x+W,y2:B.y+H/2,h:true,back:true};
+  return B.y>A.y?{x1:A.x+W/2,y1:A.y+H,x2:B.x+W/2,y2:B.y,h:false}:{x1:A.x+W/2,y1:A.y,x2:B.x+W/2,y2:B.y+H,h:false};
+}
+function draw(){
+  svg.innerHTML="";
+  const defs=el("defs",{},svg);
+  const mk=el("marker",{id:"ar",viewBox:"0 0 10 10",refX:9,refY:5,markerWidth:7,markerHeight:7,orient:"auto-start-reverse"},defs);
+  el("path",{d:"M0 0 L10 5 L0 10 z",fill:css("--muted")},mk);
+  const g=el("g",{},svg);
+  const st=STEPS[step], on=st.nodes?new Set(st.nodes):null;
+  svg.classList.toggle("focus",!!on);
+  E.forEach(([a,b,l,via])=>{
+    const p=port(a,b), hot=on&&on.has(a)&&on.has(b);
+    let d;
+    if(via){ d=`M${p.x1} ${p.y1} C${p.x1+18} ${p.y1},${p.x1+10} ${via},${p.x1+30} ${via} L${p.x2-40} ${via} C${p.x2-16} ${via},${p.x2-24} ${p.y2},${p.x2} ${p.y2}`; p.lx=(p.x1+p.x2)/2+40; p.ly=via-8; }
+    else if(p.h){const mx=p.back?Math.max(p.x1,p.x2)+40:(p.x1+p.x2)/2; d=p.back?`M${p.x1} ${p.y1} C${p.x1-40} ${p.y1},${p.x2+40} ${p.y2},${p.x2} ${p.y2}`:`M${p.x1} ${p.y1} C${mx} ${p.y1},${mx} ${p.y2},${p.x2} ${p.y2}`;}
+    else d=`M${p.x1} ${p.y1} L${p.x2} ${p.y2}`;
+    el("path",{class:"edge"+(on?(hot?" hot":" dim"):""),d,"marker-end":"url(#ar)",stroke:hot?css(COL[N[b].k]):css("--muted")},g);
+    if(l){const lx=p.lx??(p.h?(p.y1===p.y2?p.x1+(p.x2-p.x1)*0.3:(p.x1+p.x2)/2):p.x1+8), ly=p.ly??(p.h?(p.y1+p.y2)/2-6:p.y1+(p.y2-p.y1)*0.3+4);
+      const t=el("text",{class:"edge-lbl"+(on?(hot?" hot":" dim"):""),x:lx,y:ly,"text-anchor":(p.h||p.lx)?"middle":"start",stroke:css("--surface"),"stroke-width":5,"paint-order":"stroke","stroke-linejoin":"round"},g);t.textContent=l;}
+  });
+  Object.entries(N).forEach(([id,n])=>{
+    const c=css(COL[n.k]);
+    const ng=el("g",{class:"node"+(on&&!on.has(id)?" dim":"")+(selNode===id?" sel":""),tabindex:0,role:"button","aria-label":n.t},svg);
+    el("rect",{class:"band",x:n.x,y:n.y,width:W,height:H,rx:10,fill:c},ng);
+    el("rect",{class:"box",x:n.x,y:n.y,width:W,height:H,rx:10,stroke:c,"fill-opacity":.0},ng);
+    el("rect",{x:n.x,y:n.y+10,width:5,height:H-20,rx:2,fill:c},ng);
+    const t=el("text",{class:"t",x:n.x+18,y:n.y+33},ng);t.textContent=n.t;
+    const s=el("text",{class:"s",x:n.x+18,y:n.y+57},ng);s.textContent=n.s;
+    const pick=()=>{selNode=id;draw();cardNode(id);};
+    ng.addEventListener("click",pick);
+    ng.addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();pick();}});
+  });
+}
+function statsHtml(st){if(!st.length)return "";return `<ul class="stats">${st.map(([b,s])=>`<li><b>${b}</b><span>${s}</span></li>`).join("")}</ul>`;}
+function navHtml(){return `<div class="nav"><button id="prev">← Back</button><span class="count">${step===0?"Overview":"Step "+step+" of 5"}</span><button id="next">Next →</button></div>`;}
+function bindNav(){document.getElementById("prev").onclick=()=>go(step-1);document.getElementById("next").onclick=()=>go(step+1);}
+function cardStep(){
+  const s=STEPS[step], c=document.getElementById("card");
+  c.style.setProperty("--c",`var(${s.c})`);
+  c.innerHTML=`<div><div class="eyebrow">${s.e}</div><h2>${s.t}</h2></div><p>${s.p}</p>${statsHtml(s.st)}${navHtml()}`;
+  bindNav();
+}
+function cardNode(id){
+  const n=N[id], c=document.getElementById("card");
+  c.style.setProperty("--c",`var(${COL[n.k]})`);
+  const tg=n.tg?`<div class="tags">${n.tg.map(x=>`<span class="tag">${x}</span>`).join("")}</div>`:"";
+  c.innerHTML=`<div><div class="eyebrow">${LAYER[n.k]}</div><h2>${n.t}</h2></div><p>${n.p}</p>${tg}${statsHtml(n.st)}${navHtml()}`;
+  bindNav();
+}
+function go(i){
+  step=(i+STEPS.length)%STEPS.length; selNode=null;
+  document.querySelectorAll(".steps button").forEach(b=>b.setAttribute("aria-pressed",+b.dataset.s===step));
+  document.getElementById("hint").textContent=step===0?"Overview · click any part":"Step "+step+" of 5 · "+STEPS[step].t;
+  draw(); cardStep();
+}
+document.querySelectorAll(".steps button").forEach(b=>b.onclick=()=>go(+b.dataset.s));
+document.addEventListener("keydown",e=>{if(e.target.closest&&e.target.closest(".node"))return; if(e.key==="ArrowRight")go(step+1); if(e.key==="ArrowLeft")go(step-1);});
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change",draw);
+new MutationObserver(draw).observe(document.documentElement,{attributes:true,attributeFilter:["data-theme"]});
+go(0);
+</script>
+
+</body>
+</html>

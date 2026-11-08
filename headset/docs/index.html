@@ -1,0 +1,621 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>[hidden]{display:none!important}</style></head><body>
+<title>Modern VR Headset Timeline</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a 16:9 recording frame that fills the window. Header across the top, chart on the left, headset card on the right. Type scales with the frame (cqw). */
+:root{
+  --bg:#f3f1ee; --surface:#ffffff; --ink:#1b1d24; --muted:#636775; --line:#d9d6d1; --grid:#e8e5e0;
+  --phone:#a8692c; --pc:#2f6fd0; --standalone:#7b4fc9; --glasses:#0f8a7a; --console:#c23b5a; --ar:#5f8a1f; --gap:#a8692c22;
+  --focus:#1b1d24;
+  --f-display:"Big Shoulders Display","Arial Narrow",Impact,sans-serif;
+  --f-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#12141a; --surface:#1b1e26; --ink:#eceae6; --muted:#9a9eab; --line:#2e323d; --grid:#232731;
+  --phone:#e0a060; --pc:#6ea3f5; --standalone:#ad8cf0; --glasses:#3fc4b0; --console:#f07a93; --ar:#a6d063; --gap:#e0a06024; --focus:#eceae6; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#12141a; --surface:#1b1e26; --ink:#eceae6; --muted:#9a9eab; --line:#2e323d; --grid:#232731;
+  --phone:#e0a060; --pc:#6ea3f5; --standalone:#ad8cf0; --glasses:#3fc4b0; --console:#f07a93; --ar:#a6d063; --gap:#e0a06024; --focus:#eceae6; color-scheme:dark}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);line-height:1.4;display:grid;place-items:center;overflow:hidden}
+.frame{container-type:size;width:min(100vw,calc(100dvh*16/9));height:min(100dvh,calc(100vw*9/16));
+  padding-block:2.2cqh;padding-left:max(2cqw,env(safe-area-inset-left,0px));padding-right:max(2cqw,env(safe-area-inset-right,0px));
+  display:grid;grid-template-columns:minmax(0,1fr) 27cqw;grid-template-rows:auto auto minmax(0,1fr);gap:1.6cqh 1.6cqw}
+header{grid-column:1/-1;display:flex;align-items:flex-end;justify-content:space-between;gap:2cqw}
+h1{font-family:var(--f-display);font-weight:800;font-size:3.3cqw;line-height:.9;margin:0;letter-spacing:.01em}
+.periods{display:flex;gap:.5cqw;flex-shrink:0}
+.periods button{font:600 1.05cqw var(--f-body);color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:.6cqw;padding:.55cqw 1cqw;cursor:pointer;display:grid;gap:.15cqw;text-align:left;min-width:7.6cqw}
+.periods button span{font:500 .8cqw var(--f-mono);color:var(--muted);letter-spacing:.04em}
+.periods button[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.periods button[aria-pressed="true"] span{color:var(--bg);opacity:.75}
+.controls{grid-column:1;display:flex;flex-wrap:wrap;gap:.6cqw 1.2cqw;align-items:center}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:999px;padding:.2cqw;background:var(--surface)}
+.seg button{font:500 .85cqw var(--f-body);color:var(--muted);background:none;border:0;border-radius:999px;padding:.35cqw .9cqw;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+.legend{display:flex;flex-wrap:wrap;gap:.4cqw}
+.chip{display:inline-flex;align-items:center;gap:.45cqw;font:500 .85cqw var(--f-body);color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:.3cqw .8cqw;cursor:pointer}
+.chip[aria-pressed="false"]{opacity:.4}
+.chip i{width:.65cqw;height:.65cqw;border-radius:50%;display:block}
+.chip.reset{margin-left:auto}
+.period-title{grid-column:2;grid-row:2;align-self:center;font:500 .85cqw var(--f-mono);color:var(--muted);letter-spacing:.05em;text-transform:uppercase}
+.handle:focus-visible rect{stroke-width:2.5}
+.handle,.handle-pan{touch-action:none}
+button:focus-visible,.dot:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.stage{grid-column:1;grid-row:3;min-height:0;background:var(--surface);border:1px solid var(--line);border-radius:1cqw;overflow:hidden;position:relative}
+svg{display:block;width:100%;height:100%}
+svg text{font-family:var(--f-body);fill:var(--ink)}
+.axis text{font-family:var(--f-mono);font-size:12px;fill:var(--muted)}
+.lane-label{font-family:var(--f-display);font-weight:600;font-size:16px;letter-spacing:.06em;text-transform:uppercase}
+.dot{cursor:pointer}
+.dot .lbl{font-size:14px;font-weight:500}
+.dot .yr{font-family:var(--f-mono);font-size:11px;fill:var(--muted)}
+.dot.dim{opacity:.18}
+.dot.sel .mark{stroke:var(--ink);stroke-width:3}
+.fadein .dot text,.fadein .dot line{animation:fade .35s ease-out both}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+svg.morph :not(.dot)>:is(line,text,rect,path,circle){animation:fade .6s ease-out both}
+.ctx text{font-family:var(--f-body);fill:var(--ink);opacity:.85}
+.ctx{cursor:pointer}
+.ctx:hover text,.ctx.on text{opacity:1}
+.ctx:focus-visible{outline:2px solid var(--focus)}
+.tech-hero{aspect-ratio:4/3;width:100%;border-radius:.6cqw;background:color-mix(in srgb,var(--phone) 16%,var(--surface));display:grid;align-content:space-between;padding:1.4cqw}
+.tech-hero .k{font:600 1.2cqw var(--f-display);letter-spacing:.08em;text-transform:uppercase;color:var(--phone)}
+.tech-hero .y{font:800 7cqw/0.85 var(--f-display);color:var(--phone)}
+.label{font:500 .68cqw var(--f-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:.3cqh}
+@media (max-width:760px),(max-aspect-ratio:1/1){.tech-hero{padding:16px}.tech-hero .k{font-size:16px}.tech-hero .y{font-size:72px}.label{font-size:11px}}
+.detail{grid-column:2;grid-row:3;min-height:0;display:flex;flex-direction:column;gap:1.1cqh;background:var(--surface);border:1px solid var(--line);border-radius:1cqw;padding:1.2cqw;border-top:.45cqw solid var(--c,var(--ink));overflow:hidden}
+.photo{margin:0;display:grid;gap:.5cqh}
+.photo .frame-img{aspect-ratio:4/3;width:100%;border-radius:.6cqw;overflow:hidden;background:var(--bg);display:grid;place-items:center}
+.photo img{width:100%;height:100%;object-fit:cover;display:block}
+.photo .none{font-size:.85cqw;color:var(--muted);padding:1cqw;text-align:center}
+.photo figcaption{font-size:.62cqw;line-height:1.35;color:var(--muted)}
+.photo figcaption a{color:inherit}
+.eyebrow{font:500 .8cqw var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.detail h2{font-family:var(--f-display);font-weight:800;font-size:2.3cqw;line-height:.95;margin:0}
+.meta{display:flex;flex-wrap:wrap;gap:.4cqw}
+.tag{font:500 .72cqw var(--f-mono);border:1px solid var(--line);border-radius:.35cqw;padding:.15cqw .5cqw;color:var(--muted)}
+.tag.status{color:var(--ink)}
+.specs{display:grid;gap:.8cqh;margin:0}
+.specs div{display:grid;grid-template-columns:7cqw minmax(0,1fr);gap:.6cqw;align-items:baseline}
+.specs dt{font:500 .68cqw var(--f-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.specs dd{margin:0;font-weight:500;font-size:.95cqw}
+.price-big{font:600 1.9cqw var(--f-display);letter-spacing:.01em}
+.why{margin:0;font-size:.95cqw;color:var(--ink)}
+.src{font-size:.62cqw;color:var(--muted)}
+.src a{color:inherit}
+.nav{margin-top:auto;display:flex;align-items:center;gap:.6cqw}
+.nav button{font:500 .85cqw var(--f-body);background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:.5cqw;padding:.45cqw .9cqw;cursor:pointer;white-space:nowrap}
+.count{font:.75cqw var(--f-mono);color:var(--muted);flex:1;text-align:center}
+@media (max-width:760px), (max-aspect-ratio:1/1){
+  body{display:block;overflow:auto}
+  .frame{container-type:inline-size;width:100%;height:auto;grid-template-columns:1fr;grid-template-rows:none;padding-block:16px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));gap:12px}
+  header{flex-direction:column;align-items:flex-start}
+  h1{font-size:9cqw}
+  .periods{flex-wrap:wrap}.periods button{font-size:14px;min-width:0;padding:8px 12px}.periods button span{font-size:11px}
+  .seg button,.chip{font-size:13px;padding:6px 12px}.chip i{width:9px;height:9px}
+  .period-title{grid-column:1;grid-row:auto;font-size:12px}
+  .stage{grid-row:auto;overflow-x:auto}
+  svg{min-width:760px;height:auto}
+  .detail{grid-column:1;grid-row:auto;padding:16px;gap:10px}
+  .detail h2{font-size:30px}.eyebrow,.tag,.count{font-size:12px}.specs div{grid-template-columns:110px 1fr}.specs dt{font-size:11px}.specs dd,.why{font-size:15px}
+  .price-big{font-size:28px}.photo figcaption,.src{font-size:11px}.nav button{font-size:13px;padding:8px 14px}
+}
+@media (prefers-reduced-motion:no-preference){.dot circle.mark{transition:r .15s}.dot:hover circle.mark{r:9}}
+</style>
+
+<main class="frame">
+  <header>
+    <h1>From Cardboard to VR Glasses</h1>
+    <div class="periods" role="group" aria-label="Periods">
+      <button data-p="ground" aria-pressed="false">Groundwork<span>2007–2013</span></button>
+      <button data-p="rise" aria-pressed="false">The rise<span>2013–2017</span></button>
+      <button data-p="fall" aria-pressed="false">The fall<span>2018–2023</span></button>
+      <button data-p="now" aria-pressed="false">Today<span>2024–now</span></button>
+      <button data-p="all" aria-pressed="true">Everything<span>2013–2027</span></button>
+    </div>
+  </header>
+
+  <div class="controls">
+    <div class="seg" role="group" aria-label="View">
+      <button id="v-price" aria-pressed="true">By launch price</button>
+      <button id="v-lanes" aria-pressed="false">By form factor</button>
+    </div>
+    <div class="legend" id="legend" role="group" aria-label="Filter by form factor"></div>
+    <button id="reset" class="chip reset" hidden>Reset zoom</button>
+  </div>
+  <div class="period-title" id="ptitle">Every headset · 2013–2027</div>
+
+  <div class="stage"><svg id="chart" role="img" aria-label="Timeline of VR headsets"></svg></div>
+
+  <section class="detail" id="detail" aria-live="polite"></section>
+</main>
+
+<script>
+const LANES=[
+  {id:"phone",name:"Mobile VR",color:"--phone"},
+  {id:"console",name:"Console-tethered",color:"--console"},
+  {id:"pc",name:"PC-tethered",color:"--pc"},
+  {id:"standalone",name:"Standalone",color:"--standalone"},
+  {id:"ar",name:"See-through AR",color:"--ar"},
+  {id:"glasses",name:"Glasses + puck",color:"--glasses"}
+];
+const D=[
+ {n:"Microsoft HoloLens",lane:"ar",dev:true,d:"2016-03-30",shown:"Mar 2016",price:3000,priceTxt:"$3,000 Development Edition",status:"Developer edition",track:"6DoF inside-out + depth camera",input:"Gaze, air tap and voice",why:"A see-through holographic headset that mapped the room as you moved, with no PC or base stations, three years before Quest."},
+ {n:"Windows Mixed Reality",lane:"pc",d:"2017-10-17",shown:"Oct 2017",price:399,priceTxt:"$399 to $499 with controllers",status:"Shipped",track:"6DoF inside-out (2 cameras)",input:"Motion controllers",why:"Headsets from Acer, HP, Dell, Lenovo and Samsung on Microsoft's platform. The first consumer PC headsets to track the room with their own cameras.",src:[["Liliputing", "https://liliputing.com/2017/10/windows-mixed-reality-headsets-pre-order-ship-oct-17th.html"]]},
+ {n:"Lenovo Mirage Solo",lane:"standalone",d:"2018-05-05",shown:"May 2018",price:400,priceTxt:"$400",status:"Shipped",track:"6DoF inside-out (WorldSense)",input:"Daydream 3DoF controller",why:"The only standalone Daydream headset, and Google's first with room tracking. Daydream ended about a year later.",src:[["Road to VR", "https://www.roadtovr.com/lenovo-mirage-solo-release-reported-release-date-price/"]]},
+ {n:"Magic Leap One",lane:"ar",dev:true,d:"2018-08-08",shown:"Aug 2018",price:2295,priceTxt:"$2,295 Creator Edition",status:"Creator edition",track:"6DoF + eye tracking",input:"Control (6DoF controller), hand gestures",why:"Hyped for years, then sold as a developer-focused Creator Edition with a hip-worn Lightpack computer. An early take on glasses plus a puck."},
+ {n:"HTC Vive Cosmos",lane:"pc",d:"2019-10-03",shown:"Oct 2019",price:699,priceTxt:"$699",status:"Shipped",track:"6DoF inside-out (6 cameras)",input:"Cosmos controllers",why:"HTC's move to cameras on the headset, with a flip-up visor. Its tracking was widely criticised at launch."},
+ {n:"HoloLens 2",lane:"ar",d:"2019-11-07",shown:"Nov 2019",price:3500,priceTxt:"$3,500",status:"Shipped (business)",track:"6DoF + eye tracking",input:"Fully tracked hands, eyes and voice",why:"Added full hand tracking and eye tracking. Sold mostly to businesses, and Microsoft has since stopped making it."},
+ {n:"HP Reverb G2",lane:"pc",d:"2020-11-01",shown:"Nov 2020",price:599,priceTxt:"$599",status:"Shipped",track:"6DoF inside-out (4 cameras)",input:"Motion controllers",why:"Built with Valve and Microsoft. At 2160×2160 per eye it was the sharpest consumer headset of its time, and the last big Windows Mixed Reality headset."},
+ {n:"Pico 4",lane:"standalone",d:"2022-10-18",shown:"Oct 2022",price:429,priceTxt:"€429 (not sold in the US)",status:"Shipped (Europe and Asia)",track:"6DoF inside-out",input:"Controllers, hand tracking",why:"ByteDance's Quest 2 rival with pancake lenses. Never sold in the US, so it's plotted at its euro price."},
+ {n:"Meta Quest Pro",lane:"standalone",d:"2022-10-25",shown:"Oct 2022",price:1499.99,priceTxt:"$1,499.99",status:"Discontinued",track:"6DoF + eye and face tracking",input:"Touch Pro controllers, hand tracking",why:"Meta's first headset with colour passthrough and eye tracking, aimed at work. Cut to $999 within months and later discontinued."},
+ {n:"Bigscreen Beyond",lane:"pc",d:"2023-08-01",shown:"Q3 2023",price:999,priceTxt:"$999 headset only",status:"Shipped",track:"6DoF (base stations, sold separately)",input:"SteamVR controllers, sold separately",why:"127 g, the smallest and lightest PC headset, with a face cushion made from a scan of your face. Announced Feb 2023; first US units shipped that autumn.",src:[["Road to VR", "https://roadtovr.com/bigscreen-beyond-pc-vr-steam-release-price-specs/"]]},
+ {n:"Google Cardboard",lane:"phone",d:"2014-06-25",shown:"Jun 2014",price:15,priceTxt:"Free design; ~$15 kits",status:"Shipped",track:"3DoF (phone gyro)",input:"Magnet, later a cardboard button",why:"Handed out at Google I/O. Any phone plus folded cardboard became a VR viewer, and millions shipped."},
+ {n:"Samsung Gear VR",lane:"phone",fam:"gphone",d:"2015-11-20",shown:"Nov 2015",price:99,priceTxt:"$99",status:"Shipped",track:"3DoF (built-in IMU)",input:"Side touchpad",why:"Samsung and Oculus built a better phone viewer with its own sensors and the Oculus store. The consumer model followed the 2014 Innovator Edition."},
+ {n:"Rift DK1",lane:"pc",fam:"rift",dev:true,d:"2013-03-29",shown:"Mar 2013",price:300,priceTxt:"$300",status:"Developer kit",track:"3DoF (built-in IMU)",input:"Keyboard, mouse or gamepad",why:"The Kickstarter headset, funded in 2012. One 1280×800 screen split between both eyes, and the start of modern VR."},
+ {n:"Rift DK2",lane:"pc",fam:"rift",dev:true,d:"2014-07-25",shown:"Jul 2014",price:350,priceTxt:"$350",status:"Developer kit",track:"6DoF (external IR camera)",input:"Keyboard, mouse or gamepad",why:"Added positional tracking and a low-persistence OLED screen. Facebook had bought Oculus a few months earlier."},
+ {n:"Oculus Rift",fam:"rift",lane:"pc",d:"2016-03-28",shown:"Mar 2016",price:599,priceTxt:"$599",status:"Shipped",track:"6DoF (external sensors)",input:"Xbox controller; Touch from Dec 2016",why:"The headset that restarted consumer VR, five years after its 2012 Kickstarter. Needed a gaming PC."},
+ {n:"HTC Vive",lane:"pc",d:"2016-04-05",shown:"Apr 2016",price:799,priceTxt:"$799",status:"Shipped",track:"6DoF (Lighthouse base stations)",input:"Two tracked controllers",why:"Made room-scale VR normal: walk around a space with both hands tracked."},
+ {n:"PlayStation VR",lane:"console",fam:"psvr",d:"2016-10-13",shown:"Oct 2016",price:399,priceTxt:"$399",status:"Shipped",track:"6DoF (PlayStation Camera, sold separately)",input:"DualShock 4 or Move controllers",why:"Plugged into a PS4 and became one of the best-selling headsets of its generation, at a fraction of a PC rig's cost."},
+ {n:"Daydream View",lane:"phone",d:"2016-11-10",shown:"Nov 2016",price:79,priceTxt:"$79",status:"Discontinued 2019",track:"3DoF",input:"Small 3DoF motion controller",why:"Google's fabric phone headset. Ended in October 2019, the same year Quest shipped."},
+ {n:"HTC Vive Pro",lane:"pc",d:"2018-04-05",shown:"Apr 2018",price:799,priceTxt:"$799 headset only",status:"Shipped",track:"6DoF (Lighthouse base stations)",input:"Vive controllers (sold separately at launch)",why:"A sharper Vive with 1440×1600 OLED per eye and built-in headphones. The $799 bought the headset alone; the full kit came later at $1,099."},
+ {n:"Oculus Go",lane:"phone",d:"2018-05-01",shown:"May 2018",price:199,priceTxt:"$199",status:"Shipped",track:"3DoF",input:"3DoF controller",why:"Took the phone out of phone VR. Same rotation-only experience, but no phone to lend out."},
+ {n:"Oculus Quest",lane:"standalone",fam:"quest",d:"2019-05-21",shown:"May 2019",price:399,priceTxt:"$399",status:"Shipped",track:"6DoF inside-out (4 cameras)",input:"Touch controllers; hand tracking from Dec 2019",why:"Room tracking with no PC and no base stations. This is the product that ended phone VR."},
+ {n:"Oculus Rift S",lane:"pc",fam:"rift",d:"2019-05-21",shown:"May 2019",price:399,priceTxt:"$399",status:"Shipped",track:"6DoF inside-out (5 cameras)",input:"Touch controllers",why:"Same day and price as Quest. Inside-out tracking replaced the external sensors, and it was the last Rift."},
+ {n:"Valve Index",lane:"pc",d:"2019-06-28",shown:"Jun 2019",price:999,priceTxt:"$999 full kit",status:"Shipped",track:"6DoF (Lighthouse)",input:"Index controllers with finger tracking",why:"The enthusiast PC headset: 120 to 144 Hz and controllers that sense each finger."},
+ {n:"Meta Quest 2",lane:"standalone",fam:"quest",d:"2020-10-13",shown:"Oct 2020",price:299,priceTxt:"$299",status:"Shipped",track:"6DoF inside-out",input:"Touch controllers, hand tracking",why:"Cheaper and sharper than Quest 1. It became the best-selling VR headset by a wide margin."},
+ {n:"Meta Quest 3",lane:"standalone",fam:"quest",d:"2023-10-10",shown:"Oct 2023",price:499,priceTxt:"$499",status:"Shipped",track:"6DoF inside-out + depth sensor",input:"Touch Plus controllers, hand tracking",why:"Color passthrough and pancake lenses brought mixed reality to the mainstream Quest."},
+ {n:"PlayStation VR2",lane:"console",fam:"psvr",d:"2023-02-22",shown:"Feb 2023",price:549.99,priceTxt:"$549.99",status:"Shipped",track:"6DoF inside-out + eye tracking",input:"Sense controllers",why:"One USB-C cable to a PS5, OLED screens, eye tracking and headset haptics. Priced above the PS5 itself."},
+ {n:"Apple Vision Pro",lane:"standalone",d:"2024-02-02",shown:"Feb 2024",price:3499,priceTxt:"$3,499",status:"Shipped",track:"6DoF + eye tracking",input:"Look and pinch, no controllers",why:"Set the look-and-pinch interface that later headsets and apps copied, at a four-figure price."},
+ {n:"Meta Quest 3S",lane:"standalone",fam:"quest",d:"2024-10-15",shown:"Oct 2024",price:299,priceTxt:"$299",status:"Shipped",track:"6DoF inside-out",input:"Touch Plus controllers, hand tracking",why:"Quest 3's chip and passthrough in a cheaper body with Fresnel lenses. The entry point for mixed reality."},
+ {n:"Samsung Galaxy XR",lane:"standalone",d:"2025-10-22",shown:"Oct 2025",price:1799,priceTxt:"$1,799",status:"Shipped",track:"6DoF + eye tracking",input:"Hands, eyes and voice",why:"The first Android XR headset. Snapdragon XR2+ Gen 2, 545 g.",src:[["Tom's Guide","https://www.tomsguide.com/computing/vr-ar/samsung-galaxy-xr-launches-for-usd1-700-less-than-apple-vision-pro-release-date-price-specs-and-more"]]},
+ {n:"Steam Frame",lane:"standalone",d:"2026-09-14",shown:"Sep 2026",price:1059,priceTxt:"$1,059 (256 GB) · $1,299 (1 TB)",status:"Shipping in waves",track:"6DoF inside-out + eye tracking",input:"Steam Frame controllers",why:"Valve's standalone SteamOS headset that also streams from a PC, using eye tracking to sharpen the stream where you look. Announced Nov 2025.",src:[["Dexerto","https://www.dexerto.com/gaming/valve-reveals-steam-frame-price-and-release-date-starting-at-1059-3408909/"],["VR.org","https://vr.org/steam-frame-release-date"],["Wikipedia","https://en.wikipedia.org/wiki/Steam_Frame"]]},
+ {n:"Meta VR Glasses",lane:"glasses",d:"2026-09-23",shown:"Announced Sep 2026",price:1299.99,priceTxt:"$1,299.99",status:"Ships spring 2027",future:true,track:"6DoF + eye tracking",input:"Gaze, pinch and thumb gestures",why:"About 100 g on your face, with compute and battery in a tethered puck. Color passthrough and an 88° field of view.",src:[["Road to VR","https://roadtovr.com/meta-vr-glasses-unveiled-price-release-date/"]]},
+ {n:"XREAL Aura",lane:"glasses",d:"2026-10-07",shown:"Priced Oct 2026",price:1279,priceTxt:"$1,279 (12 GB) · $1,499 (16 GB)",status:"First wave before holidays",future:true,track:"Android XR on a compute puck",input:"Android XR",why:"Optical see-through glasses running Android XR, first shown as Project Aura in 2025. Content sits on a clear lens instead of camera passthrough.",src:[["9to5Google","https://9to5google.com/2026/10/07/xreal-aura-with-android-xr-start-at-1279/"]]}
+];
+const PH={"Windows Mixed Reality": {"img": "photos/windows-mixed-reality.jpg?v=3", "page": "https://commons.wikimedia.org/wiki/File:HPのWIn_MR_HMD「HP_Windows_Mixed_Reality_Headset」.jpg", "by": "Kyu3a", "lic": "CC BY-SA 4.0"}, "Lenovo Mirage Solo": {"img": "photos/lenovo-mirage-solo.jpg?v=3", "page": "https://commons.wikimedia.org/wiki/File:ヨドバシカメラ名古屋松坂屋店に展示されてたLenovoの独立型VRゴーグル「Mirage_Solo」_-_2.jpg", "by": "Kyu3a", "lic": "CC BY-SA 4.0"}, "Magic Leap One": {"img": "photos/magic-leap-one.jpg?v=3", "page": "https://commons.wikimedia.org/wiki/File:Magic_Leap_One.jpg", "by": "Horaciotorrendell", "lic": "CC BY-SA 4.0"}, "HoloLens 2": {"img": "photos/hololens-2.jpg?v=3", "page": "https://commons.wikimedia.org/wiki/File:HoloLens_2.jpeg", "by": "Microsoft Sweden", "lic": "CC BY 2.0"}, "Microsoft HoloLens": {"img": "photos/microsoft-hololens.jpg?v=3", "page": "https://commons.wikimedia.org/wiki/File:ISS-46_Scott_Kelly_with_HoloLens_in_the_Destiny_lab.jpg", "by": "NASA", "lic": "Public domain"}, "HTC Vive Cosmos": {"img": "photos/htc-vive-cosmos.jpg?v=3", "page": "https://commons.wikimedia.org/wiki/File:HTC_Vive_Cosmos_-_1.jpg", "by": "KKPCW", "lic": "CC BY-SA 4.0"}, "Pico 4": {"img": "photos/pico-4.jpg?v=3", "page": "https://commons.wikimedia.org/wiki/File:Pico_4_-_1.jpg", "by": "KKPCW", "lic": "CC BY-SA 4.0"}, "HTC Vive Pro": {"img": "photos/htc-vive-pro.jpg?v=3", "page": "https://commons.wikimedia.org/wiki/File:HTC_Vive_Pro_-_1.jpg", "by": "KKPCW", "lic": "CC BY-SA 4.0"}, "Rift DK1": {"img": "photos/rift-dk1.jpg?v=3", "page": "https://commons.wikimedia.org/wiki/File:Oculus_Rift_-_Developer_Version_-_Front.jpg", "by": "Sebastian Stabinger", "lic": "CC BY 3.0"}, "Rift DK2": {"img": "photos/rift-dk2.jpg?v=3", "page": "https://commons.wikimedia.org/wiki/File:Oculus_Rift_development_kit_2.jpg", "by": "Ats Kurvet", "lic": "CC BY-SA 4.0"}, "Google Cardboard": {"img": "photos/google-cardboard.jpg?v=3", "page": "https://commons.wikimedia.org/wiki/File:Google-Cardboard.jpg", "by": "Evan-Amos", "lic": "Public domain"}, "Samsung Gear VR": {"img": "photos/samsung-gear-vr.jpg?v=3", "page": "https://commons.wikimedia.org/wiki/File:Samsung_Gear_VR.jpg", "by": "pestoverde (Flickr)", "lic": "CC BY 2.0"}, "Oculus Rift": {"img": "photos/oculus-rift.jpg?v=3", "page": "https://commons.wikimedia.org/wiki/File:Oculus-Rift-CV1-Headset-Front.jpg", "by": "Evan-Amos", "lic": "Public domain"}, "HTC Vive": {"img": "photos/htc-vive.jpg?v=3", "page": "https://commons.wikimedia.org/wiki/File:HTC_Vive_Virtual_Reality_Headset_and_Controllers.jpg", "by": "PB", "lic": "CC BY-SA 4.0"}, "PlayStation VR": {"img": "photos/playstation-vr.jpg?v=3", "page": "https://commons.wikimedia.org/wiki/File:Sony-PlayStation-4-PSVR-Headset-Mk1-FL.jpg", "by": "Evan-Amos", "lic": "Public domain"}, "Daydream View": {"img": "photos/daydream-view.jpg?v=3", "page": "https://commons.wikimedia.org/wiki/File:Google_Daydream_View_(VR).jpg", "by": "Shaded0", "lic": "CC BY-SA 4.0"}, "Oculus Go": {"img": "photos/oculus-go.jpg?v=3", "page": "https://commons.wikimedia.org/wiki/File:Oculus_Go_-_4.jpg", "by": "Syced", "lic": "CC0"}, "Oculus Quest": {"img": "photos/oculus-quest.jpg?v=3", "page": "https://commons.wikimedia.org/wiki/File:VR_Headset_Facebook_Oculus_Gamescom_2019,_Cologne_(48605657501).jpg", "by": "dronepicr", "lic": "CC BY 2.0"}, "Oculus Rift S": {"img": "photos/oculus-rift-s.jpg?v=3", "page": "https://commons.wikimedia.org/wiki/File:Oculus_Rift_S.jpg", "by": "Pipp345", "lic": "CC BY-SA 4.0"}, "Valve Index": {"img": "photos/valve-index.jpg?v=3", "page": "https://commons.wikimedia.org/wiki/File:Air_Force_officer_using_Valve_Index.jpg", "by": "Airman 1st Class Robyn Hunsinger, US Air Force", "lic": "Public domain"}, "Meta Quest 2": {"img": "photos/meta-quest-2.jpg?v=3", "page": "https://commons.wikimedia.org/wiki/File:Oculus_Quest_2_-_2.jpg", "by": "KKPCW", "lic": "CC BY-SA 4.0"}, "PlayStation VR2": {"img": "photos/playstation-vr2.jpg?v=3", "page": "https://commons.wikimedia.org/wiki/File:PlayStation_VR2.jpg", "by": "ArlindoPereira", "lic": "CC BY 4.0"}, "Meta Quest 3": {"img": "photos/meta-quest-3.jpg?v=3", "page": "https://commons.wikimedia.org/wiki/File:Meta_Quest_3_front_View.jpg", "by": "Roy.wonder.cohen", "lic": "CC BY-SA 4.0"}, "Apple Vision Pro": {"img": "photos/apple-vision-pro.jpg?v=3", "page": "https://commons.wikimedia.org/wiki/File:Apple_Vision_Pro_with_charger_(cropped).jpg", "by": "Miyako Fujimiya", "lic": "CC BY-SA 4.0"}, "Meta Quest 3S": {"img": "photos/meta-quest-3s.jpg?v=3", "page": "https://commons.wikimedia.org/wiki/File:Meta_Quest_3s_with_controllers.jpg", "by": "Loafhouse", "lic": "CC BY 4.0"}, "Samsung Galaxy XR": {"img": "photos/samsung-galaxy-xr.jpg?v=3", "page": "https://commons.wikimedia.org/wiki/File:Samsung-Mobile-XR-Project-Moohan-Android-XR-platform-Google_main1.jpg", "by": "SsSeanChoi", "lic": "CC BY-SA 4.0"}, "Steam Frame": {"img": "photos/steam-frame.jpg?v=3", "page": "https://commons.wikimedia.org/wiki/File:Steam_Frame_front_1.jpg", "by": "Davepape", "lic": "CC BY 4.0"}};
+const CTX=[
+  {d:"2007-06-29",t:"iPhone launches",k:"Supply chain",n:"The iPhone takes smartphones mass-market. Within a few years, hundreds of millions of phones a year need small, sharp screens, tiny motion sensors and low-power chips.",why:"That scale made the parts cheap. Early VR headsets were built from the phone and tablet supply chain, which is how a $300 dev kit became possible."},
+  {d:"2010-06-24",t:"Gyroscopes in phones",k:"Sensors",n:"The iPhone 4 is the first phone with a three-axis MEMS gyroscope, alongside a 326 ppi Retina display. Tiny motion sensors and dense screens become mass-produced parts.",why:"Head tracking needs a fast, cheap gyroscope. Phones turned them into a few-dollar commodity years before VR headsets needed them."},
+  {d:"2012-07-13",t:"7-inch tablet screens",k:"Display",n:"Tablets like the Nexus 7 make 7-inch, 1280×800 screens cheap and plentiful.",why:"The Rift DK1 is built around exactly this: a 7-inch, 1280×800 Innolux LCD split between both eyes, plus a six-axis InvenSense motion chip from the same family of sensors going into phones.",src:[["iFixit teardown", "https://www.ifixit.com/News/oculus-rift-teardown"]]},
+  {d:"2014-10-17",t:"QHD phone screens",k:"Display",n:"The Galaxy Note 4 ships with a 2560×1440 screen and becomes the first Gear VR phone. Split across two eyes, that's 1280×1440 each.",why:"Split across two eyes, phones finally had enough pixels for readable VR, though still around half the sharpness of today's headsets."},
+  {d:"2016-03-11",t:"Liquid-cooled phones",k:"Cooling",n:"Samsung's Galaxy S7 adds a heat pipe to spread heat away from the chip, one of the first mainstream phones with liquid cooling.",why:"VR keeps every part of a phone busy at once. Moving heat away from the chip lets it hold full speed for longer before it throttles."},
+  {d:"2016-10-20",t:"Daydream-ready phones",k:"Sensors",n:"The Pixel launches as the first phone built to Google's Daydream spec: a VR-grade, low-drift motion sensor and a low-persistence OLED screen. Phones had gyros since 2010, but they drifted too much for VR.",why:"Smooth, low-drift head rotation and a screen that doesn't smear when you turn became standard on qualifying phones, with no sensors needed in the headset."},
+  {d:"2017-09-19",t:"ARKit + Neural Engine",k:"Tracking + AI",n:"In the same week, iOS 11 ships ARKit (camera and motion tracking that knows where the phone is in the room) and the iPhone 8 ships the A11 Bionic, Apple's first phone chip with neural-network hardware.",why:"For the first time a phone knew where it was in a room, not just which way it faced, and had dedicated hardware for AI models. VR you can walk around in, with hand tracking, needs both."},
+  {d:"2017-11-17",t:"First 120 Hz phone",k:"Display",n:"The Razer Phone ships with a 120 Hz screen, the first phone display at headset-class refresh rates.",why:"Headsets run at 90 Hz or more to keep motion comfortable. A phone screen could finally match them.",src:[["GSMArena", "https://m.gsmarena.com/razer_phone_is_official_with_120hz_screen_8gb_of_ram_4000_mah_battery-news-28043.php"]]},
+  {d:"2018-02-23",t:"ARCore 1.0",k:"Tracking",n:"Google's equivalent of ARKit reaches 1.0 on Android.",why:"Room-scale tracking stopped being iPhone-only. Most mid-range and flagship Android phones could do it."},
+  {d:"2019-08-19",t:"MediaPipe Hands",k:"On-device AI",n:"Google open-sources on-device hand tracking in MediaPipe: a palm detector plus a model that places 21 points on a hand from one phone camera, in real time.",why:"Hand tracking no longer needed extra sensors or a headset's cameras. Any phone with a camera could run it.",src:[["Google Research", "https://research.google/blog/on-device-real-time-hand-tracking-with-mediapipe/"], ["Road to VR", "https://roadtovr.com/google-hand-tracking-mediapipe/"]]},
+  {d:"2019-11-06",t:"Cardboard open-sourced",k:"Software",n:"Google open-sources the Cardboard SDK and steps back from phone VR.",why:"Google's head-tracking and lens-correction code became free for anyone to build on, just as Google itself moved on."},
+  {d:"2020-10-23",t:"LiDAR on iPhone",k:"Sensors",n:"The iPhone 12 Pro ships with a LiDAR depth sensor, first seen on the iPad Pro in March 2020.",why:"A single camera can only estimate how far away a hand or surface is. A depth sensor measures it, which makes hand and room tracking far more accurate."},
+  {d:"2021-09-24",t:"120 Hz iPhone",k:"Display",n:"The iPhone 13 Pro brings 120 Hz ProMotion to iPhone. From here on it's standard on flagship phones.",why:"With both major platforms at 120 Hz, fast screens became the norm on flagship phones rather than a gaming-phone niche."},
+  {d:"2023-09-22",t:"A17 Pro",k:"Chips",n:"The iPhone 15 Pro ships the A17 Pro, the first widely available 3 nm chip. Its Neural Engine runs up to 35 trillion operations a second, and its GPU adds hardware ray tracing.",why:"Phone chips could now run camera tracking, AI models and stereo rendering at the same time, something phones from 2018 couldn't manage.",src:[["Tom's Hardware", "https://tomshardware.com/news/apple-a17-pro-3nm-iphone-15-pro"]]},
+  {d:"2024-08-22",t:"Pixel 9 Pro",k:"Chips + Cooling",n:"Google's Pixel 9 Pro ships with the Tensor G4 chip and Google's first vapor-chamber cooling, on the Pro models only.",why:"Vapor chambers spread heat across the whole phone, and heat is the main limit on long VR sessions. Google joined Samsung and others in using them.",src:[["9to5Google", "https://9to5google.com/2024/09/10/pixel-9-pro-vapor-chamber/"]]},
+  {d:"2024-10-17",t:"Unity 6 + Sentis",k:"Software",n:"Unity 6 ships with Sentis (now called Inference Engine), Unity's built-in runtime for neural networks on device.",why:"Developers could run AI models such as hand trackers inside a mainstream game engine, alongside the rendering, without custom native code.",src:[["Unity", "https://unity.com/blog/games/hugging-face-ai-models-and-more-sentis-updates"]]},
+  {d:"2025-09-19",t:"Vapor-chamber iPhone",k:"Cooling",n:"The iPhone 17 Pro is the first iPhone with a vapor chamber, almost ten years after Samsung's first cooled phones.",why:"Every major phone maker now builds in serious cooling, which matters for VR more than almost anything else a phone does.",src:[["Tom's Guide", "https://www.tomsguide.com/phones/iphones/apple-finally-gave-the-iphone-17-pro-a-vapor-chamber-why-this-upgrade-matters"]]}
+];
+const SHORT={"Windows Mixed Reality":"Windows MR","Lenovo Mirage Solo":"Mirage Solo","Samsung Galaxy XR":"Galaxy XR","HTC Vive Cosmos":"Vive Cosmos","Microsoft HoloLens":"HoloLens","Samsung Gear VR":"Gear VR","HTC Vive Pro":"Vive Pro","Apple Vision Pro":"Vision Pro","Google Cardboard":"Cardboard"};
+D.forEach((x,i)=>{x.t=new Date(x.d).getTime();x.i=i;x.s=SHORT[x.n]||x.n});
+D.sort((a,b)=>a.t-b.t);D.forEach((x,i)=>x.i=i);
+
+let selTech=null;
+let view="price", active=new Set(LANES.map(l=>l.id)), sel=D.findIndex(x=>x.n==="Oculus Quest");
+try{const v=localStorage.getItem("vrtl-view2"); if(v==="price"||v==="lanes") view=v;}catch(e){}
+const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const laneOf=id=>LANES.find(l=>l.id===id);
+const svg=document.getElementById("chart");
+const NS="http://www.w3.org/2000/svg";
+const el=(t,a={},p)=>{const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);if(p)p.appendChild(e);return e};
+let W=1120; const L=196;
+const MOBILE=matchMedia("(max-width:760px), (max-aspect-ratio:1/1)");
+function stageSize(){const r=svg.getBoundingClientRect();return {cw:r.width||1290,ch:r.height||840};}
+let R=24;
+const T0=new Date("2007-01-01").getTime(), T1=new Date("2027-09-01").getTime();
+const P0=0, P1=4000, YEAR=365.25*864e5, MINT=YEAR, MINP=100;
+let xr=[new Date("2013-01-01").getTime(),T1], yr=[P0,P1], focusK=null;
+const x=t=>L+(t-xr[0])/(xr[1]-xr[0])*(W-L-R);
+const inX=t=>t>=xr[0]&&t<=xr[1];
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const money=v=>"$"+Math.round(v).toLocaleString("en-US");
+function computeFit(range=xr){
+  const v=D.filter(d=>active.has(d.lane)&&d.t>=range[0]&&d.t<=range[1]).map(d=>d.price);
+  if(!v.length) return yTarget.slice();
+  let lo=Math.min(...v), hi=Math.max(...v);
+  const pad=Math.max((hi-lo)*0.08,40); lo-=pad; hi+=pad*1.6;
+  const st=niceStep(Math.max(hi-lo,MINP),7);
+  lo=Math.max(P0,Math.floor(lo/st)*st); hi=Math.min(P1,Math.ceil(hi/st)*st);
+  if(hi-lo<MINP) hi=Math.min(P1,lo+MINP);
+  return [lo,hi];
+}
+let yTarget=[P0,P1], tw=null;
+const reduceMotion=matchMedia("(prefers-reduced-motion: reduce)").matches;
+function tweenY(to){
+  yTarget=to.slice();
+  if(reduceMotion||view!=="price"){ yr=to.slice(); if(tw){cancelAnimationFrame(tw.raf);tw=null;} return; }
+  const from=yr.slice(), start=performance.now(), dur=320;
+  if(tw) cancelAnimationFrame(tw.raf);
+  tw={};
+  const ease=k=>1-Math.pow(1-k,3);
+  const tick=now=>{const k=Math.min(1,(now-start)/dur), e=ease(k);
+    yr=[from[0]+(to[0]-from[0])*e, from[1]+(to[1]-from[1])*e];
+    draw();
+    if(k<1) tw.raf=requestAnimationFrame(tick); else { yr=to.slice(); tw=null; draw(); }};
+  tw.raf=requestAnimationFrame(tick);
+}
+function fitY(){ tweenY(computeFit()); }
+const PERIODS={
+  ground:{name:"The groundwork",r:[new Date("2007-01-01").getTime(),new Date("2013-07-01").getTime()]},
+  rise:{name:"The rise of phone VR",r:[new Date("2013-01-01").getTime(),new Date("2018-01-01").getTime()]},
+  fall:{name:"Standalone takes over",r:[new Date("2018-01-01").getTime(),new Date("2024-01-01").getTime()]},
+  now:{name:"The four-figure era",r:[new Date("2024-01-01").getTime(),T1]},
+  all:{name:"Every headset",r:[new Date("2013-01-01").getTime(),T1]}
+};
+let animating=false, fadeNext=false, goingTo=null;
+const laneW={}; LANES.forEach(l=>laneW[l.id]=1);
+let techOn=true, techW=1;
+let laneTw=null;
+function animateLanes(){
+  const to={}; LANES.forEach(l=>to[l.id]=active.has(l.id)?1:0);
+  const tTo=techOn?1:0, tFrom=techW;
+  if(laneTw) cancelAnimationFrame(laneTw);
+  if(reduceMotion||view!=="lanes"){ Object.assign(laneW,to); techW=tTo; draw(); return; }
+  const from={...laneW}, start=performance.now(), dur=420;
+  const ease=k=>k<.5?4*k*k*k:1-Math.pow(-2*k+2,3)/2;
+  animating=true;
+  const tick=now=>{const k=Math.min(1,(now-start)/dur), e=ease(k);
+    for(const id in to) laneW[id]=from[id]+(to[id]-from[id])*e;
+    techW=tFrom+(tTo-tFrom)*e;
+    if(k<1){ draw(); laneTw=requestAnimationFrame(tick); }
+    else { Object.assign(laneW,to); techW=tTo; animating=false; fadeNext=true; laneTw=null; draw(); }};
+  laneTw=requestAnimationFrame(tick);
+}
+function tweenAll(xTo){
+  const yTo=computeFit(xTo); yTarget=yTo.slice();
+  if(tw){cancelAnimationFrame(tw.raf);tw=null;}
+  if(reduceMotion){ xr=xTo.slice(); yr=yTo.slice(); fadeNext=true; draw(); return; }
+  const fx=xr.slice(), fy=yr.slice(), start=performance.now(), dur=750;
+  const ease=k=>k<.5?4*k*k*k:1-Math.pow(-2*k+2,3)/2;
+  animating=true; tw={};
+  const tick=now=>{const k=Math.min(1,(now-start)/dur), e=ease(k);
+    xr=[fx[0]+(xTo[0]-fx[0])*e, fx[1]+(xTo[1]-fx[1])*e];
+    yr=[fy[0]+(yTo[0]-fy[0])*e, fy[1]+(yTo[1]-fy[1])*e];
+    if(k<1){ draw(); tw.raf=requestAnimationFrame(tick); }
+    else { xr=xTo.slice(); yr=yTo.slice(); animating=false; goingTo=null; fadeNext=true; tw=null; draw(); }};
+  tw.raf=requestAnimationFrame(tick);
+}
+document.querySelectorAll(".periods button").forEach(b=>b.onclick=()=>{focusK=null;goingTo=b.dataset.p;tweenAll(PERIODS[b.dataset.p].r);});
+function niceStep(span,target){const raw=span/target,mag=Math.pow(10,Math.floor(Math.log10(raw)));for(const m of [1,2,2.5,5,10]) if(m*mag>=raw) return m*mag;}
+const textW=(s,px)=>s.length*px*0.58;
+
+function legend(){
+  const g=document.getElementById("legend");g.innerHTML="";
+  LANES.forEach(l=>{const b=document.createElement("button");b.className="chip";b.setAttribute("aria-pressed",active.has(l.id));
+    b.innerHTML=`<i style="background:var(${l.color})"></i>${l.name}`;
+    b.onclick=()=>{active.has(l.id)&&active.size>1?active.delete(l.id):active.add(l.id);fitY();legend();animateLanes()};g.appendChild(b)});
+  if(view==="lanes"){
+    const t=document.createElement("button");t.className="chip tech-chip";t.setAttribute("aria-pressed",techOn);
+    t.innerHTML=`<i style="background:var(--phone);border-radius:1px;transform:rotate(45deg) scale(.85)"></i>Phone tech`;
+    t.onclick=()=>{techOn=!techOn;legend();animateLanes()};g.appendChild(t);
+  }
+}
+
+function axis(H,top,bottom){
+  const g=el("g",{class:"axis"},svg);
+  const span=(xr[1]-xr[0])/YEAR;
+  const months=span>6?12:span>2.5?6:3;
+  const d=new Date(xr[0]);let m=new Date(d.getFullYear(),Math.ceil(d.getMonth()/months)*months,1);
+  const MN=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  for(;m.getTime()<=xr[1];m=new Date(m.getFullYear(),m.getMonth()+months,1)){
+    const xx=x(m.getTime()), jan=m.getMonth()===0;
+    el("line",{x1:xx,x2:xx,y1:top,y2:H-bottom,stroke:css("--grid"),"stroke-width":jan?1.2:1,opacity:jan?1:.6},g);
+    if(xx<W-R-20){const t=el("text",{x:xx+4,y:H-bottom+16},g);t.textContent=jan?m.getFullYear():MN[m.getMonth()];}
+  }
+  const tn0=new Date("2026-10-19").getTime();
+  if(inX(tn0)){const now=x(tn0);
+  el("line",{x1:now,x2:now,y1:top,y2:H-bottom,stroke:css("--muted"),"stroke-dasharray":"2 3"},g);
+  const tn=el("text",{x:now-4,y:top+10,"text-anchor":"end"},g);tn.textContent="today";}
+}
+
+function handleEl(parent,k,attrs,vertical){
+  const g=el("g",{class:"handle","data-k":k,tabindex:0,role:"slider","aria-label":attrs.label,"aria-valuetext":attrs.value},parent);
+  g.style.cursor=vertical?"ns-resize":"ew-resize";
+  const {cx,cy}=attrs, w=vertical?24:12, h=vertical?12:24;
+  el("rect",{x:cx-w/2,y:cy-h/2,width:w,height:h,rx:4,fill:css("--surface"),stroke:css("--ink"),"stroke-width":1.5},g);
+  for(const o of [-2.5,2.5]) vertical
+    ? el("line",{x1:cx-5,x2:cx+5,y1:cy+o,y2:cy+o,stroke:css("--muted"),"stroke-width":1},g)
+    : el("line",{x1:cx+o,x2:cx+o,y1:cy-5,y2:cy+5,stroke:css("--muted"),"stroke-width":1},g);
+  return g;
+}
+function brushX(yy){
+  const g=el("g",{class:"brush"},svg), a=L, b=W-R;
+  const bx=t=>a+(t-T0)/(T1-T0)*(b-a);
+  el("rect",{x:a,y:yy-4,width:b-a,height:8,rx:4,fill:css("--grid")},g);
+  const s0=bx(xr[0]), s1=bx(xr[1]);
+  const m=el("rect",{x:s0,y:yy-4,width:s1-s0,height:8,rx:4,fill:css("--muted"),opacity:.55,"data-k":"xm",class:"handle-pan"},g); m.style.cursor="grab";
+  const lab=el("text",{x:a-10,y:yy+4,"text-anchor":"end","font-size":11,fill:css("--muted"),"font-family":"var(--f-mono)"},g); lab.textContent="years";
+  const fmt=t=>new Date(t).toLocaleDateString("en-US",{month:"short",year:"numeric"});
+  handleEl(g,"x0",{cx:s0,cy:yy,label:"Start date",value:fmt(xr[0])});
+  handleEl(g,"x1",{cx:s1,cy:yy,label:"End date",value:fmt(xr[1])});
+  g.dataset.a=a; g.dataset.b=b;
+  return g;
+}
+function brushY(xx,top,bot){
+  const g=el("g",{class:"brush"},svg);
+  const by=p=>bot-(p-P0)/(P1-P0)*(bot-top);
+  el("rect",{x:xx-4,y:top,width:8,height:bot-top,rx:4,fill:css("--grid")},g);
+  const s1=by(yr[1]), s0=by(yr[0]);
+  const m=el("rect",{x:xx-4,y:s1,width:8,height:s0-s1,rx:4,fill:css("--muted"),opacity:.55,"data-k":"ym",class:"handle-pan"},g); m.style.cursor="grab";
+  handleEl(g,"y1",{cx:xx,cy:s1,label:"Maximum price",value:money(yr[1])},true);
+  handleEl(g,"y0",{cx:xx,cy:s0,label:"Minimum price",value:money(yr[0])},true);
+  const lab=el("text",{x:xx,y:top-10,"text-anchor":"middle","font-size":11,fill:css("--muted"),"font-family":"var(--f-mono)"},g); lab.textContent="price";
+  return g;
+}
+let geo={};
+let PARENT=null;
+function dotNode(item,cx,cy,lab){
+  const lane=laneOf(item.lane), c=css(lane.color);
+  const g=el("g",{class:"dot"+(item.i===sel?" sel":"")+(active.has(item.lane)?"":" dim"),tabindex:active.has(item.lane)?0:-1,role:"button","data-n":item.n,"aria-label":`${item.n}, ${item.shown}, ${item.priceTxt}`},PARENT||svg);
+  const pr=item.priceTxt.split(" ")[0].replace(";","");
+  el("title",{},g).textContent=`${item.n} · ${item.shown} · ${item.priceTxt}`;
+  if(lab.lead&&!lab.inline&&!animating) el("line",{x1:cx,x2:lab.lx??cx,y1:cy+(lab.side<0?-8:8),y2:lab.side<0?lab.y+4:lab.y-14,stroke:c,"stroke-width":1,opacity:.6},g);
+  if(item.dev) el("rect",{class:"mark",x:cx-6.5,y:cy-6.5,width:13,height:13,rx:2,fill:c},g);
+  else el("circle",{class:"mark",cx,cy,r:7,fill:item.future?css("--surface"):c,stroke:c,"stroke-width":item.future?2.5:0},g);
+  if(!lab.none&&!animating){
+  if(lab.inline&&lab.lead){const ex=lab.anchor==="end"?lab.x+2:lab.anchor==="start"?lab.x-2:lab.x;el("line",{x1:cx,y1:cy,x2:ex,y2:lab.y-4,stroke:c,"stroke-width":1,opacity:.6},g);}
+  if(lab.inline){
+    const t=el("text",{class:"lbl",x:lab.x,y:lab.y,"text-anchor":lab.anchor},g);t.textContent=item.s+"  ";
+    const ts=el("tspan",{class:"yr"},t);ts.textContent=pr;
+  } else {
+    const ny=lab.side<0?lab.y-12:lab.y, py=lab.side<0?lab.y:lab.y+12;
+    const tx0=lab.lx??cx;
+    const t=el("text",{class:"lbl",x:tx0,y:ny,"text-anchor":"middle"},g);t.textContent=item.s;
+    const y2=el("text",{class:"yr",x:tx0,y:py,"text-anchor":"middle"},g);y2.textContent=pr;
+  }}
+  g.addEventListener("click",()=>{sel=item.i;selTech=null;draw();show()});
+  g.addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();sel=item.i;selTech=null;draw();show()}});
+  return g;
+}
+
+function drawLanes(){
+  R=24;
+  const techH=106*techW, top=26;
+  const avg=id=>{const v=D.filter(d=>d.lane===id).map(d=>d.price);return v.reduce((a,b)=>a+b,0)/v.length;};
+  const ORDER=[...LANES].sort((a,b)=>avg(b.id)-avg(a.id));
+  const VIS=ORDER.filter(l=>laneW[l.id]>0.001);
+  const sumW=VIS.reduce((a,l)=>a+laneW[l.id],0)||1;
+  let H;
+  if(MOBILE.matches){ W=1120; H=top+6*118+techH+64; }
+  else { const {cw,ch}=stageSize(); const need=top+techH+70+Math.max(sumW,1)*148; W=Math.max(640,Math.min(1500,need*cw/ch)); H=W*ch/cw; }
+  const space=H-top-techH-70; let yc=top;
+  svg.setAttribute("viewBox",`0 0 ${W} ${H}`);svg.innerHTML="";
+  axis(H,top-8,64);
+  brushX(H-18); geo={top,bot:H-64};
+  VIS.forEach((l,li)=>{
+    const wgt=laneW[l.id], h=space*wgt/sumW, cy=yc+h/2+6; yc+=h;
+    const P=el("g",{opacity:Math.min(1,wgt)},svg); PARENT=P;
+    el("line",{x1:L-6,x2:W-R,y1:cy,y2:cy,stroke:css(l.color),"stroke-width":2,opacity:.35},P);
+    const lt=el("text",{class:"lane-label",x:16,y:cy+5,fill:css(l.color)},P);lt.textContent=l.name;
+    if(l.id==="phone"){
+      const a=Math.max(L,x(new Date("2019-10-15").getTime())), b=Math.min(W-R,x(new Date("2026-08-01").getTime()));
+      if(b-a>40){
+      el("rect",{x:a,y:cy-20,width:b-a,height:40,rx:6,fill:css("--gap")},P);
+      const g=el("text",{x:(a+b)/2,y:cy+4,"text-anchor":"middle","font-size":12,fill:css("--muted"),"font-style":"italic"},P);g.textContent="Phone VR goes quiet";}
+      const cx=x(new Date("2026-10-19").getTime());
+      if(inX(new Date("2026-10-19").getTime())){
+      el("circle",{cx,cy,r:7,fill:"none",stroke:css(l.color),"stroke-width":2,"stroke-dasharray":"3 2"},P);
+      const t=el("text",{x:cx,y:cy-16,"text-anchor":"middle","font-size":12,"font-weight":600,fill:css(l.color)},P);t.textContent="CardboardXR";}
+    }
+    // greedy label tiers: alternate above/below, push to next tier on overlap
+    const items=D.filter(d=>d.lane===l.id&&inX(d.t)).sort((a,b)=>a.t-b.t);
+    const placed={"-1":[], "1":[]};
+    items.forEach((it,k)=>{
+      const cx=x(it.t), w=Math.max(textW(it.s,13),40)+10, lx=clamp(cx,L+w/2,W-R-w/2);
+      let side=k%2===0?-1:1, tier=0;
+      const last=li===VIS.length-1;
+      const fits=(s,tr)=>!(last&&s>0&&tr>0) && !placed[s].some(p=>p.tier===tr && Math.abs(p.cx-lx)<(p.w+w)/2);
+      let ok=false;
+      for(tier=0;tier<2&&!ok;tier++){ for(const s of [side,-side]){ if(fits(s,tier)){side=s;ok=true;break;} } if(ok)break; }
+      if(!ok){ dotNode(it,cx,cy,{none:true}); return; }
+      placed[side].push({cx:lx,w,tier});
+      const ly=side<0? cy-14-tier*30 : cy+22+tier*30;
+      dotNode(it,cx,cy,{side,y:ly,lx,lead:tier>0||Math.abs(lx-cx)>4});
+    });
+    PARENT=null;
+  });
+  // phone tech milestones: their own band under the lanes
+  if(techW<0.01) return;
+  const TG=el("g",{opacity:Math.min(1,techW)},svg);
+  const y0=top+space+6, my=y0+14;
+  el("line",{x1:L-6,x2:W-R,y1:my,y2:my,stroke:css("--muted"),"stroke-width":1,"stroke-dasharray":"2 4",opacity:.6},TG);
+  const tl=el("text",{class:"lane-label",x:16,y:my+5,fill:css("--muted")},TG);tl.textContent="Phone tech";
+  const tl2=el("text",{x:16,y:my+22,"font-size":12,fill:css("--muted"),"font-family":"var(--f-mono)"},TG);tl2.textContent="milestones";
+  const rows=[[],[],[],[],[]];
+  CTX.forEach(c=>{
+    const t=new Date(c.d).getTime(); if(!inX(t)) return;
+    const cx=x(t), w=textW(c.t,12.5)+12, lx=clamp(cx,L+w/2,W-R-w/2);
+    let r=rows.findIndex(row=>!row.some(o=>Math.abs(o-lx)<(w+o.w)/2)); 
+    if(r<0) return;
+    const pos=Object.assign(new Number(lx),{w}); rows[r].push(pos);
+    const ci=CTX.indexOf(c), on=ci===selTech;
+    const g=el("g",{class:"ctx"+(on?" on":""),tabindex:0,role:"button","aria-label":c.t},TG);
+    const ly0=my+22+r*16;
+    el("rect",{x:Math.min(cx-6,lx-w/2),y:my-10,width:Math.max(w,Math.abs(lx-cx)+w/2+6),height:ly0-my+16,fill:"transparent"},g);
+    el("path",{d:on?`M${cx} ${my-8} l8 8 l-8 8 l-8 -8 z`:`M${cx} ${my-5} l5 5 l-5 5 l-5 -5 z`,fill:css("--phone"),stroke:on?css("--ink"):"none","stroke-width":2},g);
+    const pick=()=>{selTech=ci;draw();show();};
+    g.addEventListener("click",pick);
+    g.addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();pick();}});
+    const ly=my+22+r*16;
+    if(r>0||Math.abs(lx-cx)>4) el("line",{x1:cx,x2:lx,y1:my+6,y2:ly-11,stroke:css("--muted"),"stroke-width":1,opacity:.45},g);
+    const tx=el("text",{x:lx,y:ly,"text-anchor":"middle","font-size":12,"font-weight":on?700:500},g);tx.textContent=c.t;
+  });
+}
+
+function drawPrice(){
+  R=78;
+  const top=62,bottom=64;
+  let H;
+  if(MOBILE.matches){ W=1120; H=760; }
+  else { const {cw,ch}=stageSize(); W=1000; H=W*ch/cw; }
+  const bot=H-bottom;
+  svg.setAttribute("viewBox",`0 0 ${W} ${H}`);svg.innerHTML="";
+  axis(H,top,bottom);
+  const y=p=>bot-(p-yr[0])/(yr[1]-yr[0])*(bot-top);
+  const g=el("g",{class:"axis"},svg);
+  const st=niceStep(yTarget[1]-yTarget[0],7);
+  for(let p=Math.ceil(yr[0]/st)*st;p<=yr[1]+1e-6;p+=st){const yy=y(p); if(yy<top-2) continue;
+    el("line",{x1:L,x2:W-R,y1:yy,y2:yy,stroke:css("--grid")},g);
+    const t=el("text",{x:L-8,y:yy+4,"text-anchor":"end"},g);t.textContent=money(p);}
+  brushX(H-18); brushY(W-R+44,top,bot); geo={top,bot};
+  const lt=el("text",{x:16,y:24,class:"lane-label",fill:css("--muted")},svg);lt.textContent="Launch price";
+  const lt2=el("text",{x:16,y:40,"font-size":11,fill:css("--muted"),"font-family":"var(--f-mono)"},svg);lt2.textContent="USD, every "+money(st);
+  const vis=D.filter(d=>active.has(d.lane)&&inX(d.t)&&d.price>=yr[0]&&d.price<=yr[1]);
+  const dots=[];
+  vis.forEach(it=>{let cx=x(it.t),cy=y(it.price);
+    while(dots.some(d=>Math.hypot(d.cx-cx,d.cy-cy)<12)) cx+=13;
+    dots.push({cx,cy})});
+  const boxes=[];
+  const over=(a,b)=>a.x1<b.x2&&a.x2>b.x1&&a.y1<b.y2&&a.y2>b.y1;
+  const order=vis.map((it,k)=>k);
+  order.forEach(k=>{const it=vis[k];
+    const {cx,cy}=dots[k]; const w=textW(it.s+"  "+it.priceTxt.split(" ")[0],12.5)+8;
+    const cands=[
+      {anchor:"start",x:cx+12,y:cy+4},{anchor:"end",x:cx-12,y:cy+4},
+      {anchor:"middle",x:cx,y:cy-14},{anchor:"middle",x:cx,y:cy+24},
+      {anchor:"end",x:cx-12,y:cy-16},{anchor:"end",x:cx-12,y:cy+24},
+      {anchor:"start",x:cx+12,y:cy-16},{anchor:"start",x:cx+12,y:cy+24},
+      ...[-32,40,-48,56,-64,72].flatMap(dy=>[{anchor:"end",x:cx-12,y:cy+dy},{anchor:"start",x:cx+12,y:cy+dy}])];
+    const box=c=>{const x1=c.anchor==="start"?c.x:c.anchor==="end"?c.x-w:c.x-w/2;return {x1,x2:x1+w,y1:c.y-12,y2:c.y+4}};
+    const bad=c=>{const b=box(c);return b.x2>W-R||b.x1<L||b.y1<top-6||b.y2>bot||boxes.some(o=>over(o,b))||dots.some((d,j)=>j!==k&&over(b,{x1:d.cx-8,x2:d.cx+8,y1:d.cy-8,y2:d.cy+8}))};
+    let ci=cands.findIndex(c=>!bad(c));
+    if(ci<0){ dotNode(it,cx,cy,{none:true}); return; }
+    const c=cands[ci];
+    boxes.push(box(c));
+    dotNode(it,cx,cy,{inline:true,anchor:c.anchor,x:c.x,y:c.y,lead:ci>=2});
+  });
+}
+
+function draw(){ (view==="lanes"?drawLanes:drawPrice)();
+  svg.classList.toggle("fadein",fadeNext); fadeNext=false;
+  const near=(a,b)=>Math.abs(a-b)<864e5;
+  let cur=animating&&goingTo?goingTo:null; if(!cur) for(const [k,v] of Object.entries(PERIODS)) if(near(xr[0],v.r[0])&&near(xr[1],v.r[1])) cur=k;
+  document.querySelectorAll(".periods button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.p===cur));
+  const fmt=t=>new Date(t).toLocaleDateString("en-US",{month:"short",year:"numeric"});
+  document.getElementById("ptitle").textContent= cur ? `${PERIODS[cur].name} · ${PERIODS[cur].r===PERIODS.now.r?"2024–now":new Date(PERIODS[cur].r[0]).getUTCFullYear()+"–"+(new Date(PERIODS[cur].r[1]-864e5).getUTCFullYear())}` : `Custom range · ${fmt(xr[0])} – ${fmt(xr[1])}`;
+  const auto=computeFit().join()===yTarget.join();
+  const z=(!cur)||(view==="price"&&!auto);
+  document.getElementById("reset").hidden=!z;
+  if(focusK){const h=svg.querySelector(`.handle[data-k="${focusK}"]`); if(h) h.focus({preventScroll:true});}
+}
+function svgPt(e){const pt=svg.createSVGPoint();pt.x=e.clientX;pt.y=e.clientY;return pt.matrixTransform(svg.getScreenCTM().inverse());}
+function setX(a,b){if(b-a<MINT){ if(a===xr[0]) b=a+MINT; else a=b-MINT; } xr=[clamp(a,T0,T1-MINT),clamp(b,T0+MINT,T1)];}
+function setY(a,b){if(tw){cancelAnimationFrame(tw.raf);tw=null;} if(b-a<MINP){ if(a===yr[0]) b=a+MINP; else a=b-MINP; } yr=[clamp(a,P0,P1-MINP),clamp(b,P0+MINP,P1)]; yTarget=yr.slice();}
+let drag=null;
+svg.addEventListener("pointerdown",e=>{
+  const h=e.target.closest("[data-k]"); if(!h) return;
+  e.preventDefault(); const k=h.dataset.k; focusK=k.endsWith("m")?null:k;
+  const pt=svgPt(e); drag={k,pt,xr:[...xr],yr:[...yr]};
+  if(k.endsWith("m")) h.style.cursor="grabbing";
+});
+window.addEventListener("pointermove",e=>{
+  if(!drag) return; const pt=svgPt(e), b=document.querySelector(".brush");
+  const a=L, bb=W-R, tPer=(T1-T0)/(bb-a);
+  const dt=(pt.x-drag.pt.x)*tPer, dp=-(pt.y-drag.pt.y)*(P1-P0)/(geo.bot-geo.top);
+  const [x0,x1]=drag.xr,[y0,y1]=drag.yr;
+  if(drag.k==="x0") setX(Math.min(x0+dt,x1-MINT),x1);
+  if(drag.k==="x1") setX(x0,Math.max(x1+dt,x0+MINT));
+  if(drag.k==="xm"){const d=clamp(dt,T0-x0,T1-x1); xr=[x0+d,x1+d];}
+  if(drag.k[0]==="x") fitY();
+  if(drag.k==="y0") setY(Math.min(y0+dp,y1-MINP),y1);
+  if(drag.k==="y1") setY(y0,Math.max(y1+dp,y0+MINP));
+  if(drag.k==="ym"){const d=clamp(dp,P0-y0,P1-y1); yr=[y0+d,y1+d];}
+  draw();
+});
+window.addEventListener("pointerup",()=>{drag=null});
+svg.addEventListener("keydown",e=>{
+  const h=e.target.closest(".handle"); if(!h) return;
+  const k=h.dataset.k, dir={ArrowLeft:-1,ArrowDown:-1,ArrowRight:1,ArrowUp:1}[e.key]; if(!dir) return;
+  e.preventDefault(); e.stopPropagation(); focusK=k;
+  const dt=dir*YEAR/4, dp=dir*50;
+  if(k==="x0") setX(Math.min(xr[0]+dt,xr[1]-MINT),xr[1]);
+  if(k==="x1") setX(xr[0],Math.max(xr[1]+dt,xr[0]+MINT));
+  if(k==="y0") setY(Math.min(yr[0]+dp,yr[1]-MINP),yr[1]);
+  if(k==="y1") setY(yr[0],Math.max(yr[1]+dp,yr[0]+MINP));
+  if(k[0]==="x") fitY();
+  draw();
+});
+document.getElementById("reset").onclick=()=>{focusK=null;goingTo="all";tweenAll(PERIODS.all.r);};
+
+function showTech(){
+  const c=CTX[selTech], box=document.getElementById("detail"), dt=new Date(c.d);
+  box.style.setProperty("--c","var(--phone)");
+  const src=c.src?`<div class="src">Sources: ${c.src.map(s=>`<a href="${s[1]}" target="_blank" rel="noopener">${s[0]}</a>`).join(" · ")}</div>`:"";
+  box.innerHTML=`<div class="tech-hero"><div class="k">${c.k}</div><div class="y">${dt.getUTCFullYear()}</div></div>
+    <div><div class="eyebrow">${dt.toLocaleDateString("en-US",{month:"short",year:"numeric",timeZone:"UTC"})}</div><h2>${c.t}</h2></div>
+    <div class="meta"><span class="tag" style="color:var(--phone);border-color:var(--phone)">Phone tech</span><span class="tag status">${c.k}</span></div>
+    <div><div class="label">What changed</div><p class="why">${c.n}</p></div>
+    <div><div class="label">Why it matters for phone VR</div><p class="why">${c.why}</p></div>${src}
+    <div class="nav"><button id="prev" aria-label="Previous milestone">← Earlier</button><span class="count">${selTech+1} / ${CTX.length}</span><button id="next" aria-label="Next milestone">Later →</button></div>`;
+  document.getElementById("prev").onclick=()=>step(-1);
+  document.getElementById("next").onclick=()=>step(1);
+}
+function show(){
+  if(selTech!==null) return showTech();
+  const it=D[sel], lane=laneOf(it.lane), box=document.getElementById("detail");
+  box.style.setProperty("--c",`var(${lane.color})`);
+  const src=it.src?`<div class="src">Sources: ${it.src.map(s=>`<a href="${s[1]}" target="_blank" rel="noopener">${s[0]}</a>`).join(" · ")}</div>`:"";
+  const ph=PH[it.n];
+  const fig=ph?`<figure class="photo"><div class="frame-img"><img src="${ph.img}" alt="${it.n}" loading="lazy"></div><figcaption>Photo: ${ph.by} · <a href="${ph.page}" target="_blank" rel="noopener">${ph.lic}</a>, via Wikimedia Commons</figcaption></figure>`
+    :`<figure class="photo"><div class="frame-img"><div class="none">No freely licensed photo of this headset on Wikimedia Commons yet.</div></div></figure>`;
+  box.innerHTML=fig+`
+    <div><div class="eyebrow">${it.shown}</div><h2>${it.n}</h2></div>
+    <div class="meta"><span class="tag" style="color:var(${lane.color});border-color:var(${lane.color})">${lane.name}</span><span class="tag status">${it.status}</span></div>
+    <div class="price-big">${it.priceTxt}</div>
+    <dl class="specs"><div><dt>Tracking</dt><dd>${it.track}</dd></div><div><dt>Input</dt><dd>${it.input}</dd></div></dl>
+    <p class="why">${it.why}</p>${src}
+    <div class="nav"><button id="prev" aria-label="Previous headset">← Earlier</button><span class="count">${sel+1} / ${D.length}</span><button id="next" aria-label="Next headset">Later →</button></div>`;
+  document.getElementById("prev").onclick=()=>step(-1);
+  document.getElementById("next").onclick=()=>step(1);
+}
+function step(dir){
+  if(selTech!==null){ selTech=(selTech+dir+CTX.length)%CTX.length; draw(); show(); return; }
+  let i=sel;
+  for(let k=0;k<D.length;k++){i=(i+dir+D.length)%D.length;if(active.has(D[i].lane))break;}
+  sel=i;draw();show();
+}
+document.addEventListener("keydown",e=>{if(e.target.closest&&e.target.closest(".handle"))return;if(e.key==="ArrowRight")step(1);if(e.key==="ArrowLeft")step(-1)});
+function captureDots(){const m={};svg.querySelectorAll(".dot").forEach(g=>{const r=g.querySelector(".mark").getBoundingClientRect();m[g.dataset.n]={x:r.x+r.width/2,y:r.y+r.height/2};});return m;}
+let morphRaf=null;
+function setView(v,anim=true){
+  const old=(anim&&!reduceMotion&&v!==view)?captureDots():null;
+  view=v;legend();document.getElementById("v-lanes").setAttribute("aria-pressed",v==="lanes");document.getElementById("v-price").setAttribute("aria-pressed",v==="price");
+  try{localStorage.setItem("vrtl-view2",v)}catch(e){}
+  if(!old){ draw(); return; }
+  if(morphRaf) cancelAnimationFrame(morphRaf);
+  animating=true; draw();
+  const sc=svg.getScreenCTM().a||1, items=[];
+  svg.querySelectorAll(".dot").forEach(g=>{
+    const r=g.querySelector(".mark").getBoundingClientRect(), o=old[g.dataset.n];
+    if(o){ const it={g,dx:(o.x-(r.x+r.width/2))/sc,dy:(o.y-(r.y+r.height/2))/sc}; items.push(it); g.setAttribute("transform",`translate(${it.dx} ${it.dy})`); }
+    else { g.style.opacity=0; items.push({g,fade:true}); }
+  });
+  svg.classList.add("morph");
+  const start=performance.now(), dur=700, ease=k=>k<.5?4*k*k*k:1-Math.pow(-2*k+2,3)/2;
+  const tick=now=>{const k=Math.min(1,(now-start)/dur), e=ease(k);
+    items.forEach(it=>{ if(it.fade) it.g.style.opacity=e; else it.g.setAttribute("transform",`translate(${it.dx*(1-e)} ${it.dy*(1-e)})`); });
+    if(k<1) morphRaf=requestAnimationFrame(tick);
+    else { morphRaf=null; svg.classList.remove("morph"); animating=false; fadeNext=true; draw(); }};
+  morphRaf=requestAnimationFrame(tick);
+}
+document.getElementById("v-lanes").onclick=()=>setView("lanes");
+document.getElementById("v-price").onclick=()=>setView("price");
+window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change",draw);
+let rsz=null; window.addEventListener("resize",()=>{cancelAnimationFrame(rsz); rsz=requestAnimationFrame(()=>draw());});
+MOBILE.addEventListener("change",draw);
+new MutationObserver(draw).observe(document.documentElement,{attributes:true,attributeFilter:["data-theme"]});
+yr=computeFit();yTarget=yr.slice();legend();setView(view,false);show();
+</script>
+
+</body></html>

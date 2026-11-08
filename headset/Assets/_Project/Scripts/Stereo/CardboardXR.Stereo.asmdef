@@ -1,0 +1,23 @@
+{
+    "name": "CardboardXR.Stereo",
+    "rootNamespace": "CardboardXR.Stereo",
+    "references": [
+        "Unity.InputSystem",
+        "Unity.XR.ARFoundation",
+        "Unity.XR.ARSubsystems",
+        "UnityEngine.UI",
+        "CardboardXR.Tracking",
+        "Unity.XR.Management",
+        "CardboardXR.UI",
+        "Unity.TextMeshPro"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

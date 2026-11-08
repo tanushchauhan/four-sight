@@ -32,7 +32,7 @@ flowchart LR
     PI["Pi (Python)<br/>gait, search, detection"]
     ESP["ESP32-S3<br/>pan-tilt mount, sensors"]
   end
-  PHONE["iPhone headset app<br/>(Swift)"]
+  PHONE["iPhone headset app<br/>(Unity CardboardXR)"]
   STDB[("SpacetimeDB<br/>tables + reducers")]
   DASH["Dashboard<br/>(React + TS SDK)"]
   AGENT["Nemotron agent<br/>(Node + TS SDK)"]
@@ -57,7 +57,7 @@ Rules:
 ```
 robot/       Python on the Pi: gait, search, detection, video + control server, Spacetime HTTP client
 mount/       ESP32-S3 firmware: pan-tilt servos, drop sensor, beacon latch
-headset/     SwiftUI iOS app: side-by-side view, person mask, gamepad, head tracking
+headset/     Unity CardboardXR visor: stereo view and head tracking. Home-screen launch is 3DoF, camera off, 60 fps
 server/      SpacetimeDB module (TypeScript)
 dashboard/   React app using the Spacetime TypeScript SDK
 agent/       Node agent: Spacetime TypeScript SDK + Nemotron
@@ -70,7 +70,7 @@ docs/        plan.md
 | Area | Owns | Owner |
 | --- | --- | --- |
 | Robot | `robot/`: autonomy, detection, video + control server | _TBD_ |
-| Headset | `headset/`: iOS app | _TBD_ |
+| Headset | `headset/`: Unity CardboardXR visor | _TBD_ |
 | Agent | `server/`, `agent/`, `dashboard/` | _TBD_ |
 | Hardware | `mount/`, `hardware/`, demo set | _TBD_ |
 
@@ -141,7 +141,7 @@ Setup: `spacetime init --lang typescript`, `spacetime publish`. Use code `HACKUT
 | `watchdog` (scheduled, ~1 s) | Spacetime | Robot silent for a few seconds → offline; its area goes back to unsearched |
 | `sim_tick` (scheduled) | Spacetime | Moves simulated robots; occasional simulated detections |
 
-**Calling it from Python (Pi) and Swift (iPhone):** there's no SDK for either, so use the HTTP API:
+**Calling it from Python (Pi) and the headset:** there's no SDK for either, so use the HTTP API:
 
 ```
 POST /v1/identity                               → {"identity": "...", "token": "..."}

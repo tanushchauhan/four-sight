@@ -1,0 +1,27 @@
+{
+    "name": "CardboardXR.Hands",
+    "rootNamespace": "CardboardXR.Hands",
+    "references": [
+        "Unity.InferenceEngine",
+        "Unity.XR.ARFoundation",
+        "Unity.XR.ARSubsystems",
+        "CardboardXR.Stereo",
+        "CardboardXR.Interaction",
+        "UnityEngine.UI",
+        "Unity.XR.Hands",
+        "Unity.InputSystem",
+        "Unity.XR.Interaction.Toolkit",
+        "Unity.XR.CoreUtils",
+        "CardboardXR.UI",
+        "Unity.TextMeshPro"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

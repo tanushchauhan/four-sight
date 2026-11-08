@@ -1,0 +1,22 @@
+{
+    "name": "CardboardXR.Demos.Rush",
+    "rootNamespace": "CardboardXR.Demos.Rush",
+    "references": [
+        "CardboardXR.Demos",
+        "CardboardXR.Stereo",
+        "CardboardXR.Hands",
+        "CardboardXR.Interaction",
+        "UnityEngine.UI",
+        "CardboardXR.UI",
+        "Unity.TextMeshPro"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

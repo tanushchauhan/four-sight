@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Phone Door Generator — CardboardXR</title>
+<link rel="icon" href="data:,">
+<meta name="description" content="Generate a phone door (STL / 3MF) for the 3D-printed CardboardXR viewer from your phone's dimensions.">
+<style>
+  :root {
+    --bg: #f6f6f3; --panel: #ffffff; --ink: #1d1f22; --muted: #5d636b; --line: #dcdcd6;
+    --accent: #2f5fd0; --accent-ink: #ffffff; --tpu: #e8803a; --ok: #1f7a4a; --warn: #9a6200; --bad: #b42318;
+    --field: #fbfbf9; --shadow: 0 1px 2px rgba(0,0,0,.05), 0 4px 16px rgba(0,0,0,.04);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #15171a; --panel: #1d2024; --ink: #e9eaec; --muted: #a0a6ae; --line: #33373d; --accent: #7aa2ff; --accent-ink: #0d1424;
+            --ok: #57c48a; --warn: #e2b04a; --bad: #ff7a6b; --field: #181a1e; --shadow: none; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header { max-width: 1240px; margin: 0 auto; padding: 28px 20px 8px; }
+  h1 { font-size: 26px; margin: 0 0 6px; letter-spacing: -0.01em; }
+  header p { margin: 0; color: var(--muted); max-width: 70ch; }
+  main { max-width: 1240px; margin: 0 auto; padding: 16px 20px 40px; display: grid; grid-template-columns: minmax(320px, 430px) 1fr; gap: 20px; align-items: start; }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+  section.card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; box-shadow: var(--shadow); }
+  section.card + section.card { margin-top: 16px; }
+  h2 { font-size: 15px; margin: 0 0 10px; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; }
+  label { display: block; font-size: 13px; color: var(--muted); }
+  label span.key { display: inline-block; min-width: 1.3em; font-weight: 600; color: var(--accent); }
+  input[type=number], input[type=text], select, textarea {
+    width: 100%; margin-top: 3px; padding: 7px 9px; border: 1px solid var(--line); border-radius: 7px; background: var(--field); color: var(--ink); font: inherit; }
+  input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  textarea { min-height: 90px; font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; resize: vertical; }
+  fieldset { border: 0; padding: 0; margin: 12px 0 0; }
+  legend { font-weight: 600; font-size: 13px; margin-bottom: 6px; padding: 0; }
+  button { font: inherit; border-radius: 8px; padding: 8px 12px; border: 1px solid var(--line); background: var(--field); color: var(--ink); cursor: pointer; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+  button:disabled { opacity: .45; cursor: default; }
+  .hint { font-size: 12.5px; color: var(--muted); margin: 8px 0 0; }
+  .hint.ok { color: var(--ok); } .hint.bad { color: var(--bad); }
+  .diagram { width: 100%; height: auto; display: block; margin: 4px 0 2px; }
+  .diagram text { font: 600 11px system-ui, sans-serif; fill: var(--accent); }
+  .diagram .phone { fill: none; stroke: var(--ink); stroke-width: 1.4; }
+  .diagram .cam { fill: color-mix(in srgb, var(--accent) 14%, transparent); stroke: var(--accent); stroke-width: 1.2; }
+  .diagram .dim { stroke: var(--accent); stroke-width: 1; marker-start: url(#a); marker-end: url(#a); }
+  .diagram .lbl { fill: var(--muted); font-weight: 500; }
+  .viewer { position: sticky; top: 12px; }
+  #view { height: min(64vh, 620px); min-height: 360px; border-radius: 10px; background: radial-gradient(ellipse at 50% 40%, color-mix(in srgb, var(--panel) 70%, var(--bg)), var(--bg)); overflow: hidden; }
+  #view canvas { width: 100%; height: 100%; display: block; }
+  .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 10px 0 0; }
+  .toolbar .sp { flex: 1; }
+  .legend { display: flex; gap: 14px; font-size: 12.5px; color: var(--muted); align-items: center; }
+  .sw { display: inline-block; width: 11px; height: 11px; border-radius: 3px; vertical-align: -1px; margin-right: 5px; }
+  .status { font-size: 13.5px; margin: 10px 0 0; }
+  .status.ok { color: var(--ok); } .status.warn { color: var(--warn); } .status.bad { color: var(--bad); } .status.busy { color: var(--muted); }
+  #messages { list-style: none; padding: 0; margin: 8px 0 0; font-size: 13px; }
+  #messages li { padding: 6px 9px; border-radius: 7px; margin-top: 6px; }
+  #messages li.err { background: color-mix(in srgb, var(--bad) 12%, transparent); color: var(--bad); }
+  #messages li.warn { background: color-mix(in srgb, var(--warn) 12%, transparent); color: var(--warn); }
+  #messages li.note { background: color-mix(in srgb, var(--accent) 10%, transparent); color: var(--ink); }
+  details summary { cursor: pointer; font-weight: 600; font-size: 14px; }
+  details.agent { border: 1px solid var(--line); border-radius: 9px; padding: 9px 12px; margin: 0 0 14px; }
+  details.agent summary { font-size: 13.5px; }
+  button#generate { width: 100%; margin-top: 14px; padding: 10px 12px; }
+  ol.steps { margin: 6px 0 0; padding-left: 20px; } ol.steps li { margin: 3px 0; }
+  footer { max-width: 1240px; margin: 0 auto; padding: 0 20px 36px; color: var(--muted); font-size: 12.5px; }
+  a { color: var(--accent); }
+</style>
+<script type="importmap">{ "imports": { "three": "./vendor/three.module.js" } }</script>
+</head>
+<body>
+<header>
+  <h1>Phone door generator</h1>
+  <p>Make a phone door for the 3D-printed CardboardXR viewer that fits <em>your</em> phone. The door's outline, hinge and latch stay the same, so it fits the standard viewer shell. Only the phone pad, the grippy TPU corners and the camera opening change. <span id="limits"></span></p>
+</header>
+<main>
+  <div>
+    <section class="card">
+      <h2>1 · Your phone</h2>
+      <details class="agent">
+        <summary>Optional: read the numbers from a drawing with an AI agent</summary>
+        <ol class="steps">
+          <li>Get the phone's dimensional drawing. For iPhones, download it from Apple's <a href="https://developer.apple.com/accessories/dimensional-drawings/" target="_blank" rel="noopener">dimensional drawings</a>.</li>
+          <li>Give the drawing (or its page) to the AI agent you use, together with this prompt:
+            <textarea id="prompt-text" readonly aria-label="Prompt for the AI agent"></textarea>
+            <div class="toolbar"><button type="button" id="copy-prompt">Copy the prompt</button></div></li>
+          <li>Paste the agent's reply here:
+            <textarea id="json-in" placeholder='{ "name": "…", "length": … }'></textarea>
+            <div class="toolbar"><button type="button" id="apply-json">Fill in the form</button></div>
+            <p class="hint" id="json-status"></p></li>
+        </ol>
+        <p class="hint">Agents can misread a drawing. Always compare the filled-in numbers with the drawing, and with the phone outline in the preview.</p>
+      </details>
+      <label>Start from
+        <select id="preset">
+          <option value="iphone-15-pro">iPhone 15 Pro (tested)</option>
+          <option value="pixel-9-pro">Pixel 9 Pro (tested)</option>
+          <option value="custom">Custom phone</option>
+        </select>
+      </label>
+      <svg class="diagram" viewBox="0 0 300 262" role="img" aria-label="Back of the phone, camera at the top, showing where each measurement is taken">
+        <defs><marker id="a" viewBox="0 0 8 8" refX="4" refY="4" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 1 L4 4 L0 7" fill="none" stroke="currentColor" style="stroke:var(--accent)"/></marker></defs>
+        <rect class="phone" x="90" y="20" width="120" height="215" rx="20"/>
+        <rect class="cam" x="98" y="28" width="60" height="62" rx="12"/>
+        <text x="215" y="132" class="lbl">back of phone</text>
+        <text x="215" y="146" class="lbl">(camera at top)</text>
+        <line class="dim" x1="70" y1="20" x2="70" y2="235"/><text x="52" y="130">A</text>
+        <line class="dim" x1="90" y1="243" x2="210" y2="243"/><text x="146" y="258">B</text>
+        <text x="190" y="40">D</text><path d="M196 24 q8 2 10 10" fill="none" style="stroke:var(--accent)"/>
+        <line class="dim" x1="128" y1="20" x2="128" y2="28"/><text x="128" y="15" text-anchor="middle">E</text>
+        <line class="dim" x1="90" y1="58" x2="98" y2="58"/><text x="78" y="62">F</text>
+        <line class="dim" x1="98" y1="100" x2="158" y2="100"/><text x="124" y="114">G</text>
+        <line class="dim" x1="170" y1="28" x2="170" y2="90"/><text x="175" y="64">H</text>
+        <text x="100" y="86" style="font-size:9px">J</text>
+      </svg>
+      <form id="form">
+        <label>Name (used in file names)<input type="text" id="f-name" placeholder="e.g. iPhone 16 Pro"></label>
+        <fieldset><legend>Phone body (mm)</legend>
+          <div class="row">
+            <label><span class="key">A</span> Length<input type="number" step="0.01" id="f-length"></label>
+            <label><span class="key">B</span> Width<input type="number" step="0.01" id="f-width"></label>
+            <label><span class="key">C</span> Thickness (without camera bump)<input type="number" step="0.01" id="f-thickness"></label>
+            <label><span class="key">D</span> Corner radius<input type="number" step="0.01" id="f-cornerRadius"></label>
+          </div>
+        </fieldset>
+        <fieldset><legend>Raised camera area, seen from the back (mm)</legend>
+          <div class="row">
+            <label><span class="key">E</span> From top edge<input type="number" step="0.01" id="f-camera-top"></label>
+            <label><span class="key">F</span> From left edge<input type="number" step="0.01" id="f-camera-left"></label>
+            <label><span class="key">G</span> Width<input type="number" step="0.01" id="f-camera-width"></label>
+            <label><span class="key">H</span> Height<input type="number" step="0.01" id="f-camera-height"></label>
+            <label><span class="key">J</span> Corner radius<input type="number" step="0.01" id="f-camera-radius"></label>
+            <label>Clearance around it<input type="number" step="0.1" id="f-cameraClearance"></label>
+          </div>
+        </fieldset>
+        <p class="hint">Measure the whole raised camera plateau or bar, not individual lenses. Use 0 for square corners.</p>
+        <button type="submit" class="primary" id="generate">Generate models</button>
+      </form>
+    </section>
+  </div>
+
+  <div class="viewer">
+    <section class="card">
+      <h2>2 · Preview</h2>
+      <div id="view"></div>
+      <div class="toolbar">
+        <div class="legend"><span><span class="sw" style="background:#9aa3ad"></span>Door (PETG)</span><span><span class="sw" style="background:var(--tpu)"></span>Locators (TPU)</span><span><span class="sw" style="background:#3b6fd8;opacity:.6"></span>Phone</span></div>
+        <span class="sp"></span>
+        <label style="display:flex;gap:6px;align-items:center;color:var(--ink)"><input type="checkbox" id="show-phone" checked> Show phone</label>
+        <button type="button" id="view-inner">Inside</button><button type="button" id="view-outer">Outside</button>
+      </div>
+      <p class="status" id="status">Loading…</p>
+      <ul id="messages"></ul>
+    </section>
+    <section class="card">
+      <h2>3 · Download</h2>
+      <div class="toolbar">
+        <button type="button" class="primary dl" id="dl-3mf" disabled>Download 3MF (door + TPU locators)</button>
+        <button type="button" class="dl" id="dl-stl" disabled>Download STL files (.zip)</button>
+      </div>
+      <p class="hint">Everything is already in print orientation: outer face down on the bed. Print the door in PETG and the four corner locators in TPU, together. In Bambu Studio or OrcaSlicer, open the 3MF and assign the two filaments. With the STLs, load all five files at once and choose to load them as one object.</p>
+    </section>
+  </div>
+</main>
+<footer>
+  Part of <a href="https://github.com/brenpoly/CardboardXR">CardboardXR</a>. Everything runs in your browser; nothing is uploaded.
+  Geometry by <a href="https://github.com/elalish/manifold">Manifold</a>, preview by <a href="https://threejs.org">three.js</a>, files by <a href="https://github.com/101arrowz/fflate">fflate</a>.
+</footer>
+<script type="module" src="./app.js"></script>
+</body>
+</html>

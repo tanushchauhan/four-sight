@@ -1,0 +1,86 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3153debd146ee47ea8f7e9f6ae859def, type: 3}
+  m_Name: DemoCatalog
+  m_EditorClassIdentifier: CardboardXR.Demos::CardboardXR.Demos.DemoCatalog
+  m_LobbyScenePath: Assets/_Project/Demos/Lobby/Lobby.unity
+  m_Demos:
+  - Id: sandbox
+    Title: Cube Sandbox
+    Description: Your own room, through the camera. Look at a table or the floor and tap or pinch to put a cube there, then pick cubes up with your hand and move them.
+    Tagline: Put cubes on your real tables and floor, and move them by hand
+    Icon: view_in_ar
+    Tint: {r: 0.78, g: 0.49, b: 0.12, a: 1}
+    ScenePath: Assets/_Project/Demos/Sandbox/Sandbox.unity
+    Requirements:
+      SixDof: 2
+      Passthrough: 2
+      Hands: 2
+      ScanSurfaces: 1
+      KeepPlacedObjects: 0
+      HideCorePanel: 0
+  - Id: video
+    Title: 360 Video
+    Description: Watch 360 and VR180 videos, 2D or 3D, all around you. Tap the video for the controls. Plays videos copied to the phone or linked from Google Drive.
+    Tagline: 360 and VR180 videos all around you
+    Icon: 360
+    Tint: {r: 0.7, g: 0.25, b: 0.29, a: 1}
+    ScenePath: Assets/_Project/Demos/Video/Video.unity
+    Requirements:
+      SixDof: 1
+      Passthrough: 1
+      Hands: 1
+      ScanSurfaces: 0
+      KeepPlacedObjects: 0
+      HideCorePanel: 1
+  - Id: paint
+    Title: Air Paint
+    Description: Paint in the air around you with your hand, like Tilt Brush. Pinch to paint; look at the tool panel and pinch to change color, brush and size.
+    Tagline: Paint in the air with your hand
+    Icon: brush
+    Tint: {r: 0.48, g: 0.31, b: 0.75, a: 1}
+    ScenePath: Assets/_Project/Demos/Paint/Paint.unity
+    Requirements:
+      SixDof: 2
+      Passthrough: 2
+      Hands: 2
+      ScanSurfaces: 0
+      KeepPlacedObjects: 0
+      HideCorePanel: 1
+  - Id: rush
+    Title: Orb Rush
+    Description: 'Orbs fly toward you: hit them with your hand as they reach the rings. One hand, a minute a round, getting faster.'
+    Tagline: Hit the incoming orbs with your hand
+    Icon: bolt
+    Tint: {r: 0.12, g: 0.55, b: 0.62, a: 1}
+    ScenePath: Assets/_Project/Demos/Rush/Rush.unity
+    Requirements:
+      SixDof: 2
+      Passthrough: 1
+      Hands: 2
+      ScanSurfaces: 0
+      KeepPlacedObjects: 0
+      HideCorePanel: 1
+  - Id: portal
+    Title: Portal
+    Description: Open a doorway on your floor and walk through it into another world, then look back at your room through the door.
+    Tagline: A doorway on your floor into another world
+    Icon: door_front
+    Tint: {r: 0.23, g: 0.25, b: 0.6, a: 1}
+    ScenePath: Assets/_Project/Demos/Portal/Portal.unity
+    Requirements:
+      SixDof: 2
+      Passthrough: 2
+      Hands: 2
+      ScanSurfaces: 0
+      KeepPlacedObjects: 0
+      HideCorePanel: 1

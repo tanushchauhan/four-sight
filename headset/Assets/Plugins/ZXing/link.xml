@@ -1,0 +1,4 @@
+<!-- Keep IL2CPP's managed code stripping from removing ZXing types the decoder creates at runtime. -->
+<linker>
+    <assembly fullname="zxing" preserve="all"/>
+</linker>
