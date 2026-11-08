@@ -167,6 +167,12 @@ class Handler(BaseHTTPRequestHandler):
             self.send_body(200 if frame else 503, 'image/jpeg' if frame else 'text/plain', frame or b'No camera image')
         elif path == '/':
             self.send_body(200, 'text/html; charset=utf-8', Path(__file__).with_name('index.html').read_text().replace('__CONTROL_NONCE__', self.server.nonce).replace('__CONTROL_ALLOWED__', 'true' if self.control_allowed() else 'false').encode())
+        elif path in ('/console.css', '/tokens.css', '/base.css'):
+            file = Path(__file__).with_name(path[1:])
+            if file.is_file():
+                self.send_body(200, 'text/css; charset=utf-8', file.read_bytes())
+            else:
+                self.send_body(404, 'text/plain', b'Not found')
         else:
             self.send_body(404, 'text/plain', b'Not found')
 
