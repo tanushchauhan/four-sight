@@ -12,10 +12,31 @@ prada is our PiCrawler: Raspberry Pi 5 Model B (4 GB), SunFounder Robot HAT v4, 
 | HAT on I2C | bus 1, address `0x14` |
 | Battery at bring-up | 7.84 V |
 
+## Everyday use
+
+Everything on prada goes through one script. You never edit files on the Pi: change the repo on a laptop, push, then on the Pi:
+
+```bash
+~/hackutd26/robot/prada/prada.sh update     # pull, reinstall, restart if it was running
+~/hackutd26/robot/prada/prada.sh start      # start the server and joystick relay
+```
+
+| Command | Does |
+| --- | --- |
+| `update` | `git pull`, rerun `install.sh`, restart the services if they were running |
+| `install` | Set up or repair everything (add `--enable` to start both services at boot) |
+| `start` / `stop` / `restart` | Control the server and the joystick relay together |
+| `status` | Service state, repo commit, HAT on I2C, battery (when stopped), last joystick events |
+| `logs` | Follow both services' logs |
+| `keyboard` | Stop the joystick relay so a laptop keyboard controller can connect |
+
+None of these move servos. The robot moves only after the joystick is clicked and pushed.
+
 ## Files
 
 | File | What it is |
 | --- | --- |
+| `prada.sh` | The one entry point above |
 | `install.sh` | Idempotent setup: packages, pinned vendor libraries, `pinctrl`, I2C/GPIO access, venv, calibration restore, token, services |
 | `prada.toml` | Bridge config: loopback only, every gait at speed 80 |
 | `picrawler.config` | Saved calibration offsets (copied to `~/.config/.picrawler.config` if missing) |
@@ -27,25 +48,16 @@ prada is our PiCrawler: Raspberry Pi 5 Model B (4 GB), SunFounder Robot HAT v4, 
 ## Fresh install
 
 1. Flash Ubuntu Server 24.04 LTS (64-bit) with Raspberry Pi Imager: hostname `prada`, user `liquidiv`, Wi-Fi `liquid-iv-iot`, SSH on with your key.
-2. SSH in, clone, and run the script:
+2. SSH in, clone, install, reboot once for the new groups, then start:
 
    ```bash
-   git clone https://github.com/tanushchauhan/hackutd26.git ~/hackutd26
-   cd ~/hackutd26
-   robot/prada/install.sh            # add --enable to start both services at boot
-   sudo reboot                       # picks up the new groups
+   git clone git@github.com:tanushchauhan/hackutd26.git ~/hackutd26
+   ~/hackutd26/robot/prada/prada.sh install
+   sudo reboot
+   ~/hackutd26/robot/prada/prada.sh start
    ```
 
-   The repo is private for now, so the Pi needs GitHub access to clone (a read-only deploy key, or make the repo public, which the Spacetime track requires anyway). Until then, copy a checkout from a laptop: `rsync -a --exclude .venv hackutd26/ prada:hackutd26/`.
-
-3. Start it:
-
-   ```bash
-   sudo systemctl start prada-server prada-joystick
-   journalctl -fu prada-server -u prada-joystick
-   ```
-
-Updating later: `git -C ~/hackutd26 pull && robot/prada/install.sh && sudo systemctl restart prada-server prada-joystick`.
+   The repo is private, so the Pi pulls with its own read-only deploy key (`~/.ssh/id_github_deploy` on prada, added under the repo's Settings, Deploy keys). On a new card, make a new key with `ssh-keygen -t ed25519 -f ~/.ssh/id_github_deploy -N ""` and add the `.pub` there.
 
 ## Driving
 
@@ -70,7 +82,7 @@ Click the stick to enable, push to walk or turn, click again to stop. If the sti
 **Laptop keyboard** (for testing). The server only listens on the Pi's loopback, so tunnel to it. Stop the joystick relay first, since the server takes one controller at a time:
 
 ```bash
-ssh prada sudo systemctl stop prada-joystick
+ssh prada hackutd26/robot/prada/prada.sh keyboard
 ssh -N -L '[::1]:18765:127.0.0.1:8765' prada &
 ROBOT_CONTROL_TOKEN=... robot/.venv/bin/python -m picrawler_control.controller 'ws://[::1]:18765'
 ```
