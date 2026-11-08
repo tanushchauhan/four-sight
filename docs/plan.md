@@ -16,7 +16,7 @@ A $140 four-legged robot searches a collapsed building on its own. When it finds
 | Track | What judges need to see | Our answer |
 | --- | --- | --- |
 | **State Farm**: The Worst Day, at Scale | Find the most urgent needs, coordinate help, make sure no one is overlooked | Robots search on their own; humans step in only when someone is found; coverage map shows what's unsearched; agent ranks cases and sends responders |
-| **NVIDIA**: Nemotron beyond a chatbot | Multi-step agent, tool calls to real APIs, real-world problem | Nemotron reads robot images for triage, runs the takeover queue, assigns areas, dispatches; every tool call is logged live on the dashboard |
+| **NVIDIA**: Nemotron beyond a chatbot | Multi-step agent, tool calls to real APIs, real-world problem | Nemotron reads robot images for triage, runs the takeover queue, assigns areas, dispatches; every tool call is logged by the agent |
 | **Spacetime** (3rd company track, only if 3 are allowed) | Spacetime powers the core of the app, not just chat or movement; public GitHub repo | All shared state and coordination rules live in Spacetime: queue, atomic robot claiming, coverage, watchdog, simulated fleet |
 | **Best Hardware** (general) | Custom hardware that's essential and works live | Head-tracked pan-tilt camera mount, drop sensor, beacon drop, custom 3D-printed headsets, on top of the PiCrawler kit |
 
@@ -34,7 +34,6 @@ flowchart LR
   end
   PHONE["iPhone headset app<br/>(Unity CardboardXR)"]
   STDB[("SpacetimeDB<br/>tables + reducers")]
-  DASH["Dashboard<br/>(React + TS SDK)"]
   AGENT["Nemotron agent<br/>(Node + TS SDK)"]
   NIM["NVIDIA API<br/>Nemotron models"]
 
@@ -42,7 +41,6 @@ flowchart LR
   PI <-->|serial| ESP
   PI -->|HTTP: reducers, SQL poll| STDB
   PHONE -->|HTTP: reducers, SQL poll| STDB
-  DASH <-->|live subscriptions| STDB
   AGENT <-->|subscriptions + reducer calls| STDB
   AGENT --> NIM
 ```
@@ -59,7 +57,6 @@ robot/       Python on the Pi: gait, search, detection, video + control server, 
 mount/       ESP32-S3 firmware: pan-tilt servos, drop sensor, beacon latch
 headset/     Unity CardboardXR visor: stereo view and head tracking. Home-screen launch is 3DoF, camera off, 60 fps
 server/      SpacetimeDB module (TypeScript)
-dashboard/   React app using the Spacetime TypeScript SDK
 agent/       Node agent: Spacetime TypeScript SDK + Nemotron
 hardware/    headset print files, mount brackets, wiring notes
 docs/        plan.md
@@ -71,7 +68,7 @@ docs/        plan.md
 | --- | --- | --- |
 | Robot | `robot/`: autonomy, detection, video + control server | _TBD_ |
 | Headset | `headset/`: Unity CardboardXR visor | _TBD_ |
-| Agent | `server/`, `agent/`, `dashboard/` | _TBD_ |
+| Agent | `server/`, `agent/` | _TBD_ |
 | Hardware | `mount/`, `hardware/`, demo set | _TBD_ |
 
 ## Interfaces (agree on these first)
@@ -150,7 +147,7 @@ POST /v1/database/<db>/sql                      body: SQL text → rows as JSON
 Header: Authorization: Bearer <token>
 ```
 
-Poll every ~0.5 s for orders (Pi) and the triage card (headset). The dashboard and agent use the TypeScript SDK and get live updates.
+Poll every ~0.5 s for orders (Pi) and the triage card (headset). The agent uses the TypeScript SDK and gets live updates.
 
 ### Nemotron (`agent/`)
 
@@ -182,8 +179,7 @@ Status lives in the [tracker doc](https://claude.ai/artifact/V7XnDqn5QrkXmuyj76c
 ### P1: after the core loop works (start the agent early)
 
 - [ ] **Spacetime module** (Agent): tables + reducers above, deployed
-- [ ] **Nemotron agent with tools** (Agent): queue ranking, area assignment, dispatch; tool trace on dashboard
-- [ ] **Command dashboard** (Agent): live map: robots + paths, found people (pin, photo, triage, time), queue, agent log
+- [ ] **Nemotron agent with tools** (Agent): queue ranking, area assignment, dispatch; tool trace in the agent log
 - [ ] **Coverage map** (Agent): searched / unsearched / person-found cells and a "% searched" number; agent sends robots to gaps
 - [ ] **Arrow to the person** (Headset): edge-of-screen arrow + distance when the person is out of view
 - [ ] **Mini map in the headset** (Headset): robot's path and the person's position
@@ -231,7 +227,7 @@ Robot HAT v4 charging: connect the supply to the **HAT USB-C port**, not the Pi'
 | 5-7 PM | Bring-up | Robot walks on command, video reaches the iPhone, API keys work |
 | 7-11 PM | Core loop (P0) | Search → detect → hand off → outlined view, joystick, head tracking |
 | **11 PM** | **Devpost registration due** | Team registered, every teammate invited, tracks picked |
-| 11 PM-3 AM | Agent + dashboard | Spacetime module, Nemotron tools, queue, live map |
+| 11 PM-3 AM | Agent | Spacetime module, Nemotron tools, queue |
 | 3-7 AM | P1 polish | Coverage map, arrow, voice, failsafes, drop sensor |
 | 7-10 AM | Stretch + rehearsal | Pick P2 items, build the set, record backup video |
 | 10 AM-noon | Submit | Write-up, public repo, video; tracks final |
@@ -242,7 +238,7 @@ If the core loop slips past 11 PM, cut P1 items before cutting the agent: the NV
 
 ## Demo script (~3 minutes)
 
-1. Robot starts in autonomous mode in the collapsed-room set; dashboard shows it (and the simulated fleet) searching, with "% searched" climbing.
+1. Robot starts in autonomous mode in the collapsed-room set and searches; the agent tracks coverage as "% searched" climbs.
 2. It sweeps, spots the person, stops; a takeover request lands in the queue with Nemotron's triage card.
 3. A judge puts on the headset: person outlined, drive with the gamepad, look around by turning their head.
 4. Operator talks to the person through the robot's speaker.
