@@ -21,6 +21,17 @@ fi
 
 step() { printf '\n== %s\n' "$*"; }
 
+# Copy a file into a system directory only when it differs, and flush it to the
+# SD card. prada can lose power at any moment (low battery), and a half-written
+# unit file leaves the service empty or masked.
+put() {  # put <mode> <src> <dest-dir>
+  local dest="$3/$(basename "$2")"
+  if sudo cmp -s "$2" "$dest"; then return; fi
+  sudo install -m "$1" "$2" "$dest.tmp" && sudo sync "$dest.tmp" && sudo mv -f "$dest.tmp" "$dest"
+  sudo sync "$3"
+  echo "updated $dest"
+}
+
 step "Packages"
 export DEBIAN_FRONTEND=noninteractive
 sudo apt-get update -q
@@ -46,13 +57,13 @@ command -v pinctrl
 
 step "I2C, GPIO access and lock"
 grep -q '^dtparam=i2c_arm=on' /boot/firmware/config.txt || echo "WARNING: add dtparam=i2c_arm=on under [all] in /boot/firmware/config.txt"
-echo i2c-dev | sudo tee /etc/modules-load.d/i2c-dev.conf >/dev/null
+put 644 "$PRADA/system/i2c-dev.conf" /etc/modules-load.d
 getent group gpio >/dev/null || sudo groupadd --system gpio
 sudo usermod -aG i2c,dialout,gpio liquidiv
-sudo install -m 644 "$PRADA/system/60-picrawler-gpiomem.rules" /etc/udev/rules.d/
+put 644 "$PRADA/system/60-picrawler-gpiomem.rules" /etc/udev/rules.d
 sudo udevadm control --reload
 sudo udevadm trigger --action=add --sysname-match='gpiomem*' || true
-sudo install -m 644 "$PRADA/system/picrawler-lock.conf" /etc/tmpfiles.d/
+put 644 "$PRADA/system/picrawler-lock.conf" /etc/tmpfiles.d
 sudo systemd-tmpfiles --create /etc/tmpfiles.d/picrawler-lock.conf
 sudo systemctl enable --now bluetooth >/dev/null
 
@@ -83,12 +94,16 @@ else
 fi
 
 step "Services"
-sudo install -m 644 "$PRADA/system/prada-server.service" "$PRADA/system/prada-joystick.service" /etc/systemd/system/
+put 644 "$PRADA/system/prada-server.service" /etc/systemd/system
+put 644 "$PRADA/system/prada-joystick.service" /etc/systemd/system
+sudo systemctl unmask prada-server prada-joystick >/dev/null 2>&1 || true
 sudo systemctl daemon-reload
 if (( ENABLE )); then
   sudo systemctl enable prada-server prada-joystick
   echo "enabled at boot"
 fi
+
+sync
 
 cat <<'EOF'
 

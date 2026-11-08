@@ -44,6 +44,7 @@ None of these move servos. The robot moves only after the joystick is clicked an
 | `system/prada-joystick.service` | Bluetooth relay from the Arduino 101 joystick |
 | `system/60-picrawler-gpiomem.rules` | Gives the `gpio` group the Pi 5 GPIO memory windows that `pinctrl` needs |
 | `system/picrawler-lock.conf` | Recreates `/run/lock/picrawler-control.lock` at boot |
+| `system/i2c-dev.conf` | Loads the I2C device driver at boot |
 
 ## Fresh install
 
@@ -125,3 +126,4 @@ To recalibrate: stop both services, set the robot flat on the sheet, then `cd ~/
 - `gpiodetect` without root still fails on chips 0 to 3; only `gpiochip4` (RP1, the 40-pin header) matters and the `dialout` group already has it.
 - The 128-bit service UUID plus a name must fit in a 31-byte advertisement, which is why the joystick advertises as `prada` rather than a longer name.
 - ROS is not installed on prada. The bridge runs without `--ros`.
+- prada lost power right after an update and came back with empty service files (one zero-filled, one empty, which systemd reports as "masked"). `install.sh` now writes system files only when they change, through a temp file and `sync`. If it happens again, run `prada.sh install`. Keep the battery charged: it read 6.81 V before this.
