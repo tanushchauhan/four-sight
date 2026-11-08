@@ -40,7 +40,8 @@ class NavigationTests(unittest.TestCase):
             self.assertEqual(self.guide.command(1,False)[:2],(0,0))
     def test_decision_reports_confidence_and_preserves_wait(self):
         self.assertEqual(decision(dict(action='forward',confidence=.82,reason='open floor'))[0],'forward')
+        self.assertEqual(decision(dict(action='forward',confidence=.7,reason='open floor'))[0],'forward')
         self.assertIn('82%',decision(dict(action='forward',confidence=.82,reason='open floor'))[1])
-        for confidence in (.79,float('nan'),True,82):
+        for confidence in (.69,float('nan'),True,82):
             self.assertEqual(decision(dict(action='forward',confidence=confidence))[0],'wait')
         self.assertIn('obstacle',decision(dict(action='wait',confidence=.5,reason='obstacle'))[1])

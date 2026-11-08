@@ -39,8 +39,8 @@ def decision(result):
     detail = f'{action.title()} ({confidence:.0%}): {reason}'
     if action == 'wait':
         return 'wait', detail
-    if confidence < .8:
-        return 'wait', 'Below 80% movement threshold — ' + detail
+    if confidence < .7:
+        return 'wait', 'Below 70% movement threshold — ' + detail
     return action, detail
 
 
