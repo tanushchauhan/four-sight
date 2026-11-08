@@ -46,7 +46,7 @@ class Hardware:
         self.robot = Picrawler()
 
     def execute(self, action, speed):
-        if action not in ACTIONS or type(speed) is not int or not 1 <= speed <= 80:
+        if action not in ACTIONS or type(speed) is not int or not 1 <= speed <= 100:
             raise ValueError("invalid hardware action/speed")
         self.robot.do_action(action, step=1, speed=speed)
 

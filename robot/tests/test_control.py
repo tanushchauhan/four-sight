@@ -104,7 +104,7 @@ class ControlTests(unittest.TestCase):
 
     def test_config_rejections(self):
         for kwargs in ({"timeout": 0}, {"port": True}, {"deadzone": 1},
-                       {"max_speed": 99}, {"poll_interval": float("nan")}):
+                       {"max_speed": 101}, {"poll_interval": float("nan")}):
             with self.assertRaises(ValueError):
                 Config(**kwargs)
 
@@ -205,7 +205,7 @@ class WorkerTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             hardware.execute("__import__('os')", 50)
         with self.assertRaises(ValueError):
-            hardware.execute("forward", 100)
+            hardware.execute("forward", 101)
 
     def test_hardware_ownership_lock(self):
         import tempfile

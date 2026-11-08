@@ -28,8 +28,8 @@ class Config:
             raise ValueError("port out of range")
         if not 0.1 <= self.timeout <= 2 or not 0 <= self.deadzone < 0.9:
             raise ValueError("timeout/deadzone out of range")
-        if not 1 <= self.min_speed <= self.max_speed <= 80:
-            raise ValueError("speeds must satisfy 1 <= min <= max <= 80")
+        if not 1 <= self.min_speed <= self.max_speed <= 100:
+            raise ValueError("speeds must satisfy 1 <= min <= max <= 100")
         if not 0.005 <= self.poll_interval <= 0.05:
             raise ValueError("poll_interval out of range")
         if not 0.01 <= self.dry_gait_seconds <= 5:

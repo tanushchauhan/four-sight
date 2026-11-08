@@ -23,7 +23,7 @@ async def control(uri, token):
     until = 0.0
     enabled = False
     print("e enable | w/s forward/back | a/d left/right | space stop | q quit")
-    print("Tap/repeat direction to move (0.2 s pulse); watch server status. Starts disabled.")
+    print("Tap/repeat direction to move (0.5 s pulse); watch server status. Starts disabled.")
     async with connect(uri, max_size=4096, max_queue=1, close_timeout=1) as socket:
         await socket.send(json.dumps({"type": "hello", "token": token}))
         print(await socket.recv())
@@ -58,7 +58,7 @@ async def control(uri, token):
                 elif key in {"w", "s", "a", "d"} and enabled:
                     axes = {"w": (0.5, 0.0), "s": (-0.5, 0.0),
                             "a": (0.0, 0.5), "d": (0.0, -0.5)}[key]
-                    until = time.monotonic() + 0.2
+                    until = time.monotonic() + 0.5
                 if time.monotonic() >= until:
                     axes = (0.0, 0.0)
                 if enabled:
