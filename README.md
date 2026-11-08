@@ -1,6 +1,8 @@
 <div align="center">
 
-# 👁️ Four Sight
+<img src="assets/readme/logo.png" alt="Four Sight logo, a black and orange spider robot" width="240">
+
+# Four Sight
 
 **A semi-autonomous robot and a custom 3D-printed AR visor for finding people trapped under rubble**
 
