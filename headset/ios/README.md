@@ -11,8 +11,9 @@ Both eyes show the same image with its aspect ratio preserved and lens distortio
 Disconnected streams retry automatically; images older than two seconds are cleared.
 The iPhone camera is not started. Head motion does not yet control the robot mount.
 
-The existing Cardboard v1 lens profile is retained; physical alignment and distortion
-must still be checked in the printed viewer. This is not a calibrated v2 lens profile.
+The lens profile is the Pop-Tech 34 mm biconvex with a 45 mm focal length: the screen is
+treated as the focal plane, with the Cardboard V2 distortion pair for that lens diameter.
+Inter-lens distance and tray alignment are still the printed viewer's. Check them on the phone.
 
 ## Head steering (whole robot)
 

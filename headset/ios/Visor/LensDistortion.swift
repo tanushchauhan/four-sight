@@ -42,6 +42,32 @@ struct ViewerParams {
         trayToLensDistance: 0.035,
         distortionCoefficients: [0.441, 0.156]
     )
+
+    // Pop-Tech asymmetric biconvex, sold as a Cardboard V2 lens: 34 mm diameter, 45 mm focal length.
+    // The screen sits on the focal plane so a relaxed eye sees the virtual image at infinity.
+    // Distortion coefficients are the published Cardboard V2 pair for this 34 mm lens family.
+    // Half-angles are the lens aperture from the 18 mm Cardboard eye relief, atan((34/2) / 18).
+    static let diameterMeters: Float = 0.034
+    static let focalLengthMeters: Float = 0.045
+    static let eyeReliefMeters: Float = 0.018
+
+    static let popTech34mm = ViewerParams(
+        vendor: "Pop-Tech",
+        model: "34 mm biconvex, 45 mm",
+        screenToLensDistance: focalLengthMeters,
+        interLensDistance: 0.06,
+        leftEyeFieldOfViewAngles: [
+            apertureHalfAngleDegrees, apertureHalfAngleDegrees,
+            apertureHalfAngleDegrees, apertureHalfAngleDegrees
+        ],
+        verticalAlignment: .bottom,
+        trayToLensDistance: 0.035,
+        distortionCoefficients: [0.33582564, 0.55348791]
+    )
+
+    static var apertureHalfAngleDegrees: Float {
+        atan((diameterMeters / 2) / eyeReliefMeters) * 180 / Float.pi
+    }
 }
 
 struct PolynomialRadialDistortion {

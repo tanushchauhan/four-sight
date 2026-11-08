@@ -43,8 +43,8 @@ final class StereoRenderer: NSObject, MTKViewDelegate {
     private static let renderScale: Float = 0.75
     // Leave a small blue margin around each warped eye instead of using the entire phone half.
     // X and Y are deliberately independent: changing Y must only squash the lens vertically.
-    private static let eyeViewportScaleX: Float = 0.70
-    private static let eyeViewportScaleY: Float = 0.60
+    private static let eyeViewportScaleX: Float = 0.8
+    private static let eyeViewportScaleY: Float = 1.2
     // Whole-screen NDC: 0.04 moves the eye footprints up by 2% of screen height.
     private static let eyeViewportOffsetY: Float = 0.04
 
@@ -264,10 +264,9 @@ final class StereoRenderer: NSObject, MTKViewDelegate {
             pass.colorAttachments[0].clearColor = MTLClearColor(red: ground.r, green: ground.g, blue: ground.b, alpha: 1)
             guard let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: pass) else { continue }
             if let planes, let params {
-                // ARKit reports the phone camera's real, wide frustum. Showing that frustum at
-                // physical scale inside Cardboard leaves the 16:9 strip seen on the phone. Scale
-                // the quad uniformly until it covers this eye's full lens field. This crops the
-                // sensor at the sides instead of stretching or compressing the image.
+                // ARKit's frustum is the phone camera's real field, in the same tan-angle units as
+                // the lens (screen distance is the 45 mm focal length). Scale it uniformly until
+                // it covers this eye, so the 34 mm lens is filled without stretching the image.
                 let eyeMin = SIMD2<Float>(
                     (-1 + projection.m02) / projection.m00,
                     (-1 + projection.m12) / projection.m11
@@ -497,7 +496,7 @@ final class StereoRenderer: NSObject, MTKViewDelegate {
         guard screenMeters != meshScreenMeters else { return }
 
         let lens = LensDistortion(
-            viewer: .cardboardV1,
+            viewer: .popTech34mm,
             screenWidthMeters: screenMeters.x,
             screenHeightMeters: screenMeters.y
         )

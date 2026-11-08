@@ -63,8 +63,8 @@ struct LensLayerView: View {
             }
             // Keep all readouts inside the lens's comfortable center. The warped eye viewport is
             // intentionally smaller than the phone half below, so edge labels need extra inset.
-            .padding(.horizontal, 220)
-            .padding(.vertical, 215)
+            .padding(.horizontal, 270)
+            .padding(.vertical, 260)
         }
         .frame(width: LensLayer.side, height: LensLayer.side)
     }
