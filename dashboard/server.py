@@ -1,6 +1,7 @@
 """Prada LAN dashboard with exclusive local debug control. No third-party dependencies."""
 import argparse
 import urllib.request
+import urllib.error
 from mission import Mission, Media, settings
 import base64
 import json
@@ -119,7 +120,13 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         path = self.path.split('?', 1)[0]
-        if path == '/api/status':
+        if path == '/api/damage' or path.startswith('/api/damage/'):
+            self.damage_proxy()
+        elif path in ('/damage', '/damage.js'):
+            name = 'damage.js' if path.endswith('.js') else 'damage.html'
+            kind = 'text/javascript; charset=utf-8' if name.endswith('.js') else 'text/html; charset=utf-8'
+            self.send_body(200, kind, Path(__file__).with_name(name).read_text().replace('__CONTROL_NONCE__', self.server.nonce).replace('__CONTROL_ALLOWED__', 'true' if self.control_allowed() else 'false').encode())
+        elif path == '/api/status':
             self.send_body(200, 'application/json', json.dumps(dict(self.server.monitor.snapshot(), control=self.server.control.snapshot(), usb=self.server.usb.snapshot(), mission=self.server.mission.snapshot())).encode())
         elif path in ('/api/perception', '/api/perception/frame'):
             endpoint = '/frame' if path.endswith('/frame') else '/perception'
@@ -197,9 +204,12 @@ class Handler(BaseHTTPRequestHandler):
                 result = self.server.media.request('/audio', self.rfile.read(length), raw=True)
                 self.send_body(200, 'application/json', result)
                 return
-            if not 0 < length <= 2048: raise ValueError('Invalid request size')
+            if not 0 < length <= (10000 if self.path.startswith('/api/damage/') else 2048): raise ValueError('Invalid request size')
             data = json.loads(self.rfile.read(length))
             if not isinstance(data, dict): raise ValueError('Expected an object')
+            if self.path in ('/api/damage/config', '/api/damage/analyze', '/api/damage/review'):
+                self.damage_proxy(data)
+                return
             if self.path.startswith('/api/control/') and self.path != '/api/control/input':
                 if self.server.mission.mode in ('autonomous', 'watching', 'person_found') or self.server.mission.owner or (self.server.control.mode == 'auto' and self.server.control.owner):
                     self.server.mission.stop('Manual takeover requested', 'manual')
@@ -253,6 +263,35 @@ class Handler(BaseHTTPRequestHandler):
             self.send_body(200, 'application/json', json.dumps(result).encode())
         except (ValueError, TypeError, OSError) as exc:
             self.send_body(400, 'application/json', json.dumps({'error': str(exc)}).encode())
+
+    def damage_proxy(self, data=None):
+        headers = {}
+        if data is not None:
+            headers = {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + self.server.media.agent_token}
+        request = urllib.request.Request(self.server.media.agent + self.path,
+            data=json.dumps(data).encode() if data is not None else None, headers=headers)
+        try:
+            response = urllib.request.urlopen(request, timeout=40)
+        except urllib.error.HTTPError as exc:
+            response = exc
+        except (OSError, ValueError):
+            self.send_body(503, 'application/json', b'{"error":"Damage agent unavailable. Start the agent and try again."}')
+            return
+        with response:
+            self.send_response(response.code)
+            self.send_header('Content-Type', response.headers.get('Content-Type', 'application/json'))
+            self.send_header('Cache-Control', 'no-store')
+            self.send_header('X-Content-Type-Options', 'nosniff')
+            if response.headers.get('Content-Disposition'):
+                self.send_header('Content-Disposition', response.headers['Content-Disposition'])
+            self.end_headers()
+            try:
+                while True:
+                    chunk = response.read(65536)
+                    if not chunk: break
+                    self.wfile.write(chunk)
+            except (BrokenPipeError, ConnectionResetError):
+                pass
 
     def send_body(self, status, kind, body):
         self.send_response(status)
