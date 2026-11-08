@@ -26,10 +26,23 @@ def inspect(config):
     if result.startswith('```'):
         result=result.split('\n',1)[1].rsplit('```',1)[0]
     result=json.loads(result)
-    confidence=result.get('confidence')
-    if result.get('action') not in ('forward','left','right','wait') or type(confidence) not in (int,float) or not math.isfinite(confidence) or not .85<=confidence<=1:
-        return 'wait','Uncertain camera clearance; looking again'
-    return result['action'],str(result.get('reason','Camera checked'))[:160]
+    return decision(result)
+
+
+def decision(result):
+    if not isinstance(result, dict):
+        return 'wait', 'Invalid camera response; looking again'
+    action, confidence = result.get('action'), result.get('confidence')
+    reason = str(result.get('reason', 'No visual explanation'))[:160]
+    if action not in ('forward', 'left', 'right', 'wait') or type(confidence) not in (int, float) or not math.isfinite(confidence) or not 0 <= confidence <= 1:
+        return 'wait', 'Invalid camera decision; looking again'
+    detail = f'{action.title()} ({confidence:.0%}): {reason}'
+    if action == 'wait':
+        return 'wait', detail
+    if confidence < .8:
+        return 'wait', 'Below 80% movement threshold — ' + detail
+    return action, detail
+
 
 
 class CameraGuide:
@@ -43,6 +56,7 @@ class CameraGuide:
             self.epoch=object();self.pending=False;self.result=None
             self.until=0;self.next_check=self.clock()+.5;self.axes=(0,0)
             self.reason='Waiting for a fresh camera view'
+            self.candidate=None;self.confirmations=0
 
     def command(self, speed, busy):
         with self.lock:
@@ -57,11 +71,19 @@ class CameraGuide:
                 action,reason,started=self.result;self.result=None
                 self.reason=reason
                 if now-started<=8 and action!='wait':
+                    self.confirmations = self.confirmations+1 if self.candidate==action else 1
+                    self.candidate=action
+                    if self.confirmations < 2:
+                        self.reason='Confirming camera route (1/2) — '+reason
+                        self.next_check=now+.25
+                        return 0,0,self.reason
+                    self.candidate=None;self.confirmations=0
                     # Slider scales the conservative camera speed, never full gait speed.
                     power=min(.3,.2+.1*speed)
                     self.axes={'forward':(power,0),'left':(0,power),'right':(0,-power)}[action]
                     self.until=now+.15;self.next_check=now+1
                     return *self.axes,self.reason
+                self.candidate=None;self.confirmations=0
                 self.next_check=now+2
                 if now-started>8:self.reason='Vision response too old; looking again'
             if not self.pending and now>=self.next_check:

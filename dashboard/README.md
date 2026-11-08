@@ -98,7 +98,7 @@ Ultrasonic sensing is not initialized or required. Start is explicit. The speed 
 scales conservative command magnitudes of 0.22–0.30, not measured walking velocity.
 The Mac owns one SSH control connection and ignores headset steering in autonomous mode.
 While stationary, it requests a fresh camera image and a constrained forward/left/right/wait
-assessment. Confidence below 0.85, malformed output, camera/API failure, and responses
+assessment. Two consecutive matching movement assessments are required. Confidence below 0.80, malformed output, camera/API failure, and responses
 older than eight seconds hold motion and retry without releasing autonomous ownership.
 A movement command lasts at most 150 ms, followed by neutral and a new stationary view;
 a committed vendor gait can finish after neutral or Stop. This is experimental visual

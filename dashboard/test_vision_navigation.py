@@ -1,6 +1,6 @@
 import threading
 import unittest
-from vision_navigation import CameraGuide
+from vision_navigation import CameraGuide, decision
 
 class NavigationTests(unittest.TestCase):
     def setUp(self):
@@ -9,6 +9,8 @@ class NavigationTests(unittest.TestCase):
     def result(self,action,started=10):
         self.guide.result=(action,'evidence',started)
     def test_bounded_pulse_and_turn_direction(self):
+        self.result('left')
+        self.assertEqual(self.guide.command(1,False)[:2],(0,0))
         self.result('left')
         self.assertEqual(self.guide.command(1,False)[:2],(0,.3))
         self.now+=.2
@@ -31,3 +33,14 @@ class NavigationTests(unittest.TestCase):
         self.guide._look(self.guide.epoch)
         self.assertEqual(self.guide.command(1,False)[:2],(0,0))
         self.assertIn('retrying',self.guide.reason)
+
+    def test_disagreement_or_wait_breaks_confirmation(self):
+        for action in ('forward','left','wait','left'):
+            self.result(action)
+            self.assertEqual(self.guide.command(1,False)[:2],(0,0))
+    def test_decision_reports_confidence_and_preserves_wait(self):
+        self.assertEqual(decision(dict(action='forward',confidence=.82,reason='open floor'))[0],'forward')
+        self.assertIn('82%',decision(dict(action='forward',confidence=.82,reason='open floor'))[1])
+        for confidence in (.79,float('nan'),True,82):
+            self.assertEqual(decision(dict(action='forward',confidence=confidence))[0],'wait')
+        self.assertIn('obstacle',decision(dict(action='wait',confidence=.5,reason='obstacle'))[1])
