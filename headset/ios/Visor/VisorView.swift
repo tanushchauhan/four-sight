@@ -1,3 +1,4 @@
+import CoreMotion
 import MetalKit
 import SwiftUI
 import UIKit
@@ -6,19 +7,25 @@ import UIKit
 /// flat control: it shows while the camera is not live, folds away once it is, and a tap brings it back.
 struct VisorView: View {
     @StateObject private var controller = ARSessionController()
+    @StateObject private var steering = HeadSteering()
     @AppStorage("cameraURL") private var address = "http://prada.local:8080/stream"
     @AppStorage("cameraSource") private var sourceName = CameraSource.robot.rawValue
     @State private var phone = PhoneCamera()
     @State private var settings = true
+    @State private var token = ""
     @State private var layerStatus = "Lens layer: drawing"
     @FocusState private var focused: Control?
+    @Environment(\.scenePhase) private var scenePhase
 
     private enum Control: Hashable {
         case address
+        case token
         case connect
         case wear
         case robot
         case phone
+        case steering
+        case recenter
     }
 
     private var source: CameraSource { CameraSource(rawValue: sourceName) ?? .robot }
@@ -58,17 +65,23 @@ struct VisorView: View {
             apply(source)
         }
         .onDisappear {
+            steering.stop()
             controller.pause()
             phone.pause()
             UIApplication.shared.isIdleTimerDisabled = false
         }
+        .onChange(of: scenePhase) { _, phase in
+            if phase != .active { steering.stop() }
+        }
         .onChange(of: controller.status) { _, status in
             if source == .robot, status == "Live", focused == nil { settings = false }
+            if status != "Live" { steering.stop() }
         }
     }
 
     private func apply(_ source: CameraSource) {
         sourceName = source.rawValue
+        steering.stop()
         switch source {
         case .robot:
             phone.pause()
@@ -108,43 +121,77 @@ struct VisorView: View {
                 }
             }
             if source == .robot {
-            rule
-            cell {
-                Text("Camera URL")
-                    .font(VisorToken.label(14))
-                    .foregroundStyle(VisorToken.muted.color)
-                TextField("http://prada.local:8080/stream", text: $address)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .keyboardType(.URL)
-                    .textContentType(.URL)
-                    .submitLabel(.go)
-                    .font(VisorToken.measured(16))
-                    .foregroundStyle(VisorToken.ink.color)
-                    .tint(VisorToken.ink.color)
-                    .padding(.horizontal, VisorToken.spaceSm)
-                    .frame(height: VisorToken.controlHeight)
-                    .background(VisorToken.paper2.color)
-                    .overlay(Rectangle().strokeBorder(VisorToken.rule.color, lineWidth: VisorToken.hairline))
-                    .overlay(focusRing(focused == .address))
-                    .focused($focused, equals: .address)
-                    .onSubmit { controller.start(address) }
-                Text(controller.status)
-                    .font(VisorToken.body(16))
-                    .foregroundStyle(VisorToken.ink2.color)
-                    .frame(minHeight: 22, alignment: .leading)
-            }
+                rule
+                cell {
+                    Text("Camera URL")
+                        .font(VisorToken.label(14))
+                        .foregroundStyle(VisorToken.muted.color)
+                    TextField("http://prada.local:8080/stream", text: $address)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .keyboardType(.URL)
+                        .textContentType(.URL)
+                        .submitLabel(.go)
+                        .font(VisorToken.measured(16))
+                        .foregroundStyle(VisorToken.ink.color)
+                        .tint(VisorToken.ink.color)
+                        .padding(.horizontal, VisorToken.spaceSm)
+                        .frame(height: VisorToken.controlHeight)
+                        .background(VisorToken.paper2.color)
+                        .overlay(Rectangle().strokeBorder(VisorToken.rule.color, lineWidth: VisorToken.hairline))
+                        .overlay(focusRing(focused == .address))
+                        .focused($focused, equals: .address)
+                        .onSubmit { steering.stop(); controller.start(address) }
+                    Text(controller.status)
+                        .font(VisorToken.body(16))
+                        .foregroundStyle(VisorToken.ink2.color)
+                        .frame(minHeight: 22, alignment: .leading)
+                    Text("Robot control token")
+                        .font(VisorToken.label(14))
+                        .foregroundStyle(VisorToken.muted.color)
+                    SecureField("Robot control token", text: $token)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .font(VisorToken.measured(16))
+                        .foregroundStyle(VisorToken.ink.color)
+                        .tint(VisorToken.ink.color)
+                        .padding(.horizontal, VisorToken.spaceSm)
+                        .frame(height: VisorToken.controlHeight)
+                        .background(VisorToken.paper2.color)
+                        .overlay(Rectangle().strokeBorder(VisorToken.rule.color, lineWidth: VisorToken.hairline))
+                        .overlay(focusRing(focused == .token))
+                        .focused($focused, equals: .token)
+                    Text(steering.status)
+                        .font(VisorToken.body(16))
+                        .foregroundStyle(VisorToken.ink2.color)
+                        .frame(minHeight: 22, alignment: .leading)
+                    Toggle("Reverse steering", isOn: $steering.reverse)
+                        .font(VisorToken.label(16))
+                        .foregroundStyle(VisorToken.ink.color)
+                        .tint(VisorToken.ink.color)
+                }
             }
             rule
             HStack(spacing: VisorToken.spaceSm) {
                 if source == .robot {
                     Button(controller.status == "Connecting…" ? "Connecting" : "Connect") {
                         focused = nil
+                        steering.stop()
                         controller.start(address)
                     }
                     .buttonStyle(SheetButtonStyle(primary: true, focused: focused == .connect))
                     .focused($focused, equals: .connect)
                     .disabled(controller.status == "Connecting…")
+                    Button(steering.active ? "Stop head steering" : "Enable head steering") {
+                        focused = nil
+                        if steering.active { steering.stop() }
+                        else { steering.start(address: address, token: token, video: controller) }
+                    }
+                    .buttonStyle(SheetButtonStyle(primary: false, focused: focused == .steering))
+                    .focused($focused, equals: .steering)
+                    Button("Recenter head") { steering.recenter() }
+                        .buttonStyle(SheetButtonStyle(primary: false, focused: focused == .recenter))
+                        .focused($focused, equals: .recenter)
                 }
                 Button("Wear it") {
                     focused = nil
@@ -268,5 +315,81 @@ private struct MetalVisor: UIViewRepresentable {
     final class Coordinator {
         var renderer: StereoRenderer?
         var drawn: VisorBriefing?
+    }
+}
+
+@MainActor
+final class HeadSteering: ObservableObject {
+    @Published var active = false
+    @Published var status = "Head steering off"
+    @Published var reverse = false
+    private let motion = CMMotionManager()
+    private var socket: URLSessionWebSocketTask?
+    private var loop: Task<Void, Never>?
+    private var origin: Double?
+    private var filtered = 0.0
+
+    func recenter() { origin = nil; filtered = 0 }
+
+    func start(address: String, token: String, video: ARSessionController) {
+        stop()
+        guard motion.isDeviceMotionAvailable, token.count >= 16,
+              var url = URLComponents(string: address), url.host != nil else {
+            status = "Motion unavailable or control token missing"; return
+        }
+        url.scheme = "ws"; url.port = 8766; url.path = "/"; url.query = nil
+        guard let endpoint = url.url else { return }
+        let ws = URLSession.shared.webSocketTask(with: endpoint)
+        socket = ws; ws.resume()
+        motion.deviceMotionUpdateInterval = 1.0 / 30
+        motion.startDeviceMotionUpdates(using: .xArbitraryZVertical)
+        active = true; status = "Connecting steering…"; recenter()
+        loop = Task { [weak self] in
+            guard let self else { return }
+            do {
+                let hello = try JSONSerialization.data(withJSONObject: ["token": token])
+                try await ws.send(.string(String(decoding: hello, as: UTF8.self)))
+                _ = try await ws.receive()
+                status = "Ready — click joystick to enable; center stick for head steering"
+                while !Task.isCancelled {
+                    if Date().timeIntervalSince(video.lastFrameTime) > 1 {
+                        stop(); status = "Video is stale — reconnect video, then enable steering"; return
+                    }
+                    guard let sample = motion.deviceMotion,
+                          ProcessInfo.processInfo.systemUptime - sample.timestamp < 0.3 else {
+                        try await Task.sleep(nanoseconds: 50_000_000)
+                        continue
+                    }
+                    // In landscape, the camera/display normal is device Z. Project it onto
+                    // the gravity-horizontal reference plane; this avoids Euler-yaw roll coupling.
+                    let r = sample.attitude.rotationMatrix
+                    let x = -r.m31, y = -r.m32
+                    var turn = 0.0
+                    if hypot(x, y) > 0.3 {
+                        let heading = atan2(y, x)
+                        if origin == nil { origin = heading }
+                        let delta = atan2(sin(heading - origin!), cos(heading - origin!)) * 180 / .pi
+                        filtered += 0.3 * (delta - filtered)
+                        if abs(filtered) > 12 {
+                            turn = min(0.4, 0.18 + (abs(filtered) - 12) / 100) * (filtered > 0 ? 1 : -1)
+                            if reverse { turn = -turn }
+                        }
+                    }
+                    try await ws.send(.string("{\"turn\":\(turn)}"))
+                    _ = try await ws.receive()
+                    try await Task.sleep(nanoseconds: 50_000_000)
+                }
+            } catch {
+                if !Task.isCancelled { stop(); status = "Steering disconnected — enable again" }
+            }
+        }
+    }
+
+    func stop() {
+        loop?.cancel(); loop = nil
+        socket?.cancel(with: .goingAway, reason: nil); socket = nil
+        motion.stopDeviceMotionUpdates()
+        active = false; origin = nil; filtered = 0
+        status = "Head steering off"
     }
 }

@@ -13,11 +13,14 @@ import asyncio
 import contextlib
 import json
 import logging
+import hmac
+import math
 import os
 import struct
 import time
 
 from websockets.asyncio.client import connect
+from websockets.asyncio.server import serve
 
 SERVICE = "6b3f0001-8c1a-4d3e-9a0b-7d1f2c5e4a10"
 JOYSTICK = "6b3f0002-8c1a-4d3e-9a0b-7d1f2c5e4a10"
@@ -25,6 +28,50 @@ STATE = "6b3f0003-8c1a-4d3e-9a0b-7d1f2c5e4a10"
 STALE_SECONDS = 0.3
 CENTERED = 0.15  # both axes must be inside this to enable (same as the server deadzone)
 PERIOD = 0.05
+
+
+class HeadInput:
+    def __init__(self):
+        self.turn = 0.0
+        self.received = 0.0
+        self.owner = None
+
+    def value(self):
+        return self.turn if time.monotonic() - self.received < 0.3 else 0.0
+
+    async def handle(self, socket, token):
+        owned = False
+        try:
+            hello = json.loads(await asyncio.wait_for(socket.recv(), 5))
+            if (not isinstance(hello, dict) or not isinstance(hello.get("token"), str)
+                    or not hmac.compare_digest(hello["token"], token) or self.owner is not None):
+                await socket.close(1008, "authentication failed or headset connected")
+                return
+            self.owner = socket
+            owned = True
+            await socket.send('{"ready":true}')
+            async for raw in socket:
+                msg = json.loads(raw)
+                turn = msg.get("turn") if isinstance(msg, dict) else None
+                if type(turn) not in (float, int) or not math.isfinite(turn) or abs(turn) > 0.4:
+                    await socket.close(1008, "invalid head turn")
+                    break
+                self.turn, self.received = turn, time.monotonic()
+                await socket.send('{"received":true}')
+        except Exception:
+            pass
+        finally:
+            if owned:
+                self.turn = 0.0
+                self.received = 0.0
+                self.owner = None
+
+
+def drive_axes(stick, head):
+    # Joystick owns enable/stop and overrides head input on either axis.
+    if not stick.centered():
+        return stick.forward, stick.turn
+    return 0.0, head.value()
 
 
 class Stick:
@@ -87,7 +134,7 @@ async def find_device(address):
             return device
 
 
-async def session(device, uri, token, stick):
+async def session(device, uri, token, stick, head):
     from bleak import BleakClient
     async with BleakClient(device) as ble, \
             connect(uri, max_size=4096, max_queue=1, close_timeout=1) as socket:
@@ -140,8 +187,9 @@ async def session(device, uri, token, stick):
                     if not stick.fresh():
                         await set_enabled((await send("stop"))["enabled"])
                     else:
-                        reply = await send("drive", forward=round(stick.forward, 3),
-                                           turn=round(stick.turn, 3))
+                        forward, turn = drive_axes(stick, head)
+                        reply = await send("drive", forward=round(forward, 3),
+                                           turn=round(turn, 3))
                         await set_enabled(reply["enabled"])
                 await asyncio.sleep(max(0.0, PERIOD - (time.monotonic() - started)))
         finally:
@@ -157,10 +205,17 @@ async def run(uri, token, address, invert_forward, invert_turn):
     task = asyncio.current_task()
     asyncio.get_running_loop().add_signal_handler(signal.SIGTERM, task.cancel)
     stick = Stick(invert_forward, invert_turn)
+    head = HeadInput()
+    async with serve(lambda ws: head.handle(ws, token), "0.0.0.0", 8766,
+                     max_size=1024, max_queue=1, compression=None):
+        await relay_loop(uri, token, address, stick, head)
+
+
+async def relay_loop(uri, token, address, stick, head):
     while True:
         try:
             device = await find_device(address)
-            await session(device, uri, token, stick)
+            await session(device, uri, token, stick, head)
             logging.info("joystick disconnected")
         except Exception as exc:  # reconnect on any BLE or server failure
             logging.warning("session ended: %s", exc)
