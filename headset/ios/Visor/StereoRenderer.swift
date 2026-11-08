@@ -43,8 +43,8 @@ final class StereoRenderer: NSObject, MTKViewDelegate {
     private static let renderScale: Float = 0.75
     // Leave a small blue margin around each warped eye instead of using the entire phone half.
     // X and Y are deliberately independent: changing Y must only squash the lens vertically.
-    private static let eyeViewportScaleX: Float = 0.8
-    private static let eyeViewportScaleY: Float = 1.2
+    private static let eyeViewportScaleX: Float = 0.70
+    private static let eyeViewportScaleY: Float = 0.60
     // Whole-screen NDC: 0.04 moves the eye footprints up by 2% of screen height.
     private static let eyeViewportOffsetY: Float = 0.04
 
