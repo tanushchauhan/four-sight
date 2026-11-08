@@ -1,0 +1,36 @@
+{
+  "id": "803f3365-9675-4d26-9b01-ba331b424f8d",
+  "incident": true,
+  "title": "DEMO — Floor-level view with person, cable, and phone case",
+  "category": "other",
+  "severity": "unknown",
+  "confidence": 0,
+  "observations": [
+    "A person is seated on a glossy floor wearing dark pants and blue sneakers.",
+    "A black cable runs across the floor near the person's feet.",
+    "A black phone case with yellow accents lies on the floor in the foreground.",
+    "The floor is reflective and shows reflections of the person and surrounding objects.",
+    "A dark rectangular object is visible in the lower-left corner of the floor."
+  ],
+  "uncertainties": [
+    "STAGED DEMONSTRATION ONLY — no verified property damage or insurance loss.",
+    "No address, cause, costs, coverage, or hidden damage can be determined from this view.",
+    "Staged demonstration only; no verified insurance loss.",
+    "Glossy floor does not establish water or flooding.",
+    "Cable does not establish live electricity or electrical damage.",
+    "Seated person does not establish injury."
+  ],
+  "survey": "DEMO — Nemotron staged inspection examples; not a real loss",
+  "location": "Viewpoint 2 — operator-staged cable and objects",
+  "capturedAt": 1794157874903.6606,
+  "recordedAt": 1794158163966,
+  "robotId": 1,
+  "position": null,
+  "snapshotId": "saved-clockwise-demo-photo",
+  "imageSha256": "af7dd691cb8f70e288ec5369ab45680cac03aadb332bfef10a9bf9f431ce0dd6",
+  "model": "nvidia/nemotron-3.5-super-vl-120b-a12b",
+  "status": "needs_review",
+  "reviewNote": "",
+  "reviewedAt": null,
+  "demo": true
+}
