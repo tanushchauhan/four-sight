@@ -9,6 +9,8 @@ enum FeedState: Equatable {
 }
 
 struct VisorBriefing: Equatable {
+    var sightings: [SurvivorSighting] = []
+    var radarTime = Date()
     var coordinator: FeedState
     var survivors: FeedState
     var slam: FeedState
@@ -69,7 +71,7 @@ struct LensLayerView: View {
                     CompactReadout(label: "Triage motion", state: briefing.triage, trailing: true)
                 }
                 Spacer(minLength: 0)
-                Breadcrumb(state: briefing.breadcrumb)
+                SurvivorRadar(sightings: briefing.sightings, now: briefing.radarTime)
                 HStack(alignment: .lastTextBaseline) {
                     CameraLink(state: briefing.camera)
                     Spacer(minLength: VisorToken.spaceLg)
@@ -80,8 +82,48 @@ struct LensLayerView: View {
             // intentionally smaller than the phone half below, so edge labels need extra inset.
             .padding(.horizontal, 270)
             .padding(.vertical, 260)
+            .scaleEffect(0.88)
         }
         .frame(width: LensLayer.side, height: LensLayer.side)
+    }
+}
+
+private struct SurvivorRadar: View {
+    let sightings: [SurvivorSighting]
+    let now: Date
+
+    var body: some View {
+        VStack(spacing: 4) {
+            ZStack {
+                Circle().fill(VisorToken.scrim.color)
+                Circle().stroke(VisorToken.rule2.color, lineWidth: 1)
+                Circle().stroke(VisorToken.rule2.color, lineWidth: 1).padding(22)
+                Path { path in
+                    path.move(to: CGPoint(x: 55, y: 8))
+                    path.addLine(to: CGPoint(x: 55, y: 102))
+                    path.move(to: CGPoint(x: 8, y: 55))
+                    path.addLine(to: CGPoint(x: 102, y: 55))
+                }.stroke(VisorToken.rule2.color, style: StrokeStyle(lineWidth: 1, dash: [2, 4]))
+                ForEach(sightings) { sighting in
+                    let age = max(0, now.timeIntervalSince(sighting.seen))
+                    let radius = min(44, sighting.distance / 15 * 44)
+                    let angle = sighting.bearing * .pi / 180
+                    Circle()
+                        .fill(Color(red: 0.2, green: 0.65, blue: 1))
+                        .overlay(Circle().stroke(Color.white.opacity(0.7), lineWidth: 1))
+                        .frame(width: 9, height: 9)
+                        .opacity(max(0, 1 - age / 45))
+                        .offset(x: sin(angle) * radius, y: -cos(angle) * radius)
+                }
+                Image(systemName: "location.north.fill")
+                    .font(.system(size: 13))
+                    .foregroundStyle(VisorToken.ink.color)
+            }.frame(width: 110, height: 110)
+            Text("SIGHTINGS · RELATIVE · 15 M")
+                .font(VisorToken.measured(11))
+                .foregroundStyle(VisorToken.muted.color)
+        }
+        .padding(.bottom, 8)
     }
 }
 
