@@ -9,7 +9,22 @@ The address persists between launches. The Pi camera service must be running.
 The receiver reads the MJPEG stream directly and keeps only the latest JPEG.
 Both eyes show the same image with its aspect ratio preserved and lens distortion applied.
 Disconnected streams retry automatically; images older than two seconds are cleared.
-The iPhone camera is not started. Head motion does not yet control the robot mount.
+Choose Robot feed for the Pi MJPEG stream or Phone camera for local ARKit passthrough.
+
+## Survivor segmentation
+
+The visor bundles the INT8 Core ML export of Ultralytics YOLO26n-seg and uses its COCO `person`
+class as the baseline survivor signal. Inference runs on a dedicated queue at up to 15 analyses per
+second while the Metal camera and lens renderer remains at 60 FPS. Only the newest completed mask is
+shown, so a slow inference never stalls the camera feed. Detected people receive a translucent cyan
+segmentation highlight in both eyes, and the HUD shows a survivor count, confidence, and alert.
+
+Both the robot MJPEG feed and the ARKit phone-camera feed use the same detector. The phone path reads
+ARKit's camera pixel buffer directly; it does not create a second AVCapture session. Test performance
+and mask alignment on a physical iPhone because the simulator has no representative Neural Engine or
+camera path. The generic COCO person class is not rescue-scene validation: fine-tune a compatible
+segmentation model on prone, obscured, low-light, and partially visible people before treating the
+alert as safety-critical.
 
 The lens profile is the Pop-Tech 34 mm biconvex with a 45 mm focal length: the screen is
 treated as the focal plane, with the Cardboard V2 distortion pair for that lens diameter.
