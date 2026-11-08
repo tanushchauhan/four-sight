@@ -17,7 +17,6 @@ Options: `--robot prada` (SSH alias or user@host), `--port 8090`, `--interval 5`
 - Camera: most recent JPEG returned by `/frame`, refreshed once per probe. This does not prove the underlying sensor is still producing fresh frames.
 - Joystick: BlueZ connection state for the project's Arduino (`98:4F:EE:0F:35:0C`). This does not indicate enable state or fresh joystick packets.
 - Headset: an established TCP connection on the head-steering port 8766. Authentication/steering readiness is not inferred.
-- Beacon: explicitly not integrated. No heartbeat exists in its current firmware.
 
 Status probes do not send motor commands, restart services, read the control token, or read battery hardware. Debug takeover is described below. Stale/unreachable telemetry is cleared instead of shown as current. Power flags are not a battery gauge. The dashboard can run without internet, provided the Mac can reach Prada. A Mac on the upstream side of a second Mac's Internet Sharing may not be able to initiate connections into the robot LAN; run this server on the downstream Mac or provide a suitable route.
 
@@ -156,7 +155,7 @@ is serialized and both sources fold into the same encounter.
 
 A sighting stops exploration before opening the agent case. The real Prada path posts
 one immediate responder/phone alert, says one fixed greeting, and waits for takeover.
-It does not infer injuries, interview the person, run simulated dispatches, drop a beacon,
+It does not infer injuries, interview the person, run simulated dispatches,
 or narrate periodic status reports. Nemotron handles grounded operator questions using
 fresh dashboard facts; it cannot call action tools in this real-robot demo path.
 
@@ -204,3 +203,40 @@ agent with `cd agent && npm start`. Secrets are never placed in browser response
 Deploy current motor control/backend/gesture modules, `config.py`, `live_audio.py`, and
 `speech.py` to Prada; install/start `prada-speech.service` and camera before testing.
 Service startup is disarmed and does not initialize servos.
+
+## Damage & incidents
+
+Open **http://localhost:8090/damage** (or use **Damage & incidents** from live
+operations). Run the dashboard and `cd agent && npm start`. The agent needs
+`LLM_MODE=nvidia`, `NVIDIA_API_KEY`, and `VISION_MODEL`; both services read the same
+`agent/.env` and `AGENT_TOKEN`. Keys never reach the browser.
+
+Enter a survey/property reference and an operator-provided location such as
+"Ground floor / kitchen". **Analyze current frame** performs one inspection.
+**Start survey** repeats every 20 seconds after each completed inspection;
+**Stop survey** stops future inspections (an analysis already underway may finish).
+The survey reads the camera and never drives the robot. Surveys start stopped
+after an agent restart. Update location labels by stopping and restarting a survey.
+
+Nemotron decides whether visible damage or a hazard merits a record. Normal or
+unclear scenes do not automatically become incidents. Model/camera errors appear
+in the survey status; no simulated observations or photos are substituted. Each
+record contains a saved JPEG, frame retrieval time, robot/snapshot ID, SHA-256,
+model ID, visible observations, uncertainties, confidence, and visible-impact
+severity. Prada's map position is unknown. The timestamp identifies retrieval of
+the camera JPEG, not independently verified sensor exposure time. Identical photo
+bytes in the same survey/location are skipped. Images are the same JPEGs supplied
+to Nemotron (the robot adapter may resize them).
+
+Records and photos persist in `agent/data/incidents/` when launched from `agent/`;
+set `DAMAGE_DATA_DIR` to an absolute path to choose another destination. Data is
+ignored by Git. Human review adds notes and a review timestamp without replacing
+the AI observations. Only this Mac can start/stop surveys or mark records reviewed;
+LAN visitors can view and export, consistent with the local demo dashboard.
+
+**Build report** opens a portable HTML report with embedded photos; use
+**Print / save as PDF** in that report. An individual incident has its own report.
+**Export evidence JSON** includes every record and its base64 photo. Filters apply
+to the on-screen list; the overall report and JSON contain all saved incidents.
+This is a human-review evidence packet for an insurance demo, not a State Farm
+claim submission, verified damage appraisal, cost estimate, or coverage decision.

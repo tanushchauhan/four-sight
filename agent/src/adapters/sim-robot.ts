@@ -97,7 +97,6 @@ export class SimRobot implements RobotAdapter {
   private s: RobotState;
   private snapshotSeq = 0;
   private replyIndex = new Map<SimSurvivor, number>();
-  private beaconsLeft = 1;
   /** Positions after each walk, for retracing the path home. */
   private readonly breadcrumbs: { x: number; y: number }[] = [];
   readonly spoken: string[] = [];
@@ -321,12 +320,6 @@ export class SimRobot implements RobotAdapter {
     const i = this.replyIndex.get(near.p) ?? 0;
     this.replyIndex.set(near.p, i + 1);
     return { transcript: near.p.replies[Math.min(i, near.p.replies.length - 1)] ?? null };
-  }
-
-  async dropBeacon(): Promise<{ ok: boolean; reason?: string }> {
-    if (this.beaconsLeft <= 0) return { ok: false, reason: "no beacons left" };
-    this.beaconsLeft -= 1;
-    return { ok: true };
   }
 
   /** Walk back along the recorded path (like the real robot's "retrace on link loss"), then to the start. */

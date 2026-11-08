@@ -79,9 +79,9 @@ test("approval prompts become a warning that says where to answer", () => {
   assert.equal(r.level, "warning");
   assert.equal(r.approval, true);
   const v = voiceAt(fakeClock());
-  const u = v.push({ text: "Approve? Release the beacon at case 2", level: "info" });
+  const u = v.push({ text: "Approve? Dispatch responders to case 2", level: "info" });
   assert.equal(u?.level, "warning");
-  assert.match(u!.text, /^Approval needed: Release the beacon at case 2\. Answer on the console\.$/);
+  assert.match(u!.text, /^Approval needed: Dispatch responders to case 2\. Answer on the console\.$/);
 });
 
 test("browser port (speech.js) gives the same rewrite", () => {

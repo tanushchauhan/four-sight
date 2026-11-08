@@ -25,7 +25,6 @@ This document captures the intended experience and feature scope. Features liste
 ## Survivor assistance
 
 - **Communication through the robot:** Let the rescuer comfort the survivor and explain that help is coming. A robot speaker plays the rescuer's voice; a robot microphone captures the survivor's response.
-- **Beacon deployment:** Drop a beacon near the survivor to mark their location for responders.
 - **Survivor location record:** Associate each detection with a mapped location and case so responders can find the survivor and track follow-up.
 
 ## Nemotron coordination and fleet supervision
@@ -44,12 +43,12 @@ This document captures the intended experience and feature scope. Features liste
 3. A robot detects a potential survivor, records their location, and creates a case for review.
 4. The agent ranks the case in the survivor queue using the available observations.
 5. The rescuer takes over the robot, views its feed, moves the camera with head motion, and drives with the joystick.
-6. The rescuer communicates with the survivor through the robot and deploys a beacon if available.
-7. Responders use the location record and beacon to reach the survivor, while robots continue searching other areas.
+6. The rescuer communicates with the survivor through the robot.
+7. Responders use the location record to reach the survivor, while robots continue searching other areas.
 
 ## Relationship to the implementation plan
 
-The existing plan defines the initial core loop as autonomous search, person detection, manual handoff, live visor video, joystick control, head tracking, and a Nemotron assessment card. Fleet coordination, coverage, and two-way audio follow that core loop; beacon deployment and additional sensors are stretch features there.
+The existing plan defines the initial core loop as autonomous search, person detection, manual handoff, live visor video, joystick control, head tracking, and a Nemotron assessment card. Fleet coordination, coverage, and two-way audio follow that core loop; additional sensors are stretch features there.
 
 This product vision additionally calls for a glove controller, voice commands, SLAM, and a visor front-camera view. Their implementation and priority still need to be incorporated into the technical plan. The existing plan uses a Bluetooth gamepad for initial joystick control.
 

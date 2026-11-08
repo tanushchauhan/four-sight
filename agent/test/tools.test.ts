@@ -59,7 +59,7 @@ test("dispatch waits for approval and then runs", async () => {
 test("unanswered confirmation expires", async () => {
   const { registry, ctx, state } = setup(new ScriptedModel([]), { autoConfirm: "none", confirmTimeoutMs: 100 });
   const c = await state.reportDetection(1, 2, 2, 0.8, "x");
-  const out = await registry.execute("drop_beacon", JSON.stringify({ case_id: c!.id }), ctx);
+  const out = await registry.execute("dispatch_responders", JSON.stringify({ case_id: c!.id }), ctx);
   assert.equal(out.blocked, true);
   assert.match(JSON.stringify(out.result), /expired/);
 });

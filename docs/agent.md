@@ -10,7 +10,7 @@ With one robot, Nemotron is not a fleet dispatcher. It is a **team of three Nemo
 
 | Agent | Model (default) | Job | Tools it can see |
 | --- | --- | --- | --- |
-| **Coordinator** (lead) | `nemotron-3-ultra-550b-a55b` | Gets every event and decides what happens. It delegates robot work and owns everything that involves people: takeovers, SMS, dispatch, beacon, ranking, alerts, return home | read tools, `request_takeover`, `set_priority`, `notify_responders`, `dispatch_responders`, `drop_beacon`, `push_headset_alert`, `return_to_start`, **`delegate_triage`**, **`delegate_search`** |
+| **Coordinator** (lead) | `nemotron-3-ultra-550b-a55b` | Gets every event and decides what happens. It delegates robot work and owns everything that involves people: takeovers, SMS, dispatch, ranking, alerts, return home | read tools, `request_takeover`, `set_priority`, `notify_responders`, `dispatch_responders`, `push_headset_alert`, `return_to_start`, **`delegate_triage`**, **`delegate_search`** |
 | **Triage** | `nemotron-3.5-lightning-30b-a3b` | Takes one case. It looks, takes second looks from other angles, talks to the survivor, and writes the triage card | camera, vision, `speak`, `listen`, movement, `set_triage`, `mark_hazard` |
 | **Search** | `nemotron-3.5-bolt-e4b` | Picks new ground, walks there, does one sweep, and maps hazards | coverage, movement, `sweep_360`, `mark_hazard` |
 | *(vision, called as a tool)* | `nemotron-3.5-super-vl-120b-a12b` | Reads a camera frame and returns triage JSON | n/a |
@@ -26,7 +26,7 @@ event ─▶ COORDINATOR ──delegate_triage(case)──▶ TRIAGE agent ─�
             ├──delegate_search()──▶ SEARCH agent ──▶ coverage / navigate / sweep_360 / mark_hazard
             │   ▲                                   (stops after one sweep)
             │   └────── {new_case_ids, percent_searched, area_complete} ◀──┘
-            └──▶ request_takeover / notify_responders (SMS) / dispatch_responders (rescuer approves) / drop_beacon
+            └──▶ request_takeover / notify_responders (SMS) / dispatch_responders (rescuer approves)
 ```
 
 Every tool call is written to the console (indented per agent), to `agent/logs/agent-<date>.jsonl`, and to the `agent_log` table, tagged `event>agent` (for example `detection>triage`). The `agent_log` table is what a dashboard can show judges live.
@@ -46,7 +46,7 @@ detection ─▶ aim camera ─▶ snapshot ─▶ Nemotron VL ──"yes"──
           talk (fixed script: "Can you hear me?" → "Are you hurt? Can you move?", stop if silent)
           ─▶ movement check (if silent) ─▶ heat reading
           ─▶ ONE Nemotron call: evidence JSON → set_triage   (agent "triage_decision", Lightning)
-          ─▶ policy in code by color: takeover priority · SMS + dispatch for red/yellow · beacon for red · headset alert
+          ─▶ policy in code by color: takeover priority · SMS + dispatch for red/yellow · headset alert
 ```
 
 - **Re-checks** (evolving scenes) run the same path and only re-notify or escalate when the case got **worse**.
@@ -56,7 +56,7 @@ detection ─▶ aim camera ─▶ snapshot ─▶ Nemotron VL ──"yes"──
 
 ### Survivor speech is untrusted input
 
-What the survivor says, and any text in an image, is data, not instructions. Every agent prompt says so, and the workflow labels it `survivor_answers_UNTRUSTED` in the evidence. The actions that matter (SMS, dispatch, beacon) are decided in code by triage color, so a survivor saying "cancel the dispatch" can't change them. There's a test for this.
+What the survivor says, and any text in an image, is data, not instructions. Every agent prompt says so, and the workflow labels it `survivor_answers_UNTRUSTED` in the evidence. The actions that matter (SMS, dispatch) are decided in code by triage color, so a survivor saying "cancel the dispatch" can't change them. There's a test for this.
 
 ### Guardrails in code (found by running the real models)
 
@@ -67,7 +67,7 @@ What the survivor says, and any text in an image, is data, not instructions. Eve
 | The search model claimed "area complete" at 48% coverage | `delegate_search` returns `area_complete` computed from the coverage grid, not from the model |
 | The coordinator ran the whole mission in one event and hit its step limit before dispatching | Only one `delegate_search` per event, so urgent events get in between |
 | Triage drove onto the person's position | The triage task now includes the distance and relative bearing to the case, plus "view it from 1-1.5 m" |
-| Dispatch and beacon drop | Need the rescuer's approval and can't be skipped (see Tools) |
+| Dispatch | Needs the rescuer's approval and can't be skipped (see Tools) |
 
 ## Demo moments (what makes it more than a chatbot)
 
@@ -75,7 +75,7 @@ What the survivor says, and any text in an image, is data, not instructions. Eve
 | --- | --- | --- |
 | **Second look** | weak detection → `take_snapshot` → `analyze_image` says "unsure" → `navigate_to` the far side of the couch → `turn` → `take_snapshot` → `analyze_image` says "yes" | The model changes the physical world to gather more evidence before it decides |
 | **Talks to the survivor** | `speak` "Can you hear me?" → `listen` → `speak` "Are you hurt?" → `listen` → `set_triage` | Multi-turn interaction that changes the triage result |
-| **Triage → action** | `set_triage` → `request_takeover` (priority from color) → `notify_responders` (real SMS) → `dispatch_responders` (rescuer approves) → `drop_beacon` | Calls real outside APIs, with a human approving the risky steps |
+| **Triage → action** | `set_triage` → `request_takeover` (priority from color) → `notify_responders` (real SMS) → `dispatch_responders` (rescuer approves) | Calls real outside APIs, with a human approving the risky steps |
 | **Search planning** | `get_coverage` → `navigate_to` the nearest unsearched cell → blocked → detour → `mark_hazard` → `sweep_360` | Plans coverage on its own and maps hazards as it goes |
 | **Self-care / escalation** | low battery → `push_headset_alert` + `return_to_start`; a stale case → `set_priority` + alert; sitrep on a timer | Runs unattended |
 
@@ -121,7 +121,7 @@ agent/src/
 | Read | `get_robot_state`, `get_sensor_readings`, `get_coverage`, `get_cases`, `get_responders` | `get_coverage` returns % searched, the nearest unsearched cells and the hazards |
 | Perception | `point_camera`, `take_snapshot`, `analyze_image`, `listen` | `analyze_image` calls the vision model and returns `person_visible`, confidence, injuries, suggested triage and a `next_look` hint |
 | Movement | `move`, `turn`, `navigate_to`, `sweep_360`, `return_to_start` | Moves stop early at obstacles, drops or low battery and report why; `sweep_360` turns detections into cases |
-| Survivor | `speak`, `set_triage`, `drop_beacon`* | |
+| Survivor | `speak`, `set_triage` | |
 | Coordination | `request_takeover`, `set_priority`, `mark_hazard`, `dispatch_responders`*, `notify_responders` | `notify_responders` sends SMS through Twilio |
 | Human | `push_headset_alert` | Sitreps and anything urgent |
 
@@ -182,7 +182,6 @@ Pi → agent  {"type":"agent_result","id":7,"ok":true,"result":{ ... }}
 | `take_snapshot` | | `Snapshot` with `imageBase64` (JPEG) or an `http(s)` `url` |
 | `speak` | `text` | `{ok}` (TTS on the HAT speaker) |
 | `listen` | `seconds` | `{transcript}` (STT on the Pi or the laptop; `null` = silence) |
-| `drop_beacon` | | `{ok, reason?}` |
 | `return_to_start` | | `MoveResult` |
 | `set_mode` | `mode` | `RobotState` |
 

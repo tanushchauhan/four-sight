@@ -31,17 +31,16 @@ export interface WorkflowDeps {
   registry: ToolRegistry;
   logger: AgentLogger;
   decision: AgentSpec;
-  /** Cases that already got the (single) beacon or a notify at a given color, across episodes. */
+  /** Cases that already got a notification at a given color, across episodes. */
   memo?: WorkflowMemo;
 }
 
 export interface WorkflowMemo {
-  beaconCase: number | null;
   notified: Map<number, Triage>;
 }
 
 export function newMemo(): WorkflowMemo {
-  return { beaconCase: null, notified: new Map() };
+  return { notified: new Map() };
 }
 
 /** The one model step in the workflow: evidence in, set_triage out. */
@@ -238,7 +237,7 @@ export async function runDetectionWorkflow(event: Extract<AgentEvent, { kind: "d
     c = (await caseOf())!;
   }
 
-  // ---- 5. Policy by color (code, not model): takeover, SMS, dispatch, beacon, alert.
+  // ---- 5. Policy by color (code, not model): takeover, SMS, dispatch, alert.
   const worse = SEVERITY[c.triage] > SEVERITY[before];
   if (event.kind === "detection" || worse) {
     await step("request_takeover", { case_id: c.id, priority: PRIORITY[c.triage], reason: `Case ${c.id}: ${c.triage.toUpperCase()}: ${c.description}`.slice(0, 200) });
@@ -246,10 +245,6 @@ export async function runDetectionWorkflow(event: Extract<AgentEvent, { kind: "d
       memo.notified.set(c.id, c.triage);
       await step("notify_responders", { case_id: c.id, message: c.triage === "red" ? "Immediate: unresponsive or critical. Robot on scene." : "Delayed: responsive but trapped or injured. Bring extrication tools." });
       if (c.status !== "responders_sent") await step("dispatch_responders", { case_id: c.id });
-    }
-    if (c.triage === "red" && memo.beaconCase === null) {
-      const b = await step("drop_beacon", { case_id: c.id });
-      if (b.ok && (b.result as { ok?: boolean }).ok) memo.beaconCase = c.id;
     }
   }
   // Tell the survivor (responsive or not: they may still hear).

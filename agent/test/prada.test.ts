@@ -46,7 +46,7 @@ test("prada: snapshot comes from GET /frame as a base64 JPEG; movement and aimin
   await assert.rejects(robot.move(), /joystick-only/);
   await assert.rejects(robot.navigateTo(), /joystick-only/);
   await assert.rejects(robot.pointCamera(), /pan-tilt/);
-  assert.deepEqual(robot.capabilities, { move: false, aim: false, beacon: false });
+  assert.deepEqual(robot.capabilities, { move: false, aim: false });
 });
 
 test("prada: big frames are shrunk under the NVIDIA inline limit", () => {

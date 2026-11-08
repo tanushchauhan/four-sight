@@ -16,7 +16,6 @@ export const TOOLSETS = {
     "set_priority",
     "dispatch_responders",
     "notify_responders",
-    "drop_beacon",
     "push_headset_alert",
     "return_to_start",
   ],

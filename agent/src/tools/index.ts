@@ -300,17 +300,6 @@ const setTriage: Tool = {
   },
 };
 
-const dropBeacon: Tool = {
-  name: "drop_beacon",
-  description: "Release the locator beacon next to a survivor so responders can find them. The robot carries only one.",
-  parameters: { type: "object", properties: { case_id: { type: "integer", minimum: 1 } }, required: ["case_id"] },
-  confirm: async (a) => `drop the beacon at case ${a.case_id}`,
-  run: async (a, ctx) => {
-    await findCase(ctx, a.case_id as number);
-    return ctx.robot.dropBeacon();
-  },
-};
-
 // ---------------- Coordination ----------------
 
 const requestTakeover: Tool = {
@@ -408,7 +397,7 @@ const notifyResponders: Tool = {
     const body = [
       `RESCUE ROBOT: case ${c.id}, triage ${c.triage.toUpperCase()} (provisional, AI-assessed)`,
       ctx.robot.capabilities?.move === false
-        ? "Location: where the rescue robot is now (no map position; follow the robot / beacon)"
+        ? "Location: where the rescue robot is now (no map position; follow the robot)"
         : `Location: x=${round(c.x, 1)} m, y=${round(c.y, 1)} m from entry`,
       c.description ? `Seen: ${c.description}` : null,
       `Note: ${a.message}`,
@@ -451,7 +440,6 @@ export const ALL_TOOLS: Tool[] = [
   returnToStart,
   speak,
   setTriage,
-  dropBeacon,
   requestTakeover,
   setPriority,
   markHazard,

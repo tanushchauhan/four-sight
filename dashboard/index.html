@@ -13,6 +13,7 @@
 <header class="bar frame">
 <a class="brand" href="/" aria-label="Prada field status">Prada</a>
 <h1>Prada operations.</h1>
+<nav class="bar-nav" aria-label="Workspaces"><a href="/" aria-current="page">Live operations</a><a href="/damage">Damage and incidents</a></nav>
 <p class="bar-link"><span class="label">Robot link</span> <strong class="measure" id="link">Checking…</strong></p>
 <button type="button" id="refresh" class="btn">Refresh status</button>
 </header>
@@ -104,14 +105,13 @@
 </section>
 <div class="lower block">
 <section class="well">
-<div class="panel-top"><h2>Device roster</h2><span class="label">Four systems</span></div>
+<div class="panel-top"><h2>Device roster</h2><span class="label">Three systems</span></div>
 <table class="roster">
 <thead><tr><th>System</th><th>Detail</th><th>State</th></tr></thead>
 <tbody>
 <tr><td><h3>Prada</h3></td><td><p>Raspberry Pi 5, Robot HAT v4<br><span id="robot-detail">Waiting for the first SSH health check.</span></p></td><td><span id="robot-badge" class="badge">Checking</span></td></tr>
 <tr><td><h3>Glove controller</h3></td><td><p><span id="glove-transport">Arduino 101, Bluetooth joystick</span><br><span id="joystick-detail">Connection reported by Prada’s Bluetooth adapter.</span></p></td><td><span id="joystick-badge" class="badge">Unknown</span></td></tr>
 <tr><td><h3>Visor</h3></td><td><p>iPhone, head steering<br><span id="headset-detail">Checks for a connection to the steering port.</span></p></td><td><span id="headset-badge" class="badge">Unknown</span></td></tr>
-<tr><td><h3>Rescue beacon</h3></td><td><p>ESP32, survivor marker<br>No LAN heartbeat yet. Dispatch and battery status are not reported.</p></td><td><span class="badge">Not integrated</span></td></tr>
 </tbody>
 </table>
 </section>

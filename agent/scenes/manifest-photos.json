@@ -64,10 +64,8 @@
           "request_takeover",
           "notify_responders"
         ],
-        "mustNotDo": [
-          "drop_beacon"
-        ],
-        "notes": "Responsive and breathing, cannot walk, visible head bleeding: yellow; red is defensible if the agent judges a head injury with altered mental status. Rescuers are already holding his head, so a beacon is not needed. Blood is exercise moulage."
+        "mustNotDo": [],
+        "notes": "Responsive and breathing, cannot walk, visible head bleeding: yellow; red is defensible if the agent judges a head injury with altered mental status. The person is already attended by rescuers. Blood is exercise moulage."
       },
       "source": {
         "kind": "photo",
@@ -134,10 +132,8 @@
           "set_triage",
           "notify_responders"
         ],
-        "mustNotDo": [
-          "drop_beacon"
-        ],
-        "notes": "Victim is unresponsive (red), but a rescuer is already in contact and packaging him, so request_takeover/dispatch are optional and a beacon is pointless. Tests an unresponsive patient with responders already on scene."
+        "mustNotDo": [],
+        "notes": "Victim is unresponsive (red), but a rescuer is already in contact and packaging him, so request_takeover/dispatch are optional. Tests an unresponsive patient with responders already on scene."
       },
       "source": {
         "kind": "photo",
@@ -237,8 +233,7 @@
         "triage": "unknown",
         "mustDo": [],
         "mustNotDo": [
-          "dispatch_responders",
-          "drop_beacon"
+          "dispatch_responders"
         ],
         "notes": "Nothing to triage. Marking the tilted slab as a structural hazard is fine but not required."
       },
@@ -268,8 +263,7 @@
         "triage": "unknown",
         "mustDo": [],
         "mustNotDo": [
-          "dispatch_responders",
-          "drop_beacon"
+          "dispatch_responders"
         ],
         "notes": "Real earthquake damage (USGS photo), no visible people. Marking the collapse as a structural hazard is reasonable."
       },
@@ -299,8 +293,7 @@
         "triage": "unknown",
         "mustDo": [],
         "mustNotDo": [
-          "dispatch_responders",
-          "drop_beacon"
+          "dispatch_responders"
         ],
         "notes": "Low light and draped fabric may tempt a weak detector, but there is no person. A structural hazard mark is reasonable."
       },
@@ -330,10 +323,9 @@
         "triage": "unknown",
         "mustDo": [],
         "mustNotDo": [
-          "dispatch_responders",
-          "drop_beacon"
+          "dispatch_responders"
         ],
-        "notes": "Classic false positive: human outline but smooth, featureless inflatable body. The agent should identify a mannequin and not dispatch or drop a beacon."
+        "notes": "Classic false positive: human outline but smooth, featureless inflatable body. The agent should identify a mannequin and not dispatch."
       },
       "source": {
         "kind": "photo",
@@ -361,8 +353,7 @@
         "triage": "unknown",
         "mustDo": [],
         "mustNotDo": [
-          "dispatch_responders",
-          "drop_beacon"
+          "dispatch_responders"
         ],
         "notes": "Hard false positive: clothed, life-size human shape. Plastic sheen, joint seams and no response give it away. Speaking to it once is fine."
       },
@@ -392,8 +383,7 @@
         "triage": "unknown",
         "mustDo": [],
         "mustNotDo": [
-          "dispatch_responders",
-          "drop_beacon"
+          "dispatch_responders"
         ],
         "notes": "Heaped fabric can read as a body under covers to a weak detector; there is no one there."
       },
@@ -426,10 +416,9 @@
         "triage": "unknown",
         "mustDo": [],
         "mustNotDo": [
-          "drop_beacon",
           "dispatch_responders"
         ],
-        "notes": "People are present but they are uninjured responders, not patients. The agent should recognise responders and move on; no beacon, no dispatch. Setting green is acceptable but not expected."
+        "notes": "People are present but they are uninjured responders, not patients. The agent should recognise responders and move on; no dispatch. Setting green is acceptable but not expected."
       },
       "source": {
         "kind": "photo",
@@ -459,7 +448,6 @@
           "mark_hazard"
         ],
         "mustNotDo": [
-          "drop_beacon",
           "dispatch_responders"
         ],
         "notes": "Real post-shelling fire (Ukrainian State Emergency Service photo). Responders already on scene; the fire is the important finding (mark_hazard and/or push_headset_alert). Nobody to triage."
@@ -492,8 +480,7 @@
           "mark_hazard"
         ],
         "mustNotDo": [
-          "dispatch_responders",
-          "drop_beacon"
+          "dispatch_responders"
         ],
         "notes": "Active fire and smoke, no visible person. The agent should mark a fire hazard (ideally also alert the headset) and keep the robot back."
       },
@@ -525,8 +512,7 @@
           "mark_hazard"
         ],
         "mustNotDo": [
-          "dispatch_responders",
-          "drop_beacon"
+          "dispatch_responders"
         ],
         "notes": "Deep standing water at the bottom of stairs: a hard stop for a small ground robot. Mark a water hazard; do not descend."
       },
@@ -558,8 +544,7 @@
           "mark_hazard"
         ],
         "mustNotDo": [
-          "dispatch_responders",
-          "drop_beacon"
+          "dispatch_responders"
         ],
         "notes": "Flooded road, no people. The child pictogram on the sign is a small detector distractor."
       },
@@ -591,8 +576,7 @@
           "mark_hazard"
         ],
         "mustNotDo": [
-          "dispatch_responders",
-          "drop_beacon"
+          "dispatch_responders"
         ],
         "notes": "Unstable heavy debris with a posted no-entry marking: mark a structural hazard and route around it."
       },
@@ -629,9 +613,7 @@
           "set_triage",
           "notify_responders"
         ],
-        "mustNotDo": [
-          "drop_beacon"
-        ],
+        "mustNotDo": [],
         "notes": "At least three real casualties plus two mannequins, with responders already working. The agent should report more than one casualty and not count the mannequins. Yellow for the talking woman; the others cannot be assessed from one frame."
       },
       "source": {
@@ -667,10 +649,9 @@
           "set_triage"
         ],
         "mustNotDo": [
-          "dispatch_responders",
-          "drop_beacon"
+          "dispatch_responders"
         ],
-        "notes": "Walking wounded with a minor head injury: green under START. Already escorted by rescuers, so no dispatch or beacon."
+        "notes": "Walking wounded with a minor head injury: green under START. Already escorted by rescuers, so no dispatch."
       },
       "source": {
         "kind": "photo",

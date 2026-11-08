@@ -1,3 +1,4 @@
+import { DamageService } from './damage/service.js';
 import { MissionLink } from "./adapters/mission.js";
 import { createInterface } from "node:readline";
 import { MemoryState } from "./adapters/memory-state.js";
@@ -58,10 +59,11 @@ mission?.start();
 const intake =
   config.robotMode === "prada" ? new DetectionIntake(app.state, (e) => runner.push(e), { token: config.agentToken, robotId: config.robotId, admit: (s) => mission!.admit(s) }) : null;
 if (app.voice || intake) {
+  const damage = new DamageService(robot, config);
   const commands = commandRoute(config.agentToken, (text) => runner.push({ kind: "voice_command", text }));
   const feed = await startOperatorFeed(app.voice ?? new OperatorVoice(), {
     host: config.operatorFeedHost, port: config.operatorFeedPort,
-    routes: async (req, res, url) => (await commands(req, res, url)) || (await intake?.routes(req, res, url)) || false,
+    routes: async (req, res, url) => (await damage.routes(req, res, url)) || (await commands(req, res, url)) || (await intake?.routes(req, res, url)) || false,
   });
   const url = feed.url.replace("127.0.0.1", "localhost");
   if (app.voice) logger.info(`Operator voice: open ${url}/operator on the rescuer's phone or laptop and tap "enable voice"`);

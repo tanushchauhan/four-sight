@@ -11,7 +11,10 @@
 .frame { width: 100%; max-width: var(--container); margin-inline: auto; padding-inline: var(--gutter); }
 .bar { position: sticky; top: 0; z-index: var(--z-sticky-nav); display: flex; align-items: center; gap: var(--space-lg); min-height: var(--space-2xl); padding-block: var(--space-sm); background: var(--color-paper); border-bottom: var(--rule-hair) solid var(--color-rule); }
 .brand { font-size: var(--text-lg); font-weight: var(--display-weight); letter-spacing: var(--tracking-display); text-decoration: none; color: var(--color-ink); }
-.bar h1 { font-size: var(--text-lg); max-width: none; }
+.bar-nav { display: flex; gap: var(--space-md); }
+.bar-nav a { color: var(--color-ink-2); font-size: var(--text-sm); text-decoration: none; }
+.bar-nav a[aria-current="page"] { color: var(--color-ink); }
+.bar-nav a:hover { color: var(--color-ink); text-decoration: underline; text-underline-offset: 0.16em; }
 .bar-link { margin-left: auto; display: flex; align-items: baseline; gap: var(--space-xs); }
 .desk { padding-block: var(--space-lg) var(--space-2xl); }
 .lead { color: var(--color-ink-2); margin: 0 0 var(--space-lg); }

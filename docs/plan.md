@@ -18,7 +18,7 @@ A $140 four-legged robot searches a collapsed building on its own. When it finds
 | **State Farm**: The Worst Day, at Scale | Find the most urgent needs, coordinate help, make sure no one is overlooked | Robots search on their own; humans step in only when someone is found; coverage map shows what's unsearched; agent ranks cases and sends responders |
 | **NVIDIA**: Nemotron beyond a chatbot | Multi-step agent, tool calls to real APIs, real-world problem | Nemotron reads robot images for triage, runs the takeover queue, assigns areas, dispatches; every tool call is logged by the agent |
 | **Spacetime** (3rd company track, only if 3 are allowed) | Spacetime powers the core of the app, not just chat or movement; public GitHub repo | All shared state and coordination rules live in Spacetime: queue, atomic robot claiming, coverage, watchdog, simulated fleet |
-| **Best Hardware** (general) | Custom hardware that's essential and works live | Head-tracked pan-tilt camera mount, drop sensor, beacon drop, custom 3D-printed headsets, on top of the PiCrawler kit |
+| **Best Hardware** (general) | Custom hardware that's essential and works live | Head-tracked pan-tilt camera mount, drop sensor, custom 3D-printed headsets, on top of the PiCrawler kit |
 
 - [ ] **Confirm the company-track limit with an organizer.** HackUTD's Devpost guide says max 2. If it's 2: submit State Farm + NVIDIA, and keep Spacetime as the backend anyway.
 - Alternative 3rd track: Photon (agent texts/calls the operator and responders).
@@ -54,7 +54,6 @@ Rules:
 
 ```
 robot/       Python on the Pi: gait, search, detection, video + control server, Spacetime HTTP client
-mount/       ESP32-S3 firmware: pan-tilt servos, drop sensor, beacon latch
 headset/     Swift visor: stereo view of the robot camera. Open headset/ios/Visor.xcodeproj
 server/      SpacetimeDB module (TypeScript)
 agent/       Node agent: Spacetime TypeScript SDK + Nemotron
@@ -154,7 +153,7 @@ Poll every ~0.5 s for orders (Pi) and the triage card (headset). The agent uses 
 Full design, tool list and contracts: **[docs/agent.md](agent.md)**. SpacetimeDB tables and reducers: **[docs/spacetime.md](spacetime.md)** (module in `server/`).
 
 - **Team of three agents:** a coordinator (Nemotron 3 Ultra) delegates to a triage agent (3.5 Lightning) and a search agent (3.5 Bolt). Vision is Nemotron 3.5 Super VL.
-- **Role (one robot):** the robot's mission brain. It plans the search, takes a **second look** when a detection is weak (re-aims, moves around the obstacle, looks again), **talks to the survivor** (`speak` / `listen`), triages, requests takeovers, texts responders (Twilio), and asks the rescuer to approve dispatch and beacon drops.
+- **Role (one robot):** the robot's mission brain. It plans the search, takes a **second look** when a detection is weak (re-aims, moves around the obstacle, looks again), **talks to the survivor** (`speak` / `listen`), triages, requests takeovers, texts responders (Twilio), and asks the rescuer to approve dispatch.
 - **Loop:** events (detection, voice command, low battery, stale case, sitrep, idle search) → multi-step tool loop → every call logged to `agent_log`.
 - **Models:** checked against our key; `nemotron-3-super-120b` returns 404 for our account. See the table in agent.md. Fallback `TOOL_CALL_MODE=json`.
 - **Status:** the full mission runs with real Nemotron against a simulated robot (`cd agent && npm run demo`), or offline with `LLM_MODE=mock`. Not yet connected to the Pi, the headset or a deployed SpacetimeDB.
@@ -193,7 +192,6 @@ Status lives in the [tracker doc](https://claude.ai/artifact/V7XnDqn5QrkXmuyj76c
 - [ ] **Simulated fleet** (Agent): `sim_tick` robots search their own areas; one operator covers many
 - [ ] **Robot asks triage questions** (Agent, Robot): asks aloud, records answers, Nemotron judges responsiveness
 - [ ] **Listen for help** (Robot): turns toward a voice or knocking
-- [ ] **Beacon drop** (Hardware): ESP32-S3 puck on a servo latch drops beside the person; blinks, beeps, broadcasts Bluetooth
 - [ ] **Haptic controller** (Hardware): ESP32-S3 + joystick + vibration motor that buzzes faster near the person
 - [ ] **Heat sensor overlay** (Hardware, Headset): thermal array or IR thermometer on the mount
 - [ ] **Second operator** (Headset, Agent): two headsets claim different robots at once
@@ -206,7 +204,7 @@ Status lives in the [tracker doc](https://claude.ai/artifact/V7XnDqn5QrkXmuyj76c
 | Raspberry Pi 4 or 5 | Runs the robot (kit doesn't include one; Zero 2W is too slow for detection) | **Check** |
 | Pi Camera Module 3 | Main camera on the pan-tilt mount | Have |
 | 2 small servos + pan-tilt bracket | Camera mount | **Need** |
-| ESP32-S3 dev kits | Mount driver, sensors, beacon, controller | Have |
+| ESP32-S3 dev kits | Mount driver, sensors, controller | Have |
 | Robot batteries + charging supply | Robot HAT v4 charges the compatible kit battery pack through its USB-C port using a 5V/2A supply; bring spares | **Check** |
 | iPhone 16 Pro / Pro Max | Headset display, motion sensors, person mask | Have |
 | 3D-printed Flow VR viewers | Headsets | Have |
