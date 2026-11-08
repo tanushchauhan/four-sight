@@ -1,3 +1,4 @@
+import { SharedService } from './shared/service.js';
 import { ConsoleNotifier, TwilioNotifier, type Notifier } from "./adapters/notifier.js";
 import { MemoryState } from "./adapters/memory-state.js";
 import { PiRobot } from "./adapters/pi-robot.js";
@@ -90,7 +91,11 @@ export function buildApp(config: Config, opts: { print?: (l: string) => void; lo
   const vision = new AutoVision(
     config.nvidiaApiKey ? new ResilientVision(new NemotronVision(config.nvidiaApiKey, config.nvidiaBaseUrl, config.visionModel, config.visionThinking), { health }) : null,
   );
-  const logger = new AgentLogger({ state, dir: opts.logDir === undefined ? config.logDir : opts.logDir, print: opts.print });
+  const audit = SharedService.from(config);
+  const logger = new AgentLogger({ state,
+    dir: config.stateMode === 'spacetime' ? null : opts.logDir === undefined ? config.logDir : opts.logDir, print: opts.print,
+    onRecord: audit ? record => { void audit.audit(record).catch(e => console.error('[spacetime] Audit write failed:', e.message)); } : undefined,
+  });
 
   const base = buildRegistry();
   const team =

@@ -1,2 +1,8 @@
 .DS_Store
 .hallmark/
+
+# Local database runtime, credentials, and data
+.spacetime/
+
+# Local helper bytecode
+scripts/__pycache__/

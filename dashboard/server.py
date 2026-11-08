@@ -147,7 +147,7 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 self.send_body(200 if frame else 404, 'image/jpeg' if frame else 'text/plain', frame or b'No live visor frame')
             return
-        if path == '/api/damage' or path.startswith('/api/damage/'):
+        if path == '/api/shared' or path == '/api/damage' or path.startswith('/api/damage/'):
             self.damage_proxy()
         elif path in ('/damage', '/damage.js'):
             name = 'damage.js' if path.endswith('.js') else 'damage.html'

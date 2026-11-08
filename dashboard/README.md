@@ -207,7 +207,7 @@ Service startup is disarmed and does not initialize servos.
 ## Damage & incidents
 
 Open **http://localhost:8090/damage** (or use **Damage & incidents** from live
-operations). Run the dashboard and `cd agent && npm start`. The agent needs
+operations). Start the local stack with `python3 scripts/local-stack.py start` from the repository root. The agent needs
 `LLM_MODE=nvidia`, `NVIDIA_API_KEY`, and `VISION_MODEL`; both services read the same
 `agent/.env` and `AGENT_TOKEN`. Keys never reach the browser.
 
@@ -228,9 +228,10 @@ the camera JPEG, not independently verified sensor exposure time. Identical phot
 bytes in the same survey/location are skipped. Images are the same JPEGs supplied
 to Nemotron (the robot adapter may resize them).
 
-Records and photos persist in `agent/data/incidents/` when launched from `agent/`;
-set `DAMAGE_DATA_DIR` to an absolute path to choose another destination. Data is
-ignored by Git. Human review adds notes and a review timestamp without replacing
+Records, photos, survey details, and reviews now persist in the local SpacetimeDB
+database. The old `agent/data/incidents/` files are retained for import and backup
+only. `DAMAGE_DATA_DIR` selects the legacy import location. Database data and local
+credentials stay under the ignored `.spacetime/` directory. Human review adds notes and a review timestamp without replacing
 the AI observations. Only this Mac can start/stop surveys or mark records reviewed;
 LAN visitors can view and export, consistent with the local demo dashboard.
 
@@ -240,3 +241,14 @@ LAN visitors can view and export, consistent with the local demo dashboard.
 to the on-screen list; the overall report and JSON contain all saved incidents.
 This is a human-review evidence packet for an insurance demo, not a State Farm
 claim submission, verified damage appraisal, cost estimate, or coverage decision.
+
+
+## Shared database record
+
+The console's **Shared mission record** panel reads cases, takeover requests,
+incident counts, and operator history from SpacetimeDB through `/api/shared`.
+The agent saves the current telemetry/mission/control snapshot every two seconds.
+Live status, motor control, and their stale-data/deadman checks continue directly
+through the local controller. Saved snapshots are not used to enable motion.
+Database errors remain visible; writes never silently fall back to memory/files.
+See `server/README.md` for startup, import, and restart verification.

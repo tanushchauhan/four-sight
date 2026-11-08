@@ -23,14 +23,14 @@ async function setup(t: any, analyze: (image: string) => Promise<Assessment> = a
 }
 test('damage records keep the actual photo, hash, unknown Prada position, and survive restart', async t => {
   const { service, robot, config, dir } = await setup(t, async image => { assert.match(image, /^data:image\/jpeg;base64,/); return finding; });
-  service.configure({ survey: 'Oak Street', location: 'Kitchen', enabled: false });
+  await service.configure({ survey: 'Oak Street', location: 'Kitchen', enabled: false });
   const result = await service.capture(); const r = result.record!;
   assert.equal(r.survey, 'Oak Street'); assert.equal(r.location, 'Kitchen'); assert.equal(r.position, null); assert.equal(r.status, 'needs_review');
   assert.match(r.imageSha256, /^[a-f0-9]{64}$/); assert.equal((await readFile(join(dir, r.id + '.jpg'))).toString('base64'), photo);
   const restarted = new DamageService(robot, config, { dir });
   assert.deepEqual(await restarted.list(), [r]);
   assert.equal((await service.capture()).duplicate, true); assert.equal((await service.list()).length, 1);
-  service.configure({ survey: 'Oak Street', location: 'Hallway', enabled: false });
+  await service.configure({ survey: 'Oak Street', location: 'Hallway', enabled: false });
   assert.equal((await service.capture()).duplicate, false); assert.equal((await service.list()).length, 2);
 });
 test('damage clear views do not create incident records', async t => {
@@ -53,7 +53,7 @@ test('damage overlapping captures are refused and stopping an in-flight survey p
   const { service } = await setup(t, () => new Promise(resolve => { finish = resolve; }));
   const pending = service.capture();
   await assert.rejects(service.capture(), /already/);
-  service.configure({ enabled: false }); assert.equal(service.status().enabled, false);
+  await service.configure({ enabled: false }); assert.equal(service.status().enabled, false);
   while (!finish) await new Promise(resolve => setTimeout(resolve, 1));
   finish(finding); await pending; assert.equal(service.status().busy, false);
 });
@@ -77,4 +77,14 @@ test('damage HTTP protects changes and exports records together with the evidenc
   const data = await exported.json() as any; assert.equal(data.incidents[0].imageBase64, photo);
   assert.equal((await fetch(url + '/api/damage/' + r.id + '/photo')).status, 200);
   assert.equal((await fetch(url + '/api/damage/report?id=missing')).status, 404);
+});
+
+test('damage database write failure does not start an uncommitted survey', async t => {
+  const { robot, config } = await setup(t);
+  t.mock.method(globalThis, 'fetch', async () => new Response('database unavailable', { status: 503 }));
+  const service = new DamageService(robot, { ...config, stateMode: 'spacetime' });
+  t.after(() => service.stop());
+  await assert.rejects(service.configure({ survey: 'House', location: 'Kitchen', enabled: true }), /503/);
+  assert.equal(service.status().enabled, false);
+  assert.equal(service.status().busy, false);
 });

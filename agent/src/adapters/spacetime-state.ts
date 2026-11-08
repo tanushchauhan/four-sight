@@ -20,7 +20,7 @@ import { StateError, type StateStore } from "./state.js";
  *   POST {url}/v1/database/{db}/call/{reducer}   body: JSON array of positional args
  *   POST {url}/v1/database/{db}/sql              body: SQL text
  *
- * NOT YET TESTED AGAINST A DEPLOYED MODULE. The SQL response decoder below is
+ * Verified against the local SpacetimeDB module. The SQL response decoder below is
  * deliberately tolerant of the SATS-JSON shapes (options, timestamps, identities)
  * because the exact encoding varies between SpacetimeDB versions.
  */
@@ -44,6 +44,7 @@ export class SpacetimeState implements StateStore {
       method: "POST",
       headers: this.headers("application/json"),
       body: JSON.stringify(args),
+      signal: AbortSignal.timeout(10000),
     });
     if (!res.ok) throw new StateError(`reducer ${reducer} failed: ${res.status} ${await res.text()}`);
   }
@@ -53,9 +54,22 @@ export class SpacetimeState implements StateStore {
       method: "POST",
       headers: this.headers("text/plain"),
       body: query,
+      signal: AbortSignal.timeout(10000),
     });
     if (!res.ok) throw new StateError(`sql failed: ${res.status} ${await res.text()}`);
     return decodeSqlResponse(await res.json());
+  }
+
+  async saveSharedState(key: string, value: unknown): Promise<void> {
+    await this.call('save_shared_state', [key, JSON.stringify(value)]);
+  }
+  async getSharedState(key: string): Promise<any | null> {
+    if (!['dashboard', 'damage_survey'].includes(key)) throw new StateError('Unknown shared state key');
+    const rows = await this.sql(`SELECT value_json FROM shared_state WHERE key = '${key}'`);
+    return rows[0] ? JSON.parse(String(rows[0].value_json)) : null;
+  }
+  async resolveConfirmation(id: number, approved: boolean): Promise<void> {
+    await this.call('resolve_confirmation', [id, approved]);
   }
 
   async robotCheckin(s: RobotState): Promise<void> {

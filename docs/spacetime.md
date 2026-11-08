@@ -3,7 +3,7 @@
 The module lives in `server/src/index.ts`, and `server/README.md` covers setup and publishing. This page is the contract the Pi, the headset and the Nemotron agent build against. If you change a name or an argument order, update this page in the same change.
 
 - One physical robot (PiCrawler, `robot_id = 1`). Tables are keyed by `robot_id` so simulated robots can be added later.
-- Every table is public, so any client can read it with SQL.
+- Original rescue tables are public; evidence, photos, shared snapshots, and history are private and read by the publishing service identity.
 - Enum-like columns are plain strings. Reducers check them and throw on a bad value.
 - Coordinates are metres in the arena frame. Coverage uses a 1 m grid: cell = `(floor(x), floor(y))`.
 
@@ -18,7 +18,7 @@ The module lives in `server/src/index.ts`, and `server/README.md` covers setup a
 
 ## HTTP API
 
-Base URL: `https://maincloud.spacetimedb.com`, or `http://<laptop-ip>:3000` with the local fallback. Database name: `rescue-robot`.
+Active local base URL: `http://127.0.0.1:3000`. Database name: `rescue-robot`. The robot and headset use the agent/dashboard bridge; the database itself listens only on this Mac.
 
 ```
 POST /v1/identity                          -> {"identity": "...", "token": "..."}
@@ -27,32 +27,12 @@ POST /v1/database/<db>/sql                 body: SQL text
 Header: Authorization: Bearer <token>
 ```
 
-Get a token once per client and keep it. The token is your identity (`ctx.sender`). The headset in particular must reuse the same token, because `claim_robot` records the caller's identity as the operator.
-
-```bash
-DB=https://maincloud.spacetimedb.com/v1/database/rescue-robot
-TOKEN=$(curl -s -X POST https://maincloud.spacetimedb.com/v1/identity | jq -r .token)
-
-# Pi heartbeat
-curl -s -X POST "$DB/call/robot_checkin" -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" -d '[1, 2.4, 3.1, 90.0, 0.82, "searching"]'
-
-# Pi detection
-curl -s -X POST "$DB/call/report_detection" -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" -d '[1, 2.6, 3.5, 0.91, "http://picrawler.local:8000/snap/17.jpg"]'
-
-# Headset takes the top request (no args = empty array)
-curl -s -X POST "$DB/call/claim_robot" -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" -d '[]'
-
-# Agent triage
-curl -s -X POST "$DB/call/set_triage" -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" -d '[1, "red", "Adult, not moving, partially covered by debris"]'
-
-# SQL read
-curl -s -X POST "$DB/sql" -H "Authorization: Bearer $TOKEN" \
-  -d "SELECT * FROM takeover_request WHERE status = 'waiting'"
-```
+The publishing service token in the ignored `agent/.env` identifies the authorized
+writer. `scripts/local-stack.py configure` copies it from the project-local CLI
+configuration. Do not create a random client identity and expect it to have write
+access; external reducers enforce the service identity. Browsers, headsets and the
+Pi never receive this token. The role table above describes the reducer contracts;
+the active deployment mediates them through the local agent/dashboard.
 
 A reducer that throws comes back as an HTTP error (4xx/5xx) with the message in the body. A successful call returns an empty 200. Reducers don't return values, so to get a new row's id, read it back with SQL (for example, the highest `id` in `confirmation` with `status = 'pending'`).
 
@@ -186,3 +166,30 @@ The CLI wasn't installed while this was written, so the module has passed `tsc` 
 - The JSON value encodings above (u64, timestamp, identity, option) in SQL results.
 - Whether `ORDER BY` / `LIMIT` work in HTTP SQL.
 - The error status code and body when a reducer throws.
+
+## Local migration: shared application data
+
+The live app now uses a local SpacetimeDB 2.14.1 instance. Start it with
+`python3 scripts/local-stack.py start` from the repository root. Full lifecycle,
+identity, import, and verification instructions are in `server/README.md`.
+
+Additional private tables:
+
+| Table | Purpose |
+| --- | --- |
+| `service_owner` | Publishing identity authorized to write shared records |
+| `damage_incident` | Incident ID, survey/location, photo hash, complete structured observations and human review |
+| `damage_photo` | JPEG bytes encoded as base64, committed with its incident |
+| `shared_state` | Latest dashboard snapshot and saved damage survey details |
+| `operator_update` | Durable spoken-update history |
+| `app_event` | Complete audit events with stable, idempotent import IDs |
+
+Additional reducers: `record_damage(record_json, image_base64)`,
+`review_damage(incident_id, note)`, `save_shared_state(key, value_json)`,
+`append_operator_update(value_json)`, and `import_app_event(id, value_json)`.
+The module enforces the service identity on external writes. Photo/record
+insertion and deduplication run in a transaction, including during migration.
+Reviews use the database timestamp and preserve the original photo and model
+observations. Maincloud is optional; the local server does not need hackathon
+credits. Database state does not replace the direct video/audio or motor safety
+path. Surveying and motion never resume automatically from saved state.
