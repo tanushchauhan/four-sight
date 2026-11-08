@@ -1,0 +1,683 @@
+{
+  "scenes": [
+    {
+      "id": "photo-trapped-01",
+      "title": "Casualty lying in concrete rubble (CERFP exercise)",
+      "category": "trapped_responsive",
+      "description": "Conscious role-player on his back among broken concrete, calling for help.",
+      "frames": [
+        {
+          "image": "images/photo-trapped-01.jpg",
+          "caption": "A man in a grey T-shirt and dark trousers lies on his back among large broken concrete chunks, grimacing with eyes nearly shut; an ID card hangs on a lanyard on his chest. His arms are spread on the rubble and his legs run down into the concrete. Behind his head a bare mannequin arm sticks out of the rubble. No rescuers in frame. Exercise role-player, no real injury visible.",
+          "trigger": "start"
+        }
+      ],
+      "detectorConfidence": 0.8,
+      "replies": [
+        "Help! I'm down here!",
+        "My leg is stuck under the concrete, I can't move it. My arms are okay."
+      ],
+      "expected": {
+        "personPresent": true,
+        "triage": "yellow",
+        "mustDo": [
+          "speak",
+          "listen",
+          "set_triage",
+          "request_takeover",
+          "notify_responders"
+        ],
+        "mustNotDo": [],
+        "notes": "Conscious, talking, breathing and following commands but cannot free himself: yellow (delayed). The mannequin arm behind him is a distractor and must not be counted as a second victim."
+      },
+      "source": {
+        "kind": "photo",
+        "url": "https://commons.wikimedia.org/wiki/File:140827-Z-TK422-0913_(14872095649).jpg",
+        "author": "Oregon National Guard from Salem, Oregon, United States",
+        "license": "CC BY 2.0"
+      }
+    },
+    {
+      "id": "photo-trapped-02",
+      "title": "Victim stabilized in a trench (CENTAM Guardian exercise)",
+      "category": "trapped_responsive",
+      "description": "Role-player with simulated facial bleeding lying in a dirt trench while gloved hands hold his head.",
+      "frames": [
+        {
+          "image": "images/photo-trapped-02.jpg",
+          "caption": "Close view of a young man lying on his back in a dirt trench, face turned up, eyes squinting and mouth open, with red simulated blood (moulage) smeared across his cheek and forehead and on his forearm. Two gloved rescuer hands hold his head still from behind; parts of two lime-green rescue helmets are at the top corners. His torso is in a dark, dirty T-shirt.",
+          "trigger": "start"
+        }
+      ],
+      "detectorConfidence": 0.75,
+      "replies": [
+        "Yes... I hear you.",
+        "My head hurts a lot and I can't move my legs, something is pressing on them."
+      ],
+      "expected": {
+        "personPresent": true,
+        "triage": "yellow",
+        "mustDo": [
+          "speak",
+          "listen",
+          "set_triage",
+          "request_takeover",
+          "notify_responders"
+        ],
+        "mustNotDo": [
+          "drop_beacon"
+        ],
+        "notes": "Responsive and breathing, cannot walk, visible head bleeding: yellow; red is defensible if the agent judges a head injury with altered mental status. Rescuers are already holding his head, so a beacon is not needed. Blood is exercise moulage."
+      },
+      "source": {
+        "kind": "photo",
+        "url": "https://commons.wikimedia.org/wiki/File:Salvadoran_soldiers_host_HA-DR_exercise_(9684113).jpg",
+        "author": "U.S. Air Force photo by Staff Sgt. Ethan Sherwood",
+        "license": "Public domain"
+      }
+    },
+    {
+      "id": "photo-unresponsive-01",
+      "title": "Person face-down in rubble (Vigilant Guard exercise)",
+      "category": "unresponsive",
+      "description": "A person lies prone and still between large concrete slabs.",
+      "frames": [
+        {
+          "image": "images/photo-unresponsive-01.jpg",
+          "caption": "A person in a blue long-sleeved shirt, dark shorts and sandals lies face-down among large concrete slabs and rebar, one arm bent up beside the head, face hidden. No movement is apparent. Dirt and broken concrete fill the frame; the edges of a few boots are barely visible at the very top edge.",
+          "trigger": "start"
+        }
+      ],
+      "detectorConfidence": 0.7,
+      "replies": [],
+      "expected": {
+        "personPresent": true,
+        "triage": "red",
+        "mustDo": [
+          "speak",
+          "listen",
+          "set_triage",
+          "request_takeover",
+          "notify_responders",
+          "dispatch_responders"
+        ],
+        "mustNotDo": [],
+        "notes": "Does not respond to voice; breathing cannot be confirmed from the image, so treat as red (immediate) and get responders moving. Black would require confirmed absent breathing after airway repositioning, which the robot cannot do."
+      },
+      "source": {
+        "kind": "photo",
+        "url": "https://commons.wikimedia.org/wiki/File:Combat_engineers_tunnel_into_leveled_buildings_to_save_lives_111104-A-XQ016-052.jpg",
+        "author": "Staff Sgt. Emily Suhr",
+        "license": "Public domain"
+      }
+    },
+    {
+      "id": "photo-unresponsive-02",
+      "title": "Unresponsive victim on a litter in a trench (CENTAM Guardian exercise)",
+      "category": "unresponsive",
+      "description": "Eyes-closed role-player with a neck collar on a yellow litter; a rescuer is at his head.",
+      "frames": [
+        {
+          "image": "images/photo-unresponsive-02.jpg",
+          "caption": "A man lies on a yellow plastic litter at the bottom of a dirt trench, eyes closed, wearing a lime-green helmet, goggles and a cervical collar, with red simulated blood on his face. A rescuer in camouflage with a lime-green helmet lies beside him holding his head. A concrete post stands at the left edge.",
+          "trigger": "start"
+        }
+      ],
+      "detectorConfidence": 0.75,
+      "replies": [],
+      "expected": {
+        "personPresent": true,
+        "triage": "red",
+        "mustDo": [
+          "speak",
+          "listen",
+          "set_triage",
+          "notify_responders"
+        ],
+        "mustNotDo": [
+          "drop_beacon"
+        ],
+        "notes": "Victim is unresponsive (red), but a rescuer is already in contact and packaging him, so request_takeover/dispatch are optional and a beacon is pointless. Tests an unresponsive patient with responders already on scene."
+      },
+      "source": {
+        "kind": "photo",
+        "url": "https://commons.wikimedia.org/wiki/File:Salvadoran_soldiers_host_HA-DR_exercise_(9684115).jpg",
+        "author": "U.S. Air Force photo by Staff Sgt. Ethan Sherwood",
+        "license": "Public domain"
+      }
+    },
+    {
+      "id": "photo-partial-01",
+      "title": "Arm and torso behind concrete (CERFP exercise)",
+      "category": "partial_view",
+      "description": "Only a bare arm and part of a torso show above a pile of concrete chunks.",
+      "frames": [
+        {
+          "image": "images/photo-partial-01.jpg",
+          "caption": "Close, low view over large pale concrete chunks. At the top of the frame a bare forearm and part of a torso in a grey shirt with a green strap lie behind the rubble; no head or face is visible. A dark piece of equipment (likely a rescuer's knee pad or bag) is at the very top edge.",
+          "trigger": "start"
+        }
+      ],
+      "detectorConfidence": 0.45,
+      "replies": [
+        "Yeah... I'm under here.",
+        "My leg is trapped under the concrete. I can move my arms."
+      ],
+      "expected": {
+        "personPresent": true,
+        "triage": "yellow",
+        "mustDo": [
+          "speak",
+          "listen",
+          "set_triage",
+          "request_takeover",
+          "notify_responders"
+        ],
+        "mustNotDo": [],
+        "notes": "Only a limb and part of the body are visible; the agent should still conclude a person is present and make contact. Once he answers, yellow."
+      },
+      "source": {
+        "kind": "photo",
+        "url": "https://commons.wikimedia.org/wiki/File:140827-Z-TK422-1009_(14872233878).jpg",
+        "author": "Oregon National Guard from Salem, Oregon, United States",
+        "license": "CC BY 2.0"
+      }
+    },
+    {
+      "id": "photo-partial-02",
+      "title": "Hand on chest beside a slab (Search & Extraction training)",
+      "category": "partial_view",
+      "description": "A torso in a dark jacket with one hand resting on it, head out of frame.",
+      "frames": [
+        {
+          "image": "images/photo-partial-02.jpg",
+          "caption": "Wide, short crop: a person lies on gravel next to a broken concrete slab; only the torso in a dark padded jacket, a belt and one hand (with a wedding ring) resting on the stomach are visible. The head is out of frame. Gloved hands of rescuers and a sliver of green clothing appear along the top edge.",
+          "trigger": "start"
+        }
+      ],
+      "detectorConfidence": 0.4,
+      "replies": [],
+      "expected": {
+        "personPresent": true,
+        "triage": "red",
+        "mustDo": [
+          "speak",
+          "listen",
+          "set_triage",
+          "request_takeover",
+          "notify_responders",
+          "dispatch_responders"
+        ],
+        "mustNotDo": [],
+        "notes": "Partial view of a still person who does not answer: treat as unresponsive (red). The rescuer gloves at the top edge are easy to miss; if the agent notices them, skipping dispatch is acceptable."
+      },
+      "source": {
+        "kind": "photo",
+        "url": "https://commons.wikimedia.org/wiki/File:Search_%26_Extraction_Certification_Training_(39907692344).jpg",
+        "author": "Georgia National Guard from United States",
+        "license": "CC BY 2.0"
+      }
+    },
+    {
+      "id": "photo-noperson-01",
+      "title": "Empty rubble pile (CERFP training site)",
+      "category": "no_person",
+      "description": "Broken concrete, a tilted slab and bent rebar; nobody in view.",
+      "frames": [
+        {
+          "image": "images/photo-noperson-01.jpg",
+          "caption": "Close view of a pile of broken grey concrete with a large L-shaped pale slab tilted in the middle and bent rebar over the top. Grass and gravel in the background. No people, clothing or body parts visible.",
+          "trigger": "start"
+        }
+      ],
+      "detectorConfidence": 0.35,
+      "replies": [],
+      "expected": {
+        "personPresent": false,
+        "triage": "unknown",
+        "mustDo": [],
+        "mustNotDo": [
+          "dispatch_responders",
+          "drop_beacon"
+        ],
+        "notes": "Nothing to triage. Marking the tilted slab as a structural hazard is fine but not required."
+      },
+      "source": {
+        "kind": "photo",
+        "url": "https://commons.wikimedia.org/wiki/File:140827-Z-UI440-8520_(15035768496).jpg",
+        "author": "Oregon National Guard from Salem, Oregon, United States",
+        "license": "CC BY 2.0"
+      }
+    },
+    {
+      "id": "photo-noperson-02",
+      "title": "Collapsed masonry building, Concepcion 2010",
+      "category": "no_person",
+      "description": "Street-level view of a collapsed office building after the M8.8 Chile earthquake.",
+      "frames": [
+        {
+          "image": "images/photo-noperson-02.jpg",
+          "caption": "Street-level view of a collapsed two- to three-story masonry building: the facade has fallen into a long mound of bricks, timber and plaster spilling across the sidewalk, with the roof sagging above. Clear blue sky; the street continues into the distance on the right. No people visible in the cropped frame.",
+          "trigger": "start"
+        }
+      ],
+      "detectorConfidence": 0.35,
+      "replies": [],
+      "expected": {
+        "personPresent": false,
+        "triage": "unknown",
+        "mustDo": [],
+        "mustNotDo": [
+          "dispatch_responders",
+          "drop_beacon"
+        ],
+        "notes": "Real earthquake damage (USGS photo), no visible people. Marking the collapse as a structural hazard is reasonable."
+      },
+      "source": {
+        "kind": "photo",
+        "url": "https://commons.wikimedia.org/wiki/File:Collapsed_Building_(4478649711).jpg",
+        "author": "U.S. Geological Survey from Reston, VA, USA",
+        "license": "Public domain"
+      }
+    },
+    {
+      "id": "photo-noperson-03",
+      "title": "Collapsed basement, dark interior",
+      "category": "no_person",
+      "description": "Dim, top-down view into a basement full of broken boards and debris.",
+      "frames": [
+        {
+          "image": "images/photo-noperson-03.jpg",
+          "caption": "Dim, grainy interior view looking down into a collapsed basement: broken wooden boards, joists and plaster debris lie jumbled together, with some crumpled pale fabric or plastic sheeting among them. A stone wall runs up the left side. No people visible.",
+          "trigger": "start"
+        }
+      ],
+      "detectorConfidence": 0.4,
+      "replies": [],
+      "expected": {
+        "personPresent": false,
+        "triage": "unknown",
+        "mustDo": [],
+        "mustNotDo": [
+          "dispatch_responders",
+          "drop_beacon"
+        ],
+        "notes": "Low light and draped fabric may tempt a weak detector, but there is no person. A structural hazard mark is reasonable."
+      },
+      "source": {
+        "kind": "photo",
+        "url": "https://commons.wikimedia.org/wiki/File:Collapsed_basement.jpg",
+        "author": "Ericamack1986",
+        "license": "CC BY-SA 4.0"
+      }
+    },
+    {
+      "id": "photo-falsepos-01",
+      "title": "Inflatable mannequin in rubble (Vigilant Guard exercise)",
+      "category": "false_positive",
+      "description": "A grey inflatable human-shaped dummy draped over a rubble pile.",
+      "frames": [
+        {
+          "image": "images/photo-falsepos-01.jpg",
+          "caption": "A grey inflatable human-shaped training mannequin lies head-up across a pile of broken concrete, red clay and twisted rebar, arms at its sides; its head has a red logo. Trees and a trailer in the background. No real person in the cropped frame.",
+          "trigger": "start"
+        }
+      ],
+      "detectorConfidence": 0.55,
+      "replies": [],
+      "expected": {
+        "personPresent": false,
+        "triage": "unknown",
+        "mustDo": [],
+        "mustNotDo": [
+          "dispatch_responders",
+          "drop_beacon"
+        ],
+        "notes": "Classic false positive: human outline but smooth, featureless inflatable body. The agent should identify a mannequin and not dispatch or drop a beacon."
+      },
+      "source": {
+        "kind": "photo",
+        "url": "https://commons.wikimedia.org/wiki/File:20110517-A-2593H-010_(5752056054).jpg",
+        "author": "Georgia National Guard from United States",
+        "license": "CC BY 2.0"
+      }
+    },
+    {
+      "id": "photo-falsepos-02",
+      "title": "CPR manikin on the floor (CERFP exercise)",
+      "category": "false_positive",
+      "description": "A full-size training manikin in a red tank top lying in a cramped space.",
+      "frames": [
+        {
+          "image": "images/photo-falsepos-02.jpg",
+          "caption": "Top-down view of a full-size plastic CPR/rescue training manikin lying on its back on a concrete floor in a narrow space beside a slanted wall panel. It wears a red tank top with an ID tag and dark shorts; its skin is uniform tan plastic with visible joints at the knees and elbows, and a flat stone rests on its belly.",
+          "trigger": "start"
+        }
+      ],
+      "detectorConfidence": 0.6,
+      "replies": [],
+      "expected": {
+        "personPresent": false,
+        "triage": "unknown",
+        "mustDo": [],
+        "mustNotDo": [
+          "dispatch_responders",
+          "drop_beacon"
+        ],
+        "notes": "Hard false positive: clothed, life-size human shape. Plastic sheen, joint seams and no response give it away. Speaking to it once is fine."
+      },
+      "source": {
+        "kind": "photo",
+        "url": "https://commons.wikimedia.org/wiki/File:140827-Z-UI440-8544_(15058417422).jpg",
+        "author": "Oregon National Guard from Salem, Oregon, United States",
+        "license": "CC BY 2.0"
+      }
+    },
+    {
+      "id": "photo-falsepos-03",
+      "title": "Bedding heaped on a flood-wrecked bed (Katrina)",
+      "category": "false_positive",
+      "description": "Patterned quilt and sheets piled over a tilted mattress in a damaged bedroom.",
+      "frames": [
+        {
+          "image": "images/photo-falsepos-03.jpg",
+          "caption": "Inside a flood-damaged bedroom after Hurricane Katrina: a stained mattress and box spring sit askew on a wooden bed frame, with a colorful patterned quilt and a white sheet heaped and hanging over them in folds. Debris and a blue bucket on the floor. No person.",
+          "trigger": "start"
+        }
+      ],
+      "detectorConfidence": 0.45,
+      "replies": [],
+      "expected": {
+        "personPresent": false,
+        "triage": "unknown",
+        "mustDo": [],
+        "mustNotDo": [
+          "dispatch_responders",
+          "drop_beacon"
+        ],
+        "notes": "Heaped fabric can read as a body under covers to a weak detector; there is no one there."
+      },
+      "source": {
+        "kind": "photo",
+        "url": "https://commons.wikimedia.org/wiki/File:Katrina_Damage_-_Slidell_Bedroom_-_Kingprince.jpg",
+        "author": "Kingprince",
+        "license": "CC BY 2.0"
+      }
+    },
+    {
+      "id": "photo-rescuers-01",
+      "title": "Recovery team in a damaged building (Vigilant Guard exercise)",
+      "category": "rescuers_present",
+      "description": "Rescuers in helmets carry a litter through debris inside a damaged building.",
+      "frames": [
+        {
+          "image": "images/photo-rescuers-01.jpg",
+          "caption": "Inside a partly collapsed building, three or four rescuers in navy uniforms, helmets (blue, white, red) and dust masks work among broken boards and debris; one carries an empty metal basket litter, and an air tank with hoses lies in the foreground. A fallen metal pipe crosses the scene.",
+          "trigger": "start"
+        }
+      ],
+      "detectorConfidence": 0.85,
+      "replies": [
+        "Yeah, we hear you. We're the rescue team.",
+        "We're fine, nobody here is hurt. Go search the next area."
+      ],
+      "expected": {
+        "personPresent": true,
+        "triage": "unknown",
+        "mustDo": [],
+        "mustNotDo": [
+          "drop_beacon",
+          "dispatch_responders"
+        ],
+        "notes": "People are present but they are uninjured responders, not patients. The agent should recognise responders and move on; no beacon, no dispatch. Setting green is acceptable but not expected."
+      },
+      "source": {
+        "kind": "photo",
+        "url": "https://commons.wikimedia.org/wiki/File:Vigilant_Guard_2015,_South_Carolina_150308-Z-VD276-017.jpg",
+        "author": "Airman Megan Floyd",
+        "license": "Public domain"
+      }
+    },
+    {
+      "id": "photo-rescuers-02",
+      "title": "Firefighters at a burning building (Kharkiv 2022)",
+      "category": "rescuers_present",
+      "description": "Firefighters with a hose advance on a burning, smoking structure.",
+      "frames": [
+        {
+          "image": "images/photo-rescuers-02.jpg",
+          "caption": "Four firefighters in dark turnout gear with reflective stripes and helmets stand on wet, debris-strewn pavement and direct a yellow hose at a burning single-story structure; orange flames show inside it and thick grey-brown smoke fills the upper left. No injured people visible.",
+          "trigger": "start"
+        }
+      ],
+      "detectorConfidence": 0.7,
+      "replies": [],
+      "expected": {
+        "personPresent": true,
+        "triage": "unknown",
+        "mustDo": [
+          "mark_hazard"
+        ],
+        "mustNotDo": [
+          "drop_beacon",
+          "dispatch_responders"
+        ],
+        "notes": "Real post-shelling fire (Ukrainian State Emergency Service photo). Responders already on scene; the fire is the important finding (mark_hazard and/or push_headset_alert). Nobody to triage."
+      },
+      "source": {
+        "kind": "photo",
+        "url": "https://commons.wikimedia.org/wiki/File:Rubble_clearing_in_Kharkiv_Oblast,_16_March_2022_(07).jpg",
+        "author": "Main Directorate of the State Emergency Service of Ukraine in Kharkiv Oblast",
+        "license": "CC BY 4.0"
+      }
+    },
+    {
+      "id": "photo-fire-01",
+      "title": "Burning market stalls (Kharkiv 2022)",
+      "category": "hazard_fire_smoke",
+      "description": "A gutted metal-frame structure burning with heavy black smoke.",
+      "frames": [
+        {
+          "image": "images/photo-fire-01.jpg",
+          "caption": "A burned-out metal-frame structure with open flames inside several bays and dense black and grey smoke rising across the top of the frame. Wet pavement, ash and twisted debris in the foreground. No people visible.",
+          "trigger": "start"
+        }
+      ],
+      "detectorConfidence": 0.3,
+      "replies": [],
+      "expected": {
+        "personPresent": false,
+        "triage": "unknown",
+        "mustDo": [
+          "mark_hazard"
+        ],
+        "mustNotDo": [
+          "dispatch_responders",
+          "drop_beacon"
+        ],
+        "notes": "Active fire and smoke, no visible person. The agent should mark a fire hazard (ideally also alert the headset) and keep the robot back."
+      },
+      "source": {
+        "kind": "photo",
+        "url": "https://commons.wikimedia.org/wiki/File:Rubble_clearing_in_Kharkiv_Oblast,_16_March_2022_(12).jpg",
+        "author": "Main Directorate of the State Emergency Service of Ukraine in Kharkiv Oblast",
+        "license": "CC BY 4.0"
+      }
+    },
+    {
+      "id": "photo-water-01",
+      "title": "Flooded basement from the stairs",
+      "category": "hazard_water",
+      "description": "Looking down a staircase into a basement under brown floodwater.",
+      "frames": [
+        {
+          "image": "images/photo-water-01.jpg",
+          "caption": "View from a hardwood landing down a narrow white staircase into a basement flooded with brown water; the lower steps disappear under the water, and floating boards, boxes and debris crowd the far wall. No people visible.",
+          "trigger": "start"
+        }
+      ],
+      "detectorConfidence": 0.3,
+      "replies": [],
+      "expected": {
+        "personPresent": false,
+        "triage": "unknown",
+        "mustDo": [
+          "mark_hazard"
+        ],
+        "mustNotDo": [
+          "dispatch_responders",
+          "drop_beacon"
+        ],
+        "notes": "Deep standing water at the bottom of stairs: a hard stop for a small ground robot. Mark a water hazard; do not descend."
+      },
+      "source": {
+        "kind": "photo",
+        "url": "https://commons.wikimedia.org/wiki/File:Basement_Flooded_in_Uncle%27s_Home.jpg",
+        "author": "OakleyOriginals",
+        "license": "CC BY 2.0"
+      }
+    },
+    {
+      "id": "photo-water-02",
+      "title": "Flooded residential street (Hurricane Isaac)",
+      "category": "hazard_water",
+      "description": "A suburban street under floodwater, mailboxes and signs standing in it.",
+      "frames": [
+        {
+          "image": "images/photo-water-02.jpg",
+          "caption": "A residential street covered in floodwater from edge to edge under an overcast sky; mailboxes, utility poles and road signs (SPEED LIMIT 20, NO PARKING, a yellow SLOW CHILDREN sign with a running-child pictogram) stand in the water, a white SUV is parked on the right and a fire hydrant is half submerged. No people visible.",
+          "trigger": "start"
+        }
+      ],
+      "detectorConfidence": 0.4,
+      "replies": [],
+      "expected": {
+        "personPresent": false,
+        "triage": "unknown",
+        "mustDo": [
+          "mark_hazard"
+        ],
+        "mustNotDo": [
+          "dispatch_responders",
+          "drop_beacon"
+        ],
+        "notes": "Flooded road, no people. The child pictogram on the sign is a small detector distractor."
+      },
+      "source": {
+        "kind": "photo",
+        "url": "https://commons.wikimedia.org/wiki/File:Gretna,_La_flooded_street_Hurricane_Isaac_30_Aug_2012.jpg",
+        "author": "Patsy Lynch",
+        "license": "Public domain"
+      }
+    },
+    {
+      "id": "photo-structural-01",
+      "title": "Broken column with exposed rebar (Vigilant Guard exercise)",
+      "category": "hazard_structural",
+      "description": "A fallen, shattered concrete column with hanging metal mesh and a NO ENTRY sign.",
+      "frames": [
+        {
+          "image": "images/photo-structural-01.jpg",
+          "caption": "A large fallen concrete column lies across the frame, its end shattered to expose a cage of rebar; a strip of perforated metal hangs over it, and a yellow ventilation duct runs underneath. Behind it, a plywood wall is spray-painted \"NO ENTRY\". Cutting-torch hoses on the dirt in the foreground. No person in the cropped frame.",
+          "trigger": "start"
+        }
+      ],
+      "detectorConfidence": 0.35,
+      "replies": [],
+      "expected": {
+        "personPresent": false,
+        "triage": "unknown",
+        "mustDo": [
+          "mark_hazard"
+        ],
+        "mustNotDo": [
+          "dispatch_responders",
+          "drop_beacon"
+        ],
+        "notes": "Unstable heavy debris with a posted no-entry marking: mark a structural hazard and route around it."
+      },
+      "source": {
+        "kind": "photo",
+        "url": "https://commons.wikimedia.org/wiki/File:Vigilant_Guard_130724-A-VX744-382.jpg",
+        "author": "Spc. Zach Sheely",
+        "license": "Public domain"
+      }
+    },
+    {
+      "id": "photo-multiple-01",
+      "title": "Several casualties and mannequins in rubble (Vigilant Guard exercise)",
+      "category": "multiple_people",
+      "description": "Hazmat-suited rescuers among role-player casualties and inflatable mannequins.",
+      "frames": [
+        {
+          "image": "images/photo-multiple-01.jpg",
+          "caption": "A training rubble site: five rescuers in tan hazmat suits, respirators and red helmets stand among concrete debris. On the ground a woman in a light blue top lies on her back, awake and looking up; another casualty in a red top sits slumped behind her, and a third person in a blue shirt lies at the right edge. Two grey inflatable mannequins lie or lean among them.",
+          "trigger": "start"
+        }
+      ],
+      "detectorConfidence": 0.85,
+      "replies": [
+        "Over here! Please help us!",
+        "My leg hurts, I can't stand up. There are more people behind me."
+      ],
+      "expected": {
+        "personPresent": true,
+        "triage": "yellow",
+        "mustDo": [
+          "speak",
+          "listen",
+          "set_triage",
+          "notify_responders"
+        ],
+        "mustNotDo": [
+          "drop_beacon"
+        ],
+        "notes": "At least three real casualties plus two mannequins, with responders already working. The agent should report more than one casualty and not count the mannequins. Yellow for the talking woman; the others cannot be assessed from one frame."
+      },
+      "source": {
+        "kind": "photo",
+        "url": "https://commons.wikimedia.org/wiki/File:Georgia_engineers_search_and_extraction_work_(5741127530).jpg",
+        "author": "Georgia National Guard from United States",
+        "license": "CC BY 2.0"
+      }
+    },
+    {
+      "id": "photo-minor-01",
+      "title": "Walking wounded with a head bruise (CERFP exercise)",
+      "category": "minor_injury",
+      "description": "Role-player holding his head, escorted on foot by two rescuers.",
+      "frames": [
+        {
+          "image": "images/photo-minor-01.jpg",
+          "caption": "A man with dark hair and a purple bruise (moulage) around one eye holds his hand to his head, grimacing, as two rescuers in tan hazmat suits and red helmets support him by the shoulders and walk him out. Rubble and trees behind. He is upright and walking.",
+          "trigger": "start"
+        }
+      ],
+      "detectorConfidence": 0.85,
+      "replies": [
+        "Yeah, I hear you.",
+        "I hit my head and I'm a bit dizzy, but I can walk."
+      ],
+      "expected": {
+        "personPresent": true,
+        "triage": "green",
+        "mustDo": [
+          "speak",
+          "listen",
+          "set_triage"
+        ],
+        "mustNotDo": [
+          "dispatch_responders",
+          "drop_beacon"
+        ],
+        "notes": "Walking wounded with a minor head injury: green under START. Already escorted by rescuers, so no dispatch or beacon."
+      },
+      "source": {
+        "kind": "photo",
+        "url": "https://commons.wikimedia.org/wiki/File:140827-Z-UI440-8393_(14872147560).jpg",
+        "author": "Oregon National Guard from Salem, Oregon, United States",
+        "license": "CC BY 2.0"
+      }
+    }
+  ]
+}

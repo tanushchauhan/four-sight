@@ -1,0 +1,15 @@
+{
+  "name": "rescue-robot-server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "spacetimedb": "^2.14.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0"
+  }
+}

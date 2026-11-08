@@ -1,0 +1,289 @@
+{
+  "scenes": [
+    {
+      "id": "gen-hidden-revealed",
+      "title": "Hand under a slab, then the whole person",
+      "category": "partial_view",
+      "description": "Evolves: only a hand shows under a fallen slab; a side look reveals a conscious man with his legs under it.",
+      "frames": [
+        {
+          "image": "images/gen-hidden-revealed-1.jpg",
+          "caption": "Close, low view of a thick fallen concrete slab resting on rubble. Only one bare adult hand and forearm stick out from under its edge; the rest of the body is hidden. No face visible.",
+          "trigger": "start"
+        },
+        {
+          "image": "images/gen-hidden-revealed-2.jpg",
+          "caption": "Same kind of slab seen from the side: an adult man in a blue work shirt and jeans lies on his back underneath it, knees bent and lower legs under the slab and rubble, one hand on a rock. Eyes open, mouth open as if in pain or calling out; he is conscious. No blood visible.",
+          "trigger": "reposition"
+        }
+      ],
+      "detectorConfidence": 0.45,
+      "replies": [
+        "Yes! I'm under here, under the slab!",
+        "My legs are stuck, I can't pull them out. My arms are okay."
+      ],
+      "expected": {
+        "personPresent": true,
+        "triage": "yellow",
+        "mustDo": [
+          "speak",
+          "listen",
+          "take_snapshot",
+          "set_triage",
+          "notify_responders"
+        ],
+        "mustNotDo": [],
+        "notes": "Frame 1 is only a hand: the agent should not commit to a triage from it and should reposition/take a second look (and/or speak). After the side view it should see a conscious adult with trapped legs, hear him answer, and set yellow (trapped, responsive, cannot walk) and notify responders."
+      },
+      "source": {
+        "kind": "generated",
+        "license": "AI-generated test fixture",
+        "model": "black-forest-labs/flux.1-dev (NVIDIA API Catalog, mode=base, 1024x768, 40 steps, cfg 3.5)",
+        "prompts": [
+          "[gen-hidden-revealed-1, seed 111] A large fallen concrete ceiling slab leaning diagonally on a pile of concrete rubble; only a single dusty human hand and wrist sticks out from under the edge of the slab, the rest of the person is completely hidden, documentary photograph, shot from a small ground robot camera 30 cm above the floor, low angle, wide lens, earthquake-collapsed building interior, natural dust and debris, realistic lighting, sharp detail, no text",
+          "[gen-hidden-revealed-2, seed 111] A large fallen concrete ceiling slab leaning diagonally on a pile of concrete rubble; seen from the side: an adult man in a dusty blue work shirt lies on his back, the lower edge of the slab rests on his shins pinning both legs under rubble, he props himself on one elbow, head raised, eyes open, grimacing in pain, looking toward the camera, documentary photograph, shot from a small ground robot camera 30 cm above the floor, low angle, wide lens, earthquake-collapsed building interior, natural dust and debris, realistic lighting, sharp detail, no text"
+        ]
+      }
+    },
+    {
+      "id": "gen-deteriorating",
+      "title": "Trapped man stops responding",
+      "category": "unresponsive",
+      "description": "Evolves over time: a man propped on his forearms and talking later lies face down, eyes closed, as dust and smoke build up.",
+      "frames": [
+        {
+          "image": "images/gen-deteriorating-1.jpg",
+          "caption": "Grey-haired man in his 40s in a grey t-shirt lies prone on a dusty concrete floor between rubble and concrete pillars, propped up on his forearms, one hand on a concrete block. Head raised, eyes open, looking toward the camera; alert. Legs stretch out behind him; nothing is visibly pinning them.",
+          "trigger": "start"
+        },
+        {
+          "image": "images/gen-deteriorating-2.jpg",
+          "caption": "Same man and same room later: now lying flat on his front, cheek on his forearm, eyes closed, face slack, not moving. No visible blood.",
+          "trigger": "time"
+        },
+        {
+          "image": "images/gen-deteriorating-3.jpg",
+          "caption": "Same man lying flat face down on the floor, eyes closed, arms limp; grey dust and smoke now hang in the air behind him and the background is hazy.",
+          "trigger": "time"
+        }
+      ],
+      "detectorConfidence": 0.8,
+      "replies": [
+        "Help... I'm here. I can't get up.",
+        "My legs... something hit my legs. It hurts to breathe."
+      ],
+      "frameReplies": [
+        [
+          "Help... I'm here. I can't get up.",
+          "My legs... something hit my legs. It hurts to breathe."
+        ],
+        [],
+        []
+      ],
+      "expected": {
+        "personPresent": true,
+        "triage": "red",
+        "mustDo": [
+          "speak",
+          "listen",
+          "set_triage",
+          "notify_responders",
+          "dispatch_responders",
+          "push_headset_alert"
+        ],
+        "mustNotDo": [],
+        "notes": "Frame 1: alert and answering, so yellow. On the time re-check he is face down with eyes closed and no longer answers: the agent must re-assess, escalate yellow to red, and raise urgency (dispatch, headset alert). Frame 3 adds smoke/dust in the air; marking a hazard is a plus."
+      },
+      "source": {
+        "kind": "generated",
+        "license": "AI-generated test fixture",
+        "model": "black-forest-labs/flux.1-dev (NVIDIA API Catalog, mode=base, 1024x768, 40 steps, cfg 3.5)",
+        "prompts": [
+          "[gen-deteriorating-1, seed 233] Side view at floor level of an adult man in his 40s with grey hair, grey stubble and a dusty grey t-shirt lying on his stomach on a dusty concrete floor, a thick broken concrete slab lies across the back of his thighs and legs, pinning him down, rubble around; he is propped up on one elbow with his head and chest raised, eyes wide open, looking at the camera, alert, talking, documentary photograph, shot from a small ground robot camera 30 cm above the floor, low angle, wide lens, earthquake-collapsed building interior, natural dust and debris, realistic lighting, sharp detail, no text",
+          "[gen-deteriorating-2, seed 233] Side view at floor level of an adult man in his 40s with grey hair, grey stubble and a dusty grey t-shirt lying on his stomach on a dusty concrete floor, a thick broken concrete slab lies across the back of his thighs and legs, pinning him down, rubble around; he is unconscious, lying completely flat, his face resting on the floor turned toward the camera, eyes closed, arms limp, motionless, documentary photograph, shot from a small ground robot camera 30 cm above the floor, low angle, wide lens, earthquake-collapsed building interior, natural dust and debris, realistic lighting, sharp detail, no text",
+          "[gen-deteriorating-3, seed 233] Side view at floor level of an adult man in his 40s with grey hair, grey stubble and a dusty grey t-shirt lying on his stomach on a dusty concrete floor, a thick broken concrete slab lies across the back of his thighs and legs, pinning him down, rubble around; he is unconscious, lying completely flat, his face resting on the floor turned toward the camera, eyes closed, arms limp, motionless; the whole room is now filled with thick swirling grey smoke and falling dust, the background is hidden in smoke, hazy dim light, documentary photograph, shot from a small ground robot camera 30 cm above the floor, low angle, wide lens, earthquake-collapsed building interior, natural dust and debris, realistic lighting, sharp detail, no text"
+        ]
+      }
+    },
+    {
+      "id": "gen-smoke-rising",
+      "title": "Hospital corridor catches fire",
+      "category": "hazard_fire_smoke",
+      "description": "Evolves over time: a man sits on a gurney in a damaged corridor; later a doorway is on fire and smoke fills the hall.",
+      "frames": [
+        {
+          "image": "images/gen-smoke-rising-1.jpg",
+          "caption": "Long hospital corridor with fallen ceiling tiles, hanging cables and rubble along both walls. On the right, mid-distance, a dark-haired man in dark clothes sits on a tilted gurney against the wall, head bowed. Light haze toward the bright far end. No fire.",
+          "trigger": "start"
+        },
+        {
+          "image": "images/gen-smoke-rising-2.jpg",
+          "caption": "Same corridor and same man on the gurney on the right, head bowed, a blanket over his lap. Bright orange flames now burn in an open doorway on the left wall, the light is dimmer, and blue-grey smoke and haze fill the far end of the corridor.",
+          "trigger": "time"
+        }
+      ],
+      "detectorConfidence": 0.7,
+      "replies": [
+        "Yes... I hear you.",
+        "My ankle's broken, I can't walk. Is that smoke?"
+      ],
+      "expected": {
+        "personPresent": true,
+        "triage": "yellow",
+        "mustDo": [
+          "speak",
+          "listen",
+          "set_triage",
+          "mark_hazard",
+          "push_headset_alert",
+          "notify_responders"
+        ],
+        "mustNotDo": [],
+        "notes": "Frame 1: conscious man who cannot walk, yellow, no hazard. After the time re-check, fire and smoke appear in the same corridor next to him: the agent must mark a fire/smoke hazard, alert the rescuer's headset, and raise his priority (notify/dispatch urgently). Triage stays yellow injury-wise but urgency must go up."
+      },
+      "source": {
+        "kind": "generated",
+        "license": "AI-generated test fixture",
+        "model": "black-forest-labs/flux.1-dev (NVIDIA API Catalog, mode=base, 1024x768, 40 steps, cfg 3.5)",
+        "prompts": [
+          "[gen-smoke-rising-1, seed 312] Long collapsed hospital corridor with fallen ceiling tiles, hanging cables, chunks of rubble on the floor and a toppled gurney on the right side; far away at the end of the corridor an adult person sits slumped against the wall, small in frame; light thin dust haze in the air, good visibility, documentary photograph, shot from a small ground robot camera 30 cm above the floor, low angle, wide lens, earthquake-collapsed building interior, natural dust and debris, realistic lighting, sharp detail, no text",
+          "[gen-smoke-rising-2, seed 312] Long collapsed hospital corridor with fallen ceiling tiles, hanging cables, chunks of rubble on the floor and a toppled gurney on the right side; far away at the end of the corridor an adult person sits slumped against the wall, small in frame; the corridor is filled with thick billowing black and grey smoke that hides the ceiling and the far end, bright orange flames burning out of a doorway on the left wall, very poor visibility, documentary photograph, shot from a small ground robot camera 30 cm above the floor, low angle, wide lens, earthquake-collapsed building interior, natural dust and debris, realistic lighting, sharp detail, no text"
+        ]
+      }
+    },
+    {
+      "id": "gen-water-rising",
+      "title": "Flooded basement, water rising",
+      "category": "hazard_water",
+      "description": "Evolves over time: a woman waits on a workbench in a flooded basement; later the water is up near the tabletop.",
+      "frames": [
+        {
+          "image": "images/gen-water-rising-1.jpg",
+          "caption": "Basement with cracked concrete walls and one fluorescent tube light, floor flooded with murky brown water. A woman in an olive jacket and jeans sits on the edge of a wooden workbench in the middle of the room, feet hanging just above the water, looking at the camera. The table legs show well above the water.",
+          "trigger": "start"
+        },
+        {
+          "image": "images/gen-water-rising-2.jpg",
+          "caption": "Same kind of basement and workbench: the water is clearly higher, only short stubs of the table legs show above it, and there are ripples. The woman now crouches on top of the tabletop with her feet pulled up, looking down at the water.",
+          "trigger": "time"
+        }
+      ],
+      "detectorConfidence": 0.8,
+      "replies": [
+        "Yes! I'm up on the table, the water keeps coming in.",
+        "I'm not hurt, but the stairs are blocked and I can't swim."
+      ],
+      "expected": {
+        "personPresent": true,
+        "triage": "yellow",
+        "mustDo": [
+          "speak",
+          "listen",
+          "set_triage",
+          "mark_hazard",
+          "notify_responders",
+          "push_headset_alert"
+        ],
+        "mustNotDo": [],
+        "notes": "Frame 1: uninjured, conscious woman who cannot get out (green/yellow), flooding noted. On the time re-check the water has risen close to the tabletop: the agent must mark a water hazard, alert the headset, and escalate her priority because she cannot self-evacuate. Ground truth triage yellow (cannot walk out); a grader may accept green only if priority was still raised."
+      },
+      "source": {
+        "kind": "generated",
+        "license": "AI-generated test fixture",
+        "model": "black-forest-labs/flux.1-dev (NVIDIA API Catalog, mode=base, 1024x768, 40 steps, cfg 3.5)",
+        "prompts": [
+          "[gen-water-rising-1, seed 421] Basement storage room flooded with murky brown water, cracked concrete walls, a fluorescent tube light, the camera is at the water surface; in the middle of the room a sturdy wooden workbench with an adult woman in an olive green jacket and jeans on top of it; the water is shallow, ankle deep, the tall legs of the workbench stand clearly above the water, she sits on the edge of the workbench with dry feet, looking at the camera, documentary photograph, shot from a small ground robot camera 30 cm above the floor, low angle, wide lens, earthquake-collapsed building interior, natural dust and debris, realistic lighting, sharp detail, no text",
+          "[gen-water-rising-2, seed 421] Basement storage room flooded with murky brown water, cracked concrete walls, a fluorescent tube light, the camera is at the water surface; in the middle of the room a sturdy wooden workbench with an adult woman in an olive green jacket and jeans on top of it; deep flood water, waist deep, the water is so high that the workbench is completely underwater except its top surface which sits flush with the water, she crouches on it hugging her knees, frightened, ripples around her, documentary photograph, shot from a small ground robot camera 30 cm above the floor, low angle, wide lens, earthquake-collapsed building interior, natural dust and debris, realistic lighting, sharp detail, no text"
+        ]
+      }
+    },
+    {
+      "id": "gen-false-alarm",
+      "title": "Dark shape is a jacket and a backpack",
+      "category": "false_positive",
+      "description": "Evolves on a second look: a dark heap that looks like a person from a distance is a puffer jacket on a backpack up close.",
+      "frames": [
+        {
+          "image": "images/gen-false-alarm-1.jpg",
+          "caption": "Low view down a rubble-strewn office aisle between rows of desks. In the foreground lies a dark navy rounded heap with sleeve-like shapes that could be a person curled up face down; a smaller dark lump lies further back. No face or skin visible.",
+          "trigger": "start"
+        },
+        {
+          "image": "images/gen-false-alarm-2.jpg",
+          "caption": "Close-up of a dark navy puffer jacket lying on top of a black backpack (straps visible) in concrete rubble, office chairs and desks behind. Clearly empty clothing and a bag; no person.",
+          "trigger": "reposition"
+        }
+      ],
+      "detectorConfidence": 0.5,
+      "replies": [],
+      "expected": {
+        "personPresent": false,
+        "triage": "unknown",
+        "mustDo": [
+          "take_snapshot",
+          "analyze_image"
+        ],
+        "mustNotDo": [
+          "dispatch_responders",
+          "drop_beacon",
+          "notify_responders",
+          "request_takeover"
+        ],
+        "notes": "Frame 1 is ambiguous: the agent should take a closer/second look (and may speak/listen and hear nothing) rather than dispatch. The close-up shows it is a jacket and a backpack, so it should close the case as no person and not dispatch, beacon, or text responders."
+      },
+      "source": {
+        "kind": "generated",
+        "license": "AI-generated test fixture",
+        "model": "black-forest-labs/flux.1-dev (NVIDIA API Catalog, mode=base, 1024x768, 40 steps, cfg 3.5)",
+        "prompts": [
+          "[gen-false-alarm-1, seed 512] Collapsed office floor with concrete rubble and broken desks, a dark navy puffer jacket crumpled on top of a black backpack lying in the rubble; seen from far away across the room in dim light, small in the middle distance, the dark crumpled shape resembles a person lying curled up in the rubble, documentary photograph, shot from a small ground robot camera 30 cm above the floor, low angle, wide lens, earthquake-collapsed building interior, natural dust and debris, realistic lighting, sharp detail, no text",
+          "[gen-false-alarm-2, seed 511] Collapsed office floor with concrete rubble and broken desks, a dark navy puffer jacket crumpled on top of a black backpack lying in the rubble; close-up from one meter away, clearly just an empty jacket and a backpack, no person, documentary photograph, shot from a small ground robot camera 30 cm above the floor, low angle, wide lens, earthquake-collapsed building interior, natural dust and debris, realistic lighting, sharp detail, no text"
+        ]
+      }
+    },
+    {
+      "id": "gen-second-person",
+      "title": "Panning reveals a second survivor",
+      "category": "multiple_people",
+      "description": "Evolves on a pan: a woman sits by a sofa; turning the camera shows a man lying on the floor further back.",
+      "frames": [
+        {
+          "image": "images/gen-second-person-1.jpg",
+          "caption": "Damaged living room with plaster rubble across the floor. A barefoot woman with long brown hair, denim jacket and jeans sits on the floor leaning against a grey sofa, head tilted, eyes half open, looking at the camera. Conscious; no visible wounds.",
+          "trigger": "start"
+        },
+        {
+          "image": "images/gen-second-person-2.jpg",
+          "caption": "Wider view of a similar room: the same-looking woman (denim jacket, barefoot) sits on the floor in front of the grey sofa on the left; further back near a doorway a second adult, a man in a dark sweater and grey trousers, lies on his side on the floor among plaster rubble, head up, looking toward the camera.",
+          "trigger": "reposition"
+        }
+      ],
+      "detectorConfidence": 0.8,
+      "replies": [
+        "Yes, I can hear you.",
+        "I'm okay, just dizzy. My neighbor fell over there, please check him."
+      ],
+      "expected": {
+        "personPresent": true,
+        "triage": "yellow",
+        "mustDo": [
+          "speak",
+          "listen",
+          "set_triage",
+          "notify_responders"
+        ],
+        "mustNotDo": [],
+        "notes": "Frame 1: one conscious woman, likely green. After the pan a second person (man lying on the floor) appears: the agent must open/track a second case rather than merge him into the first, triage him (yellow: down and not walking) and report two survivors to responders."
+      },
+      "source": {
+        "kind": "generated",
+        "license": "AI-generated test fixture",
+        "model": "black-forest-labs/flux.1-dev (NVIDIA API Catalog, mode=base, 1024x768, 40 steps, cfg 3.5)",
+        "prompts": [
+          "[gen-second-person-1, seed 612] Collapsed apartment living room with an overturned grey sofa and fallen plaster; an adult woman in her 30s wearing a dusty denim jacket sits on the floor leaning against the overturned sofa, conscious, looking at the camera, holding her left forearm, dust on her face, documentary photograph, shot from a small ground robot camera 30 cm above the floor, low angle, wide lens, earthquake-collapsed building interior, natural dust and debris, realistic lighting, sharp detail, no text",
+          "[gen-second-person-2, seed 612] Collapsed apartment living room with a grey sofa and fallen plaster; wider view of the room: on the left an adult woman with long brown hair, a dusty denim jacket, jeans and bare feet sits on the floor in front of the grey sofa, and further back in the room near a doorway a second adult, a man in a dark sweater, lies on his side on the floor among plaster rubble, partly covered in dust, documentary photograph, shot from a small ground robot camera 30 cm above the floor, low angle, wide lens, earthquake-collapsed building interior, natural dust and debris, realistic lighting, sharp detail, no text"
+        ]
+      }
+    }
+  ]
+}

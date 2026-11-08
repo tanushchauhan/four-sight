@@ -12,13 +12,17 @@ struct VisorView: View {
     @StateObject private var survivorDetector = SurvivorDetector()
     @StateObject private var survivorFeedback = SurvivorFeedback()
     @StateObject private var radarHeading = RadarHeading()
+    @State private var sightingHeadings: [UUID: Double] = [:]
+    @StateObject private var agent = AgentLink()
     @AppStorage("cameraURL") private var address = "http://prada.local:8080/stream"
+    @AppStorage("agentURL") private var agentAddress = ""
     @AppStorage("cameraSource") private var sourceName = CameraSource.robot.rawValue
     @State private var phone = PhoneCamera()
     @State private var settings = true
     @State private var radarTime = Date()
     @State private var layerStatus = "Lens layer: drawing"
     @FocusState private var focused: Control?
+    @FocusState private var agentField: AgentField?
     @Environment(\.scenePhase) private var scenePhase
 
     private enum Control: Hashable {
@@ -37,6 +41,7 @@ struct VisorView: View {
         briefing.sightings = survivorDetector.insight.sightings
         briefing.radarTime = radarTime
         briefing.headingDegrees = radarHeading.degrees
+        briefing.sightingHeadings = sightingHeadings
         let insight = survivorDetector.insight
         switch survivorDetector.state {
         case .loading:
@@ -45,7 +50,7 @@ struct VisorView: View {
             briefing.triage = .loading
         case .ready(let count, let confidence):
             briefing.survivors = count == 0
-                ? .empty(value: "0", detail: "Area clear")
+                ? .empty(value: "0", detail: "No person detected")
                 : .ready(value: "\(count)", detail: String(format: "Survivor alert · %.0f%%", confidence * 100))
             if let distance = insight.distanceMeters, let bearing = insight.bearingDegrees {
                 briefing.range = .ready(
@@ -74,6 +79,7 @@ struct VisorView: View {
             value: "84% · Good · 42°",
             detail: "Battery · link · thermal · simulated"
         )
+        briefing.coordinator = agent.coordinatorFeed
         if source == .phone {
             briefing.camera = .ready(value: "Phone", detail: "")
             return briefing
@@ -99,7 +105,9 @@ struct VisorView: View {
                 .contentShape(Rectangle())
                 .onTapGesture { settings.toggle() }
             if settings {
-                titleBlock
+                ScrollView {
+                    titleBlock.padding(16)
+                }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(VisorToken.paper3.opacity(0.6).color)
                     .ignoresSafeArea()
@@ -121,6 +129,7 @@ struct VisorView: View {
             UIApplication.shared.isIdleTimerDisabled = false
         }
         .onChange(of: scenePhase) { _, phase in
+            if phase == .active { radarHeading.start() } else { radarHeading.stop() }
             if phase != .active {
                 steering.stop()
             } else if source == .robot, controller.status == "Live" {
@@ -129,7 +138,7 @@ struct VisorView: View {
         }
         .onChange(of: controller.status) { _, status in
             if source == .robot, status == "Live" {
-                if focused == nil { settings = false }
+                if focused == nil, agentField == nil { settings = false }
                 steering.start(address: address, video: controller)
             } else {
                 steering.stop()
@@ -137,6 +146,17 @@ struct VisorView: View {
         }
         .onChange(of: survivorDetector.state) { oldState, newState in
             survivorFeedback.update(from: oldState, to: newState)
+        }
+        .onChange(of: survivorDetector.insight) { _, insight in
+            let ids = Set(insight.sightings.map(\.id))
+            sightingHeadings = sightingHeadings.filter { ids.contains($0.key) }
+            for sighting in insight.sightings where sightingHeadings[sighting.id] == nil {
+                sightingHeadings[sighting.id] = radarHeading.degrees
+            }
+        }
+        .onReceive(survivorDetector.$state) { state in
+            agent.observe(state, address: agentAddress, camera: address,
+                          robotLive: source == .robot && controller.status == "Live")
         }
     }
 
@@ -216,9 +236,11 @@ struct VisorView: View {
                         .foregroundStyle(VisorToken.ink.color)
                         .tint(VisorToken.ink.color)
                 }
+                rule
+                cell { AgentSettings(link: agent, address: $agentAddress, cameraAddress: address, focus: $agentField) }
             }
             rule
-            HStack(spacing: VisorToken.spaceSm) {
+            VStack(spacing: VisorToken.spaceSm) {
                 if source == .robot {
                     Button(controller.status == "Connecting…" ? "Connecting" : "Connect") {
                         focused = nil
@@ -241,7 +263,7 @@ struct VisorView: View {
             }
             .padding(VisorToken.spaceMd)
         }
-        .frame(width: 420)
+        .frame(maxWidth: 420)
         .background(VisorToken.paper.color)
         .overlay(Rectangle().strokeBorder(VisorToken.rule.color, lineWidth: VisorToken.hairline))
     }
@@ -366,6 +388,8 @@ final class HeadSteering: ObservableObject {
     private let motion = CMMotionManager()
     private var socket: URLSessionWebSocketTask?
     private var loop: Task<Void, Never>?
+    private var watchdog: Task<Void, Never>?
+    private var lastReply = Date.distantPast
     private var reconnect: Task<Void, Never>?
     private var origin: Double?
     private var filtered = 0.0
@@ -379,6 +403,9 @@ final class HeadSteering: ObservableObject {
               var url = URLComponents(string: address), url.host != nil else {
             status = "Motion unavailable"; return
         }
+        guard Date().timeIntervalSince(video.lastFrameTime) < 1 else {
+            status = "Connect live robot video before enabling steering"; return
+        }
         url.scheme = "ws"; url.port = 8766; url.path = "/"; url.query = nil
         guard let endpoint = url.url else { return }
         let ws = URLSession.shared.webSocketTask(with: endpoint)
@@ -386,9 +413,27 @@ final class HeadSteering: ObservableObject {
         motion.deviceMotionUpdateInterval = 1.0 / 30
         motion.startDeviceMotionUpdates(using: .xArbitraryZVertical)
         active = true; status = "Connecting steering…"; recenter()
+        lastReply = Date()
+        watchdog = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 100_000_000)
+                guard !Task.isCancelled, let self, self.socket === ws else { return }
+                if Date().timeIntervalSince(video.lastFrameTime) > 1 || Date().timeIntervalSince(self.lastReply) > 2 {
+                    self.scheduleReconnect(address: address, video: video,
+                                           status: "Video or steering connection is stale — reconnecting…")
+                    return
+                }
+            }
+        }
         loop = Task { [weak self] in
             guard let self else { return }
             do {
+                // Confirm the deployed relay accepts this protocol before showing ready.
+                try await ws.send(.string("{\"turn\":0}"))
+                try await receiveAcknowledgement(ws, key: "received")
+                try Task.checkCancellation()
+                guard socket === ws else { return }
+                lastReply = Date()
                 status = "Steering ready — click joystick to enable"
                 while !Task.isCancelled {
                     if Date().timeIntervalSince(video.lastFrameTime) > 1 {
@@ -416,11 +461,14 @@ final class HeadSteering: ObservableObject {
                         }
                     }
                     try await ws.send(.string("{\"turn\":\(turn)}"))
-                    _ = try await ws.receive()
+                    try await receiveAcknowledgement(ws, key: "received")
+                    try Task.checkCancellation()
+                    guard socket === ws else { return }
+                    lastReply = Date()
                     try await Task.sleep(nanoseconds: 50_000_000)
                 }
             } catch {
-                if !Task.isCancelled {
+                if !Task.isCancelled, socket === ws {
                     scheduleReconnect(address: address, video: video, status: "Steering reconnecting…")
                 }
             }
@@ -428,6 +476,7 @@ final class HeadSteering: ObservableObject {
     }
 
     private func scheduleReconnect(address: String, video: ARSessionController, status: String) {
+        watchdog?.cancel(); watchdog = nil
         loop?.cancel(); loop = nil
         socket?.cancel(with: .goingAway, reason: nil); socket = nil
         motion.stopDeviceMotionUpdates()
@@ -446,7 +495,20 @@ final class HeadSteering: ObservableObject {
         }
     }
 
+    private func receiveAcknowledgement(_ ws: URLSessionWebSocketTask, key: String) async throws {
+        let message = try await ws.receive()
+        let data: Data
+        switch message {
+        case .string(let text): data = Data(text.utf8)
+        case .data(let bytes): data = bytes
+        @unknown default: throw URLError(.badServerResponse)
+        }
+        guard let reply = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              reply[key] as? Bool == true else { throw URLError(.badServerResponse) }
+    }
+
     func stop() {
+        watchdog?.cancel(); watchdog = nil
         reconnect?.cancel(); reconnect = nil
         loop?.cancel(); loop = nil
         socket?.cancel(with: .goingAway, reason: nil); socket = nil
@@ -459,17 +521,15 @@ final class HeadSteering: ObservableObject {
 @MainActor
 final class SurvivorFeedback: ObservableObject {
     private var player: AVAudioPlayer?
-    private let haptic = UIImpactFeedbackGenerator(style: .heavy)
-    private var lastFeedback = Date.distantPast
 
     func update(from oldState: SurvivorDetectionState, to newState: SurvivorDetectionState) {
         guard newState.count > 0, oldState.count == 0 else { return }
-        guard Date().timeIntervalSince(lastFeedback) > 4 else { return }
-        lastFeedback = Date()
+
+        let haptic = UIImpactFeedbackGenerator(style: .heavy)
         haptic.prepare()
         haptic.impactOccurred(intensity: 0.85)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.16) { [weak self] in
-            self?.haptic.impactOccurred(intensity: 0.65)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.16) {
+            haptic.impactOccurred(intensity: 0.65)
         }
 
         do {
@@ -517,33 +577,27 @@ final class SurvivorFeedback: ObservableObject {
     }
 }
 
-/// Session-relative head heading; independent of the robot steering connection.
 @MainActor
 final class RadarHeading: ObservableObject {
     @Published private(set) var degrees = 0.0
     private let motion = CMMotionManager()
-    private var origin: Double?
     private var previous: Double?
     private var accumulated = 0.0
 
     func start() {
         guard motion.isDeviceMotionAvailable, !motion.isDeviceMotionActive else { return }
-        origin = nil; previous = nil; accumulated = 0
+        previous = nil
         motion.deviceMotionUpdateInterval = 0.1
         motion.startDeviceMotionUpdates(using: .xArbitraryZVertical, to: .main) { [weak self] sample, _ in
             guard let self, let sample else { return }
-            let r = sample.attitude.rotationMatrix
-            guard hypot(r.m31, r.m32) > 0.3 else { return }
-            let angle = atan2(-r.m32, -r.m31)
+            let angle = sample.attitude.yaw
             if let previous = self.previous {
                 self.accumulated += atan2(sin(angle - previous), cos(angle - previous))
             }
             self.previous = angle
-            // Positive screen rotation is clockwise, opposite to positive yaw.
             self.degrees = -self.accumulated * 180 / .pi
         }
     }
-
     func stop() { motion.stopDeviceMotionUpdates() }
 }
 

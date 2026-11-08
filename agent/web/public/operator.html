@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="dark light">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>Operator Earpiece</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2376b900'/%3E%3Cpath d='M16 7v18M7 16h18' stroke='%23000' stroke-width='5' stroke-linecap='round'/%3E%3C/svg%3E">
+  <style>
+    :root {
+      --bg: #0b0f14; --panel: #131a22; --line: #243040; --text: #e3e9f0; --text-2: #a7b3c2; --muted: #7a8899;
+      --accent: #76b900; --accent-ink: #0b1200; --info: #5aa9ff; --warn: #f2b134; --bad: #ff5d5d;
+      --info-soft: rgba(90, 169, 255, 0.13); --warn-soft: rgba(242, 177, 52, 0.14); --bad-soft: rgba(255, 93, 93, 0.16);
+      --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
+    @media (prefers-color-scheme: light) {
+      :root { --bg: #eef1f5; --panel: #ffffff; --line: #d8dee7; --text: #17202b; --text-2: #3c4a5c; --muted: #66758a;
+        --accent: #5a8f00; --accent-ink: #ffffff; --info: #1f6fd1; --warn: #a66a00; --bad: #c62828; }
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--sans); }
+    body { min-height: 100vh; padding: max(12px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom)); }
+    .wrap { max-width: 720px; margin: 0 auto; display: flex; flex-direction: column; gap: 12px; }
+    header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    h1 { font-size: 16px; margin: 0; letter-spacing: 0.01em; }
+    .pill { font-size: 12px; padding: 3px 9px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+    .pill.ok { color: var(--accent); border-color: var(--accent); }
+    .pill.bad { color: var(--bad); border-color: var(--bad); }
+    .latest { background: var(--panel); border: 2px solid var(--line); border-radius: 14px; padding: 18px; min-height: 160px;
+      display: flex; flex-direction: column; justify-content: center; gap: 8px; }
+    .latest .text { font-size: clamp(24px, 6.5vw, 40px); line-height: 1.2; font-weight: 650; overflow-wrap: anywhere; }
+    .latest .meta { font-size: 13px; color: var(--muted); }
+    .lvl-info { border-color: var(--info); background: var(--info-soft); }
+    .lvl-warning { border-color: var(--warn); background: var(--warn-soft); }
+    .lvl-critical { border-color: var(--bad); background: var(--bad-soft); }
+    .lvl-critical .text { color: var(--bad); }
+    .controls { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px; display: grid; gap: 12px; }
+    .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .row label { font-size: 13px; color: var(--text-2); min-width: 64px; }
+    .row input[type="range"] { flex: 1; min-width: 120px; accent-color: var(--accent); }
+    .row output { font-variant-numeric: tabular-nums; font-size: 13px; color: var(--muted); min-width: 38px; text-align: right; }
+    button { font: inherit; border-radius: 10px; border: 1px solid var(--line); background: transparent; color: var(--text); padding: 10px 14px; min-height: 44px; cursor: pointer; }
+    button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 700; font-size: 17px; width: 100%; min-height: 56px; }
+    button[aria-pressed="true"] { border-color: var(--warn); color: var(--warn); background: var(--warn-soft); }
+    button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+    ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+    li { background: var(--panel); border: 1px solid var(--line); border-left-width: 4px; border-radius: 8px; padding: 8px 10px; font-size: 15px; }
+    li .t { font-size: 12px; color: var(--muted); margin-right: 6px; font-variant-numeric: tabular-nums; }
+    li.lvl-info { border-left-color: var(--info); background: var(--panel); }
+    li.lvl-warning { border-left-color: var(--warn); background: var(--panel); }
+    li.lvl-critical { border-left-color: var(--bad); background: var(--panel); }
+    .muted { color: var(--muted); font-size: 13px; }
+    h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); margin: 6px 0 0; }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <header>
+      <h1>Operator earpiece</h1>
+      <span id="conn" class="pill" role="status">connecting…</span>
+    </header>
+
+    <button id="enableBtn" class="primary" type="button">Tap to enable voice</button>
+    <p id="noSpeech" class="muted" hidden>This browser has no speech synthesis. Messages still show here.</p>
+
+    <section id="latest" class="latest lvl-info" aria-live="assertive" aria-atomic="true">
+      <div id="latestText" class="text">Waiting for the agent…</div>
+      <div id="latestMeta" class="meta"></div>
+    </section>
+
+    <section class="controls" aria-label="Voice settings">
+      <div class="row">
+        <button id="muteBtn" type="button" aria-pressed="false">Mute</button>
+        <button id="testBtn" type="button">Test voice</button>
+      </div>
+      <div class="row">
+        <label for="vol">Volume</label>
+        <input id="vol" type="range" min="0" max="1" step="0.05" value="1">
+        <output id="volOut" for="vol">100%</output>
+      </div>
+      <div class="row">
+        <label for="rate">Rate</label>
+        <input id="rate" type="range" min="0.6" max="1.6" step="0.05" value="1.05">
+        <output id="rateOut" for="rate">1.05×</output>
+      </div>
+    </section>
+
+    <h2>History</h2>
+    <ol id="history" reversed><li class="muted">Nothing yet.</li></ol>
+  </main>
+  <script src="speech.js"></script>
+  <script src="operator.js"></script>
+</body>
+</html>

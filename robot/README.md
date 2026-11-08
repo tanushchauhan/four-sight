@@ -37,6 +37,34 @@ robot/.venv/bin/python -m picrawler_control.stream --config robot/config/control
 
 `GET /stream` is `multipart/x-mixed-replace; boundary=frame`. Each part is one JPEG with `Content-Type: image/jpeg` and `Content-Length`. `GET /frame` returns the latest JPEG once. With no camera connected, the process publishes a moving test picture. The camera, once it exists, calls `FrameBuffer.publish` with each JPEG; clients do not change.
 
+## Speech
+
+Text to speech on `speech_port` (8081 unless `control.toml` says otherwise), separate from the control socket. Offline: Piper if `piper-tts` and a voice model are installed, else `espeak-ng`, else a dry run that only logs. Playback is `aplay` on `speech_device`.
+
+```bash
+robot/.venv/bin/python -m picrawler_control.speech --config robot/config/control.toml --dry-run
+```
+
+With the same `ROBOT_CONTROL_TOKEN` set, from another terminal:
+
+```bash
+curl -X POST -H "Authorization: Bearer $ROBOT_CONTROL_TOKEN" -H 'Content-Type: application/json' \
+  -d '{"text":"Can you hear me?"}' http://127.0.0.1:8081/say
+```
+
+`POST /say` takes `{"text": 1-300 characters, "interrupt": bool}` and returns 202 with an id; `interrupt: true` stops the current line and clears the queue. `POST /stop` stops and clears. Both need `Authorization: Bearer <ROBOT_CONTROL_TOKEN>`. `GET /health` and `GET /phrases` need no token. Config keys: `speech_port`, `speech_voice` (Piper `.onnx` path), `speech_device` (ALSA device) and `speech_cache` (WAV cache directory). The full contract, engines and the prada service are in [prada/README.md](prada/README.md#speech).
+
+`POST /listen` (same token) records from the microphone and answers with a transcript. It waits for the speaker to finish first so the robot does not record itself, and only one listen runs at a time:
+
+```bash
+curl -X POST -m 45 -H "Authorization: Bearer $ROBOT_CONTROL_TOKEN" -H 'Content-Type: application/json' \
+  -d '{"seconds":5}' http://127.0.0.1:8081/listen
+# {"ok":true,"transcript":"I'm here, my leg is stuck","silent":false,"rms":812.4,"voiced_ratio":0.31,
+#  "engine":"whisper.cpp","record_ms":5040,"stt_ms":2210,"stt_unavailable":false}
+```
+
+The body is optional: `seconds` is 1 to 10 (default 5). `silent: true` means no voice was heard and speech to text was skipped. `stt_unavailable: true` means whisper.cpp or its model is missing (`transcript` is `null`). Errors: 409 `speaker busy` (still playing after 15 s) or `already listening`, 503 `no microphone`, 500 if `arecord` or whisper fails. Under `--dry-run` it returns a fixed transcript without recording. Config keys: `speech_mic` (`auto`, or an ALSA name such as `plughw:2,0`), `speech_stt_bin` (`auto` or the `whisper-cli` path), `speech_stt_model` (ggml model), `speech_vad_rms` (int16 frame RMS counted as voice, 50 to 20000, default 500) and `speech_keep_audio` (keep recordings for debugging). Mic tests, latency and limits are in [prada/README.md](prada/README.md#listening).
+
 ## Protocol v1
 
 One authenticated controlling connection at a time. First packet, within 5 s:
@@ -107,4 +135,4 @@ robot/.venv/bin/python -m unittest discover -s robot/tests -v
 robot/.venv/bin/python -m compileall -q robot/picrawler_control
 ```
 
-The 22 tests cover validation, axis mapping, replay rejection, deadman expiry, explicit re-enable, single ownership, lazy initialization, backend faults, latest-command replacement and simulated WebSocket auth/disconnect/stop under a blocked gait. They also check actual dry-run process startup/shutdown and the ROS adapter contract using fake ROS modules. They require loopback sockets and never import the actual vendor library or actuate servos. ROS runtime, Ubuntu Python 3.12 and physical hardware still require on-Pi validation; local checks ran on macOS Python 3.14.
+The 22 tests cover validation, axis mapping, replay rejection, deadman expiry, explicit re-enable, single ownership, lazy initialization, backend faults, latest-command replacement and simulated WebSocket auth/disconnect/stop under a blocked gait. They also check actual dry-run process startup/shutdown and the ROS adapter contract using fake ROS modules. They require loopback sockets and never import the actual vendor library or actuate servos. `test_speech.py` covers the speech service with a dry-run engine and mocked subprocesses; it never plays audio. ROS runtime, Ubuntu Python 3.12 and physical hardware still require on-Pi validation; local checks ran on macOS Python 3.14.

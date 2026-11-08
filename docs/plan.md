@@ -151,13 +151,14 @@ Poll every ~0.5 s for orders (Pi) and the triage card (headset). The agent uses 
 
 ### Nemotron (`agent/`)
 
-- **Vision:** a Nemotron vision model on build.nvidia.com (e.g. Nemotron Nano 12B v2 VL for speed, or Nemotron 3.5 Super VL). OpenAI-compatible API.
-- **Agent loop:** a Nemotron model with tool calling. Tools = `set_triage`, `set_priority`, `assign_area`, `dispatch_responders`, plus read-only `get_state` from the subscription cache. Every call writes `agent_log`.
-- **Triggers:**
-  - New case → describe the snapshot → `set_triage` → re-rank the queue.
-  - Robot finishes its area → `assign_area` to the nearest unsearched area.
-  - Red triage → `dispatch_responders` with the nearest free team.
-- **First hour:** confirm which model IDs support tool calling on the hosted API. Fallback: ask for strict JSON and run the tool ourselves.
+Full design, tool list and contracts: **[docs/agent.md](agent.md)**. SpacetimeDB tables and reducers: **[docs/spacetime.md](spacetime.md)** (module in `server/`).
+
+- **Team of three agents:** a coordinator (Nemotron 3 Ultra) delegates to a triage agent (3.5 Lightning) and a search agent (3.5 Bolt). Vision is Nemotron 3.5 Super VL.
+- **Role (one robot):** the robot's mission brain. It plans the search, takes a **second look** when a detection is weak (re-aims, moves around the obstacle, looks again), **talks to the survivor** (`speak` / `listen`), triages, requests takeovers, texts responders (Twilio), and asks the rescuer to approve dispatch and beacon drops.
+- **Loop:** events (detection, voice command, low battery, stale case, sitrep, idle search) → multi-step tool loop → every call logged to `agent_log`.
+- **Models:** checked against our key; `nemotron-3-super-120b` returns 404 for our account. See the table in agent.md. Fallback `TOOL_CALL_MODE=json`.
+- **Status:** the full mission runs with real Nemotron against a simulated robot (`cd agent && npm run demo`), or offline with `LLM_MODE=mock`. Not yet connected to the Pi, the headset or a deployed SpacetimeDB.
+- **Pitch note:** with one physical robot, pitch "one rescuer, hands-free". Simulated extra robots are optional (`sim_tick`); say clearly what is simulated.
 
 ## Features
 

@@ -97,60 +97,66 @@ void setup() {
   BLE.advertise();
 }
 
+// USB packets: J,sequence,turn,forward,clicks at 20 Hz. Each transport
+// establishes its own click baseline, so reconnecting never enables movement.
 void loop() {
+  BLE.poll();
   updateBuzzer();
-  static unsigned long lastIdleLog = 0;
-  if (millis() - lastIdleLog >= 2000) {
-    lastIdleLog = millis();
-    Serial.print("ble="); Serial.print(bleOk); Serial.print(" advertising, x="); Serial.print(analogRead(PIN_X));
-    Serial.print(" y="); Serial.println(analogRead(PIN_Y));
-  }
+  static bool wasBle = false, wasUsb = false;
+  static unsigned long lastSend = 0, pressStart = 0, sequence = 0;
+  static unsigned char clicks = 0;
+  static bool pressed = false, recentered = false;
   BLEDevice central = BLE.central();
-  if (!central) return;
-
-  calibrate();
-  beep(BEEP_CONNECTED, 5);
-  unsigned long lastSend = 0;
-  unsigned char clicks = 0;
-  bool pressed = false;
-  bool recentered = false;
-  unsigned long pressStart = 0;
-  while (central.connected()) {
-    updateBuzzer();
-    if (stateChar.written()) {
-      unsigned char state = stateChar.value();
-      if (state == 1) beep(BEEP_ENABLED, 1);
-      else if (state == 2) beep(BEEP_REFUSED, 3);
-      else beep(BEEP_DISABLED, 3);
-    }
-    if (millis() - lastSend >= SEND_MS) {
-      lastSend = millis();
-      int rawX = analogRead(PIN_X);
-      int rawY = analogRead(PIN_Y);
-      bool down = rawX >= CLICK_THRESHOLD;
-      if (down && !pressed) { pressed = true; recentered = false; pressStart = millis(); }
-      if (down && pressed && !recentered && millis() - pressStart >= RECENTER_HOLD_MS) {
-        recentered = true;  // re-center after release, once the stick is let go
-      }
-      if (!down && pressed) {
-        pressed = false;
-        if (recentered) {
-          delay(300);
-          calibrate();
-          beep(BEEP_RECENTERED, 3);
-        } else {
-          clicks++;
-        }
-      }
-      unsigned char packet[3];
-      packet[0] = (unsigned char)(pressed ? 0 : toAxis(rawX, centerX));
-      packet[1] = (unsigned char)(pressed ? 0 : toAxis(rawY, centerY));
-      packet[2] = clicks;
-      joyChar.setValue(packet, 3);
-      Serial.print(rawX); Serial.print(' '); Serial.print(rawY); Serial.print(' ');
-      Serial.print(centerX); Serial.print(' '); Serial.print(centerY); Serial.print(' '); Serial.println(clicks);
-    }
+  bool ble = central && central.connected();
+  bool usb = (bool)Serial;
+  if (usb && !wasUsb) {
+    calibrate();
+    pressed = false;
+    beep(BEEP_CONNECTED, 5);
+  } else if (ble && !wasBle && !usb) {
+    calibrate();
+    pressed = false;
+    beep(BEEP_CONNECTED, 5);
   }
-  digitalWrite(PIN_BUZZER, LOW);
-  beepLength = 0;
+  if (!ble && wasBle) BLE.advertise();
+  wasBle = ble;
+  wasUsb = usb;
+  if (ble && stateChar.written()) {
+    unsigned char state = stateChar.value();
+    if (state == 1) beep(BEEP_ENABLED, 1);
+    else if (state == 2) beep(BEEP_REFUSED, 3);
+    else beep(BEEP_DISABLED, 3);
+  }
+  while (Serial.available()) {
+    char state = Serial.read();
+    if (state == 'E') beep(BEEP_ENABLED, 1);
+    else if (state == 'R') beep(BEEP_REFUSED, 3);
+    else if (state == 'D') beep(BEEP_DISABLED, 3);
+  }
+  if (millis() - lastSend < SEND_MS) return;
+  lastSend = millis();
+  int rawX = analogRead(PIN_X), rawY = analogRead(PIN_Y);
+  bool down = rawX >= CLICK_THRESHOLD;
+  if (down && !pressed) { pressed = true; recentered = false; pressStart = millis(); }
+  if (down && pressed && millis() - pressStart >= RECENTER_HOLD_MS) recentered = true;
+  if (!down && pressed) {
+    pressed = false;
+    if (recentered) {
+      delay(300);
+      calibrate();
+      // Use the post-calibration readings rather than the old deflection.
+      rawX = centerX; rawY = centerY;
+      beep(BEEP_RECENTERED, 3);
+    } else clicks++;
+  }
+  int8_t turn = pressed ? 0 : toAxis(rawX, centerX);
+  int8_t forward = pressed ? 0 : toAxis(rawY, centerY);
+  unsigned char packet[3] = {(unsigned char)turn, (unsigned char)forward, clicks};
+  if (ble) joyChar.setValue(packet, 3);
+  // Reserve enough space so USB cannot block BLE event handling.
+  if (usb && Serial.availableForWrite() >= 48) {
+    Serial.print("J,"); Serial.print(sequence++); Serial.print(',');
+    Serial.print((int)turn); Serial.print(','); Serial.print((int)forward);
+    Serial.print(','); Serial.println(clicks);
+  }
 }

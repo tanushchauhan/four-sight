@@ -12,6 +12,7 @@ struct VisorBriefing: Equatable {
     var sightings: [SurvivorSighting] = []
     var radarTime = Date()
     var headingDegrees = 0.0
+    var sightingHeadings: [UUID: Double] = [:]
     var coordinator: FeedState
     var survivors: FeedState
     var slam: FeedState
@@ -23,9 +24,9 @@ struct VisorBriefing: Equatable {
 
     /// Placeholder until Nemotron, detection and SLAM are wired.
     static let sample = VisorBriefing(
-        coordinator: .ready(value: "Nemotron", detail: "Holding the east search"),
-        survivors: .ready(value: "2", detail: "Survivors detected"),
-        slam: .ready(value: "Loaded", detail: "Map is current"),
+        coordinator: .empty(value: "Offline", detail: "Not connected"),
+        survivors: .loading,
+        slam: .empty(value: "Offline", detail: "Not connected"),
         camera: .loading,
         range: .loading,
         triage: .loading,
@@ -68,11 +69,12 @@ struct LensLayerView: View {
                 Spacer(minLength: 0)
                 HStack(alignment: .center) {
                     CompactReadout(label: "Range + direction", state: briefing.range)
-                    Spacer(minLength: 50)
+                    Spacer(minLength: 12)
                     CompactReadout(label: "Triage motion", state: briefing.triage, trailing: true)
                 }
                 Spacer(minLength: 0)
-                SurvivorRadar(sightings: briefing.sightings, now: briefing.radarTime, heading: briefing.headingDegrees)
+                SurvivorRadar(sightings: briefing.sightings, now: briefing.radarTime,
+                              heading: briefing.headingDegrees, anchors: briefing.sightingHeadings)
                 HStack(alignment: .lastTextBaseline) {
                     CameraLink(state: briefing.camera)
                     Spacer(minLength: VisorToken.spaceLg)
@@ -93,6 +95,7 @@ private struct SurvivorRadar: View {
     let sightings: [SurvivorSighting]
     let now: Date
     let heading: Double
+    let anchors: [UUID: Double]
 
     var body: some View {
         VStack(spacing: 4) {
@@ -109,7 +112,7 @@ private struct SurvivorRadar: View {
                 ForEach(sightings) { sighting in
                     let age = max(0, now.timeIntervalSince(sighting.seen))
                     let radius = min(44, sighting.distance / 15 * 44)
-                    let angle = sighting.bearing * .pi / 180
+                    let angle = (sighting.bearing + (anchors[sighting.id] ?? heading) - heading) * .pi / 180
                     Circle()
                         .fill(Color(red: 0.2, green: 0.65, blue: 1))
                         .overlay(Circle().stroke(Color.white.opacity(0.7), lineWidth: 1))
@@ -118,12 +121,12 @@ private struct SurvivorRadar: View {
                         .offset(x: sin(angle) * radius, y: -cos(angle) * radius)
                 }
                 Image(systemName: "location.north.fill")
-                    .font(.system(size: 19, weight: .bold))
+                    .font(.system(size: 22, weight: .bold))
                     .foregroundStyle(VisorToken.ink.color)
                     .rotationEffect(.degrees(heading))
             }.frame(width: 110, height: 110)
-            Text("HEAD \(Int(heading.rounded()))° · RELATIVE · 15 M")
-                .font(VisorToken.measured(11))
+            Text("HEAD \(Int(heading))° · 15 M")
+                .font(VisorToken.measured(28))
                 .foregroundStyle(VisorToken.muted.color)
         }
         .padding(.bottom, 8)
@@ -138,10 +141,10 @@ private struct CompactReadout: View {
     var body: some View {
         VStack(alignment: trailing ? .trailing : .leading, spacing: VisorToken.space2xs) {
             Text(label.uppercased())
-                .font(VisorToken.label(14))
+                .font(VisorToken.label(28))
                 .foregroundStyle(VisorToken.muted.color)
             Text(value)
-                .font(VisorToken.measured(20))
+                .font(VisorToken.measured(30))
                 .foregroundStyle(VisorToken.ink.color)
                 .lineLimit(1)
         }
@@ -209,8 +212,7 @@ private extension View {
     func overFeed() -> some View {
         colorMultiply(Color(red: 0.10, green: 0.16, blue: 0.23))
             .padding(8)
-            .background(RoundedRectangle(cornerRadius: 5).fill(Color.white.opacity(0.90)))
-            .shadow(color: .black.opacity(0.4), radius: 2)
+            .background(RoundedRectangle(cornerRadius: 5).fill(Color.white.opacity(0.92)))
     }
 }
 
@@ -222,12 +224,12 @@ private struct Readout: View {
     var body: some View {
         VStack(alignment: trailing ? .trailing : .leading, spacing: VisorToken.space2xs) {
             Text(label)
-                .font(VisorToken.label(20))
+                .font(VisorToken.label(42))
                 .foregroundStyle(VisorToken.muted.color)
             switch state {
             case .loading:
                 Text("Waiting")
-                    .font(VisorToken.display(32))
+                    .font(VisorToken.display(48))
                     .foregroundStyle(VisorToken.muted.color)
             case .empty(let value, let detail), .ready(let value, let detail):
                 title(value)
@@ -244,15 +246,15 @@ private struct Readout: View {
 
     private func title(_ value: String) -> some View {
         Text(value.uppercased())
-            .font(VisorToken.display(32))
+            .font(VisorToken.display(48))
             .foregroundStyle(VisorToken.ink.color)
             .lineLimit(1)
-            .minimumScaleFactor(0.6)
+            .minimumScaleFactor(0.9)
     }
 
     private func detailText(_ detail: String) -> some View {
         Text(detail)
-            .font(VisorToken.body(20))
+            .font(VisorToken.body(42))
             .foregroundStyle(VisorToken.ink2.color)
             .lineLimit(2)
             .fixedSize(horizontal: false, vertical: true)
@@ -268,17 +270,17 @@ private struct SurvivorCount: View {
             switch state {
             case .loading:
                 Text("Survivors, waiting")
-                    .font(VisorToken.label(22))
+                    .font(VisorToken.label(42))
                     .foregroundStyle(VisorToken.muted.color)
             case .empty(let value, let detail), .ready(let value, let detail), .failed(let value, let detail):
                 HStack(alignment: .lastTextBaseline, spacing: VisorToken.spaceXs) {
                     Text(value)
-                        .font(VisorToken.display(56))
+                        .font(VisorToken.display(84))
                         .foregroundStyle(VisorToken.ink.color)
                     Text(detail.uppercased())
-                        .font(VisorToken.label(18))
+                        .font(VisorToken.label(42))
                         .foregroundStyle(VisorToken.ink2.color)
-                        .fixedSize()
+                        .lineLimit(3)
                 }
                 .padding(.horizontal, detail.localizedCaseInsensitiveContains("alert") ? VisorToken.spaceSm : 0)
                 .padding(.vertical, detail.localizedCaseInsensitiveContains("alert") ? VisorToken.spaceXs : 0)
@@ -299,7 +301,7 @@ private struct CameraLink: View {
 
     var body: some View {
         Text(text)
-            .font(VisorToken.measured(18))
+            .font(VisorToken.measured(38))
             .foregroundStyle(VisorToken.muted.color)
             .overFeed()
     }

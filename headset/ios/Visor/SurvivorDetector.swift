@@ -49,6 +49,7 @@ final class SurvivorDetector: ObservableObject {
     private let lock = NSLock()
     private var model: YOLO?
     private var busy = false
+    private var generation: UInt64 = 0
     private var lastSubmission = CFAbsoluteTimeGetCurrent() - 1
     private var overlay = SurvivorOverlay(revision: 0, image: nil)
     private var previousCentroid: CGPoint?
@@ -90,6 +91,7 @@ final class SurvivorDetector: ObservableObject {
         busy = true
         lastSubmission = now
         let model = model
+        let generation = generation
         lock.unlock()
 
         inferenceQueue.async { [weak self] in
@@ -103,15 +105,28 @@ final class SurvivorDetector: ObservableObject {
             let insight = self.makeInsight(survivors: survivors.map(\.element), at: now)
 
             self.lock.lock()
-            self.overlay = SurvivorOverlay(revision: self.overlay.revision &+ 1, image: mask)
             self.busy = false
+            guard self.generation == generation else { self.lock.unlock(); return }
+            self.overlay = SurvivorOverlay(revision: self.overlay.revision &+ 1, image: mask)
             self.lock.unlock()
 
             DispatchQueue.main.async {
+                self.lock.lock()
+                let current = self.generation == generation
+                self.lock.unlock()
+                guard current else { return }
                 self.state = .ready(count: survivors.count, confidence: confidence)
                 self.insight = insight
             }
         }
+    }
+
+    func reset() {
+        lock.lock()
+        generation &+= 1
+        overlay = SurvivorOverlay(revision: overlay.revision &+ 1, image: nil)
+        lock.unlock()
+        DispatchQueue.main.async { self.state = .loading }
     }
 
     func latestOverlay() -> SurvivorOverlay {

@@ -4,11 +4,11 @@
 #
 #   update    pull the repo, reinstall, restart running services (the usual one)
 #   install   set up or repair everything (packages, libraries, access, services)
-#   start     start the server, the joystick relay and the camera stream
-#   stop      stop all three
-#   restart   restart all three
-#   status    show service state, HAT, battery, joystick and camera
-#   logs      follow all three services' logs
+#   start     start the server, the joystick relay, the camera stream and speech
+#   stop      stop all four
+#   restart   restart all four
+#   status    show service state, HAT, battery, joystick, camera, speech, mic and stt
+#   logs      follow all four services' logs
 #   keyboard  stop the joystick relay so a laptop keyboard controller can connect
 #
 # None of these move servos. The robot moves only after the joystick is clicked
@@ -17,7 +17,7 @@ set -euo pipefail
 
 REPO="$(cd "$(dirname "$0")/../.." && pwd)"
 VENV="$REPO/robot/.venv"
-SERVICES=(prada-server prada-joystick prada-camera)
+SERVICES=(prada-server prada-joystick prada-camera prada-speech)
 
 running() { systemctl is-active --quiet prada-server; }
 
@@ -36,7 +36,7 @@ case "${1:-help}" in
     systemctl --no-pager --lines=0 status "${SERVICES[@]}" | grep -E "●|Active:"
     ;;
   stop)
-    sudo systemctl stop prada-joystick prada-camera prada-server
+    sudo systemctl stop prada-joystick prada-camera prada-speech prada-server
     ;;
   restart)
     sudo systemctl restart "${SERVICES[@]}"
@@ -56,9 +56,16 @@ case "${1:-help}" in
     if systemctl is-active --quiet prada-camera; then
       printf '%-16s %s\n' "camera" "http://$(hostname).local:8080/stream  (also http://$(hostname -I | awk '{print $1}'):8080/stream)"
     fi
+    if systemctl is-active --quiet prada-speech; then
+      health="$(curl -s -m 2 http://127.0.0.1:8081/health || true)"
+      printf '%-16s %s\n' "speech" "${health:-no answer on :8081}"
+      if [[ -n "$health" ]]; then
+        printf '%-16s %s\n' "listening" "$(python3 -c 'import json, sys; h = json.load(sys.stdin); print("mic", h.get("mic") or "none", "/ stt", h.get("stt") or "none")' <<<"$health" 2>/dev/null || echo '?')"
+      fi
+    fi
     ;;
   logs)
-    journalctl -f -u prada-server -u prada-joystick -u prada-camera
+    journalctl -f -u prada-server -u prada-joystick -u prada-camera -u prada-speech
     ;;
   keyboard)
     sudo systemctl stop prada-joystick

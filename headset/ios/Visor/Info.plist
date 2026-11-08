@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
     <key>NSMotionUsageDescription</key>
-    <string>Head movement steers the robot camera left and right.</string>
+    <string>Head movement turns the whole robot left and right when joystick control is enabled.</string>
     <key>NSLocalNetworkUsageDescription</key>
     <string>Connect to Prada’s camera over your local Wi-Fi.</string>
     <key>NSAppTransportSecurity</key>

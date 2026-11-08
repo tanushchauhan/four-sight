@@ -18,6 +18,7 @@
 		B00100000000000000000013 /* VisorTokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00100000000000000000013 /* VisorTokens.swift */; };
 		B00100000000000000000018 /* PhoneCamera.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00100000000000000000018 /* PhoneCamera.swift */; };
 		B00100000000000000000019 /* SurvivorDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00100000000000000000019 /* SurvivorDetector.swift */; };
+		B00100000000000000000022 /* AgentLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00100000000000000000022 /* AgentLink.swift */; };
 		B00100000000000000000020 /* yolo26n-seg.mlpackage in Resources */ = {isa = PBXBuildFile; fileRef = F00100000000000000000020 /* yolo26n-seg.mlpackage */; };
 		B00100000000000000000021 /* UltralyticsYOLO in Frameworks */ = {isa = PBXBuildFile; productRef = P00100000000000000000021 /* UltralyticsYOLO */; };
 		B00100000000000000000014 /* LensHud.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00100000000000000000014 /* LensHud.swift */; };
@@ -41,6 +42,7 @@
 		F00100000000000000000013 /* VisorTokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Visor/VisorTokens.swift; sourceTree = SOURCE_ROOT; };
 		F00100000000000000000018 /* PhoneCamera.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Visor/PhoneCamera.swift; sourceTree = SOURCE_ROOT; };
 		F00100000000000000000019 /* SurvivorDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Visor/SurvivorDetector.swift; sourceTree = SOURCE_ROOT; };
+		F00100000000000000000022 /* AgentLink.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Visor/AgentLink.swift; sourceTree = SOURCE_ROOT; };
 		F00100000000000000000020 /* yolo26n-seg.mlpackage */ = {isa = PBXFileReference; lastKnownFileType = folder.mlpackage; path = Visor/Models/yolo26n-seg.mlpackage; sourceTree = SOURCE_ROOT; };
 		F00100000000000000000014 /* LensHud.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Visor/LensHud.swift; sourceTree = SOURCE_ROOT; };
 		F00100000000000000000015 /* ChakraPetch-SemiBold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = Visor/Fonts/ChakraPetch-SemiBold.ttf; sourceTree = SOURCE_ROOT; };
@@ -86,6 +88,7 @@
 				F00100000000000000000014 /* LensHud.swift */,
 				F00100000000000000000018 /* PhoneCamera.swift */,
 				F00100000000000000000019 /* SurvivorDetector.swift */,
+				F00100000000000000000022 /* AgentLink.swift */,
 				F00100000000000000000020 /* yolo26n-seg.mlpackage */,
 				F00100000000000000000015 /* ChakraPetch-SemiBold.ttf */,
 				F00100000000000000000016 /* IBMPlexSans.ttf */,
@@ -198,6 +201,7 @@
 				B00100000000000000000014 /* LensHud.swift in Sources */,
 				B00100000000000000000018 /* PhoneCamera.swift in Sources */,
 				B00100000000000000000019 /* SurvivorDetector.swift in Sources */,
+				B00100000000000000000022 /* AgentLink.swift in Sources */,
 
 			);
 			runOnlyForDeploymentPostprocessing = 0;
