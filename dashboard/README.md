@@ -68,7 +68,7 @@ USB mode is independent of browser focus because fresh serial packets renew its 
 `Test AirTag drop · tilt back` runs one exclusive pose test on Prada. It releases
 USB/keyboard ownership, stops the glove and motor services, acquires the same
 hardware lock, initializes using saved calibration, stands, ramps to a nominal
-17-degree backward pitch, rocks three times between 13 and 17 degrees at vendor speed 60, and returns level. It restarts
+17-degree backward pitch, rocks three times between 8 and 17 degrees at vendor speed 85, and returns level. It restarts
 control disabled. Observe the physical tag: completion does not confirm release.
 The installed vendor geometry clips at 18 degrees; 17 is the largest whole-degree
 unclipped pose checked, not a measured chassis angle or proof against tipping.

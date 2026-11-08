@@ -2,9 +2,9 @@
 import time
 
 MAX_TILT = 17  # Largest whole-degree pitch without clipping on installed Picrawler.
-SPEED = 60
+SPEED = 85
 STAND_SPEED = 35
-ROCK_LOW = 13
+ROCK_LOW = 8
 ROCK_CYCLES = 3
 
 
@@ -31,12 +31,12 @@ def release_test(robot, sleep=time.sleep):
     try:
         for reached, pose in enumerate(sequence[1:], 1):
             robot.do_step(pose, speed=SPEED, israise=True)
-        print('Rocking between nominal 13 and 17 degrees, three cycles', flush=True)
+        print('Rocking between nominal 8 and 17 degrees, three cycles', flush=True)
         sleep(.25)
         for _ in range(ROCK_CYCLES):
             for reached in (ROCK_LOW, MAX_TILT):
                 robot.do_step(sequence[reached], speed=SPEED, israise=True)
-                sleep(.15)
+                sleep(.04)
         sleep(.5)
     finally:
         for pose in reversed(sequence[:reached]):

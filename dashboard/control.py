@@ -156,7 +156,7 @@ class DebugControl:
             if worker is not None and worker.is_alive():
                 raise RuntimeError('Control did not release; no zero command sent')
             with self.lock:
-                self.status = {'connection':'maintenance', 'enabled':False, 'reason':'Tilting backward, rocking three times between 13° and 17°, then returning level' if operation == 'tilt' else 'Moving 12 servos to calibrated zero'}
+                self.status = {'connection':'maintenance', 'enabled':False, 'reason':'Tilting backward, rocking three times between 8° and 17°, then returning level' if operation == 'tilt' else 'Moving 12 servos to calibrated zero'}
             p = subprocess.run(self.ssh('systemctl is-active prada-joystick'), capture_output=True, text=True, timeout=7)
             restore = p.stdout.strip() == 'active'
             subprocess.run(self.ssh('sudo -n systemctl stop prada-joystick prada-server'), check=True, capture_output=True, timeout=30)
