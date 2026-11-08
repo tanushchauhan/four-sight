@@ -18,11 +18,11 @@
 
 ---
 
-## 🚨 The problem
+## The problem
 
 After an earthquake, the people most likely to survive are the ones found in the first hours. Rubble is unstable, dark, and full of gaps no person can safely crawl into. Rescuers need eyes in those gaps, and they need them without giving up their hands.
 
-## 🕷️ What we built
+## What we built
 
 We built a semi-autonomous robot paired with a custom 3D-printed AR visor to help rescuers and aid workers find people trapped under the rubble.
 
@@ -45,7 +45,7 @@ The robots are meant to go out in **swarms** across an impacted area. A **Nemotr
   </tr>
 </table>
 
-## 🧰 The hardware
+## The hardware
 
 <table>
   <tr>
@@ -64,7 +64,7 @@ The robots are meant to go out in **swarms** across an impacted area. A **Nemotr
   </tr>
 </table>
 
-## 🖥️ The operations console
+## The operations console
 
 The dashboard runs on a laptop on the same network. It shows every robot, mirrors what the visor wearer sees, and runs local floor and object detection on the camera feed.
 
@@ -81,7 +81,7 @@ The dashboard runs on a laptop on the same network. It shows every robot, mirror
   </tr>
 </table>
 
-## ✨ Features
+## Features
 
 | Feature | What it does |
 | --- | --- |
@@ -95,7 +95,7 @@ The dashboard runs on a laptop on the same network. It shows every robot, mirror
 | **Voice-directed Nemotron agent** | Give fleet commands out loud and keep working with the visor on. |
 | **Critical-first queue** | The agent ranks survivors in critical condition and holds the rest in a queue. |
 
-## 🔄 How it works
+## How it works
 
 ### 1. Take over a robot
 
@@ -130,7 +130,7 @@ graph LR
     style G fill:#bbf,stroke:#333,stroke-width:2px
 ```
 
-## 🛠️ Tech stack
+## Tech stack
 
 ### Robot and visor
 
@@ -153,7 +153,7 @@ graph LR
 - **Models**: Nemotron 3 Ultra plans. Lightning triages. Bolt searches. A vision model reads each camera frame.
 - **State**: SpacetimeDB holds the shared record. Video, drive commands, and emergency stop stay on the local network and never go through the database.
 
-## 📁 Project structure
+## Project structure
 
 | Folder | What's inside |
 | --- | --- |
@@ -166,7 +166,7 @@ graph LR
 | [`scripts/`](scripts) | Local stack that starts SpacetimeDB, the dashboard, and the agent together. |
 | [`docs/`](docs) | Architecture, agent contracts, and the SpacetimeDB schema. |
 
-## 🚀 Getting started
+## Getting started
 
 ### Prerequisites
 
@@ -216,7 +216,7 @@ python3 scripts/local-stack.py stop
 
 **Visor.** Open `headset/ios/Visor.xcodeproj`, pick your signing team and iPhone, and run. The phone and the robot need to be on the same network. The default camera address is `http://prada.local:8080/stream`.
 
-## ⚙️ Configuration
+## Configuration
 
 Copy `agent/.env.example` to `agent/.env`. Every switch has an offline default.
 
