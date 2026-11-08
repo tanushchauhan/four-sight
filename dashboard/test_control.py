@@ -76,13 +76,44 @@ class ServoZeroTests(unittest.TestCase):
 
 class TiltInterlockTests(unittest.TestCase):
     @patch('control.subprocess.run')
-    def test_tilt_never_runs_if_motor_service_stop_fails(self, run):
+    def test_tilt_never_runs_if_glove_service_stop_fails(self, run):
         import subprocess
         c = DebugControl('prada'); c.maintenance = True
         run.side_effect = [subprocess.CompletedProcess([], 0, 'active', ''),
                            subprocess.TimeoutExpired('stop', 30)]
         c.run_zero('tilt')
-        self.assertEqual(run.call_count, 2)
+        self.assertEqual(run.call_count, 3)
+        self.assertFalse(any("prada-server" in str(call) for call in run.call_args_list))
         self.assertEqual(c.status['connection'], 'error')
         self.assertFalse(c.maintenance)
         self.assertFalse(any('picrawler_control.tilt' in str(call) for call in run.call_args_list))
+
+class PersistentPoseTests(unittest.TestCase):
+    @patch('control.subprocess.Popen')
+    @patch('control.subprocess.run')
+    def test_gesture_uses_socket_without_restarting_motor_server(self, run, popen):
+        import subprocess
+        run.return_value = subprocess.CompletedProcess([], 0, 'inactive', '')
+        process = popen.return_value
+        process.poll.return_value = 0
+        process.returncode = 0
+        c = DebugControl('prada'); c.maintenance = True
+        c.run_pose('hello')
+        self.assertEqual(c.status['connection'], 'idle')
+        commands = str(run.call_args_list) + str(popen.call_args_list)
+        self.assertNotIn('prada-server', commands)
+        self.assertNotIn('Hardware', commands)
+        import shlex
+        script = shlex.split(popen.call_args.args[0][-1])[-1]
+        self.assertIn("send('gesture'", script)
+
+    @patch('control.subprocess.Popen')
+    @patch('control.subprocess.run')
+    def test_stop_during_preparation_prevents_gesture_launch(self, run, popen):
+        import subprocess
+        run.return_value = subprocess.CompletedProcess([], 0, 'inactive', '')
+        c = DebugControl('prada'); c.maintenance = True
+        c.stop_motion()
+        c.run_pose('dance')
+        popen.assert_not_called()
+        self.assertEqual(c.status['connection'], 'error')
