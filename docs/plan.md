@@ -212,7 +212,7 @@ Status lives in the [tracker doc](https://claude.ai/artifact/V7XnDqn5QrkXmuyj76c
 | ESP32-S3 dev kits | Mount driver, sensors, beacon, controller | Have |
 | Robot batteries + charger | Robot HAT can't charge them; bring spares | **Check** |
 | iPhone 16 Pro / Pro Max | Headset display, motion sensors, person mask | Have |
-| 3D-printed Flow VR viewers | Headsets (see note below) | Have |
+| 3D-printed Flow VR viewers | Headsets | Have |
 | Bluetooth gamepad | Joystick driving | **Check** |
 | IR distance sensor (e.g. Sharp GP2Y0A21) | Drop sensor, pointing down at the front | **Check** |
 | Thermal array or IR thermometer | Heat overlay (stretch) | **Check** |
@@ -222,7 +222,6 @@ Status lives in the [tracker doc](https://claude.ai/artifact/V7XnDqn5QrkXmuyj76c
 | Meta Quest (hardware lab, request on Harp) | Backup headset | **Check** |
 | Cardboard, blanket, doll + hand warmer | Demo set (hand warmer gives heat sensors something to find) | **Need** |
 
-**Headset credit:** the Flow viewers are a remix of brenpoly's "Mobile VR viewer for modern smartphones" ([MakerWorld](https://makerworld.com/en/models/3511377-mobile-vr-viewer-for-modern-smartphones), CC BY-NC-SA 4.0). Credit the original on Devpost and in the repo, and say what our remix changed.
 
 ## Timeline
 
@@ -255,7 +254,7 @@ If the core loop slips past 11 PM, cut P1 items before cutting the agent: the NV
 - [ ] Tracks picked (changeable until noon)
 - [ ] **Public** GitHub repo linked (required for Spacetime; private repos risk disqualification)
 - [ ] Backup demo video recorded
-- [ ] Write-up: what's real vs. simulated, which Nemotron models, headset credit
+- [ ] Write-up: what's real vs. simulated, which Nemotron models
 - [ ] Final submit before noon
 - [ ] Batteries charged, set built before 1 PM
 
