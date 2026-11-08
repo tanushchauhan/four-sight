@@ -50,3 +50,14 @@ class MonitorTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+class LocalControlAccessTests(unittest.TestCase):
+    def test_own_lan_address_and_loopback_can_control(self):
+        from server import local_control_client
+        self.assertTrue(local_control_client('192.168.2.5', '192.168.2.5', '192.168.2.5'))
+        self.assertTrue(local_control_client('127.0.0.1', '127.0.0.1', 'localhost'))
+
+    def test_remote_lan_and_unrecognized_host_cannot_control(self):
+        from server import local_control_client
+        self.assertFalse(local_control_client('192.168.2.2', '192.168.2.5', '192.168.2.5'))
+        self.assertFalse(local_control_client('127.0.0.1', '127.0.0.1', 'untrusted.example'))

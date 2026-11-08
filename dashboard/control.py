@@ -32,6 +32,7 @@ class DebugControl:
         self.target = target
         self.lock = threading.RLock()
         self.owner = None
+        self.revision = 0
         self.seq = -1
         self.received = 0
         self.armed = False
@@ -42,7 +43,8 @@ class DebugControl:
 
     def snapshot(self):
         with self.lock:
-            return dict(self.status)
+            self.revision += 1
+            return dict(self.status, revision=self.revision)
 
     def acquire(self):
         with self.lock:

@@ -97,7 +97,17 @@ class Monitor:
         return data
 
 
+def local_control_client(peer, local_address, host):
+    """Accept this Mac over loopback or its own interface, never remote LAN peers."""
+    return (peer in ('127.0.0.1', '::1') or peer == local_address) and host in (
+        'localhost', '127.0.0.1', local_address)
+
+
 class Handler(BaseHTTPRequestHandler):
+    def control_allowed(self):
+        return local_control_client(self.client_address[0], self.connection.getsockname()[0],
+                                    self.headers.get('Host', '').split(':')[0])
+
     def do_GET(self):
         path = self.path.split('?', 1)[0]
         if path == '/api/status':
@@ -107,7 +117,7 @@ class Handler(BaseHTTPRequestHandler):
                 frame = self.server.monitor.image
             self.send_body(200 if frame else 503, 'image/jpeg' if frame else 'text/plain', frame or b'No camera image')
         elif path == '/':
-            self.send_body(200, 'text/html; charset=utf-8', Path(__file__).with_name('index.html').read_text().replace('__CONTROL_NONCE__', self.server.nonce).encode())
+            self.send_body(200, 'text/html; charset=utf-8', Path(__file__).with_name('index.html').read_text().replace('__CONTROL_NONCE__', self.server.nonce).replace('__CONTROL_ALLOWED__', 'true' if self.control_allowed() else 'false').encode())
         else:
             self.send_body(404, 'text/plain', b'Not found')
 
@@ -116,8 +126,7 @@ class Handler(BaseHTTPRequestHandler):
         # exact Origin check prevents cross-site requests from driving the robot.
         origin = self.headers.get('Origin', '')
         expected = 'http://' + self.headers.get('Host', '')
-        if (self.headers.get('Host', '').split(':')[0] not in ('localhost', '127.0.0.1')
-                or self.client_address[0] not in ('127.0.0.1', '::1') or origin != expected
+        if (not self.control_allowed() or origin != expected
                 or not hmac.compare_digest(self.headers.get('X-Control-Nonce', ''), self.server.nonce)):
             self.send_body(403, 'application/json', b'{"error":"Use this Mac and its dashboard to control the robot"}')
             return
@@ -127,7 +136,7 @@ class Handler(BaseHTTPRequestHandler):
             data = json.loads(self.rfile.read(length))
             if not isinstance(data, dict): raise ValueError('Expected an object')
             if self.path == '/api/control/acquire':
-                result = {'owner': self.server.control.acquire()}
+                result = {'owner': self.server.control.acquire(), 'control': self.server.control.snapshot()}
             elif self.path == '/api/control/input':
                 result = self.server.control.update(data)
             else:

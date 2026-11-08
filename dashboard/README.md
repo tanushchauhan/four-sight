@@ -25,7 +25,7 @@ Checks: `python3 -m unittest discover -s dashboard -p 'test_*.py' -v`.
 
 ## Debug keyboard controller
 
-Open **http://localhost:8090** on the Mac running the server. LAN visitors can view status, but only local requests from this page can control the robot.
+Open **http://localhost:8090** on the Mac running the server. LAN visitors can view status, but only requests originating on this Mac can control the robot (localhost or the Mac’s own LAN IP).
 
 1. Click **Take keyboard control**. This pauses `prada-joystick`, including headset steering, and opens a single authenticated connection to the motor server through SSH. The token stays on Prada.
 2. Wait for **connected / Disabled**. Press **E** to enable, then hold **W/S** to walk or **A/D** to turn. Key release sends neutral input. Pick 50%, 75%, or 100% input; these are command magnitudes, not measured physical speed.
