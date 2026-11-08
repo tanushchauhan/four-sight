@@ -32,16 +32,43 @@ struct VisorView: View {
 
     private var briefing: VisorBriefing {
         var briefing = VisorBriefing.sample
+        let insight = survivorDetector.insight
         switch survivorDetector.state {
         case .loading:
             briefing.survivors = .loading
+            briefing.range = .loading
+            briefing.triage = .loading
         case .ready(let count, let confidence):
             briefing.survivors = count == 0
                 ? .empty(value: "0", detail: "Area clear")
                 : .ready(value: "\(count)", detail: String(format: "Survivor alert · %.0f%%", confidence * 100))
+            if let distance = insight.distanceMeters, let bearing = insight.bearingDegrees {
+                briefing.range = .ready(
+                    value: String(format: "~%.1f m · %@", distance, direction(bearing)),
+                    detail: "Monocular estimate"
+                )
+                briefing.triage = .ready(value: insight.motion.rawValue, detail: "Image-motion estimate")
+            } else {
+                briefing.range = .empty(value: "No active fix", detail: "Awaiting person mask")
+                briefing.triage = .empty(value: "Uncertain", detail: "No active subject")
+            }
         case .failed:
             briefing.survivors = .failed(value: "Offline", detail: "Detection unavailable")
+            briefing.range = .failed(value: "Offline", detail: "Detection unavailable")
+            briefing.triage = .failed(value: "Offline", detail: "Detection unavailable")
         }
+        if let distance = insight.lastConfirmedDistance, let bearing = insight.lastConfirmedBearing {
+            briefing.breadcrumb = .ready(
+                value: String(format: "Last survivor ~%.1f m · %@", distance, direction(bearing)),
+                detail: "Relative camera position"
+            )
+        } else {
+            briefing.breadcrumb = .empty(value: "No confirmed survivor", detail: "No relative fix")
+        }
+        briefing.systems = .ready(
+            value: "84% · Good · 42°",
+            detail: "Battery · link · thermal · simulated"
+        )
         if source == .phone {
             briefing.camera = .ready(value: "Phone", detail: "")
             return briefing
@@ -53,6 +80,11 @@ struct VisorView: View {
         default: briefing.camera = .failed(value: "No camera", detail: "")
         }
         return briefing
+    }
+
+    private func direction(_ bearing: Double) -> String {
+        if abs(bearing) < 4 { return "ahead" }
+        return String(format: "%.0f° %@", abs(bearing), bearing < 0 ? "left" : "right")
     }
 
     var body: some View {
