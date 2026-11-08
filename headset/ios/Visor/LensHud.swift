@@ -11,6 +11,7 @@ enum FeedState: Equatable {
 struct VisorBriefing: Equatable {
     var sightings: [SurvivorSighting] = []
     var radarTime = Date()
+    var headingDegrees = 0.0
     var coordinator: FeedState
     var survivors: FeedState
     var slam: FeedState
@@ -67,11 +68,11 @@ struct LensLayerView: View {
                 Spacer(minLength: 0)
                 HStack(alignment: .center) {
                     CompactReadout(label: "Range + direction", state: briefing.range)
-                    Spacer(minLength: 180)
+                    Spacer(minLength: 50)
                     CompactReadout(label: "Triage motion", state: briefing.triage, trailing: true)
                 }
                 Spacer(minLength: 0)
-                SurvivorRadar(sightings: briefing.sightings, now: briefing.radarTime)
+                SurvivorRadar(sightings: briefing.sightings, now: briefing.radarTime, heading: briefing.headingDegrees)
                 HStack(alignment: .lastTextBaseline) {
                     CameraLink(state: briefing.camera)
                     Spacer(minLength: VisorToken.spaceLg)
@@ -82,7 +83,7 @@ struct LensLayerView: View {
             // intentionally smaller than the phone half below, so edge labels need extra inset.
             .padding(.horizontal, 270)
             .padding(.vertical, 260)
-            .scaleEffect(0.88)
+            .scaleEffect(1.0)
         }
         .frame(width: LensLayer.side, height: LensLayer.side)
     }
@@ -91,6 +92,7 @@ struct LensLayerView: View {
 private struct SurvivorRadar: View {
     let sightings: [SurvivorSighting]
     let now: Date
+    let heading: Double
 
     var body: some View {
         VStack(spacing: 4) {
@@ -116,10 +118,11 @@ private struct SurvivorRadar: View {
                         .offset(x: sin(angle) * radius, y: -cos(angle) * radius)
                 }
                 Image(systemName: "location.north.fill")
-                    .font(.system(size: 13))
+                    .font(.system(size: 19, weight: .bold))
                     .foregroundStyle(VisorToken.ink.color)
+                    .rotationEffect(.degrees(heading))
             }.frame(width: 110, height: 110)
-            Text("SIGHTINGS · RELATIVE · 15 M")
+            Text("HEAD \(Int(heading.rounded()))° · RELATIVE · 15 M")
                 .font(VisorToken.measured(11))
                 .foregroundStyle(VisorToken.muted.color)
         }
@@ -204,8 +207,10 @@ private struct Reticle: Shape {
 /// readable over a bright frame without putting a box behind it.
 private extension View {
     func overFeed() -> some View {
-        shadow(color: VisorToken.paper3.opacity(0.95).color, radius: 1.5, x: 0, y: 1)
-            .shadow(color: VisorToken.paper3.opacity(0.5).color, radius: 5, x: 0, y: 2)
+        colorMultiply(Color(red: 0.10, green: 0.16, blue: 0.23))
+            .padding(8)
+            .background(RoundedRectangle(cornerRadius: 5).fill(Color.white.opacity(0.90)))
+            .shadow(color: .black.opacity(0.4), radius: 2)
     }
 }
 

@@ -11,6 +11,7 @@ struct VisorView: View {
     @StateObject private var steering = HeadSteering()
     @StateObject private var survivorDetector = SurvivorDetector()
     @StateObject private var survivorFeedback = SurvivorFeedback()
+    @StateObject private var radarHeading = RadarHeading()
     @AppStorage("cameraURL") private var address = "http://prada.local:8080/stream"
     @AppStorage("cameraSource") private var sourceName = CameraSource.robot.rawValue
     @State private var phone = PhoneCamera()
@@ -35,6 +36,7 @@ struct VisorView: View {
         var briefing = VisorBriefing.sample
         briefing.sightings = survivorDetector.insight.sightings
         briefing.radarTime = radarTime
+        briefing.headingDegrees = radarHeading.degrees
         let insight = survivorDetector.insight
         switch survivorDetector.state {
         case .loading:
@@ -107,10 +109,12 @@ struct VisorView: View {
         .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { radarTime = $0 }
         .persistentSystemOverlays(.hidden)
         .onAppear {
+            radarHeading.start()
             UIApplication.shared.isIdleTimerDisabled = true
             apply(source)
         }
         .onDisappear {
+            radarHeading.stop()
             steering.stop()
             controller.pause()
             phone.pause()
@@ -455,13 +459,18 @@ final class HeadSteering: ObservableObject {
 @MainActor
 final class SurvivorFeedback: ObservableObject {
     private var player: AVAudioPlayer?
+    private let haptic = UIImpactFeedbackGenerator(style: .heavy)
+    private var lastFeedback = Date.distantPast
 
     func update(from oldState: SurvivorDetectionState, to newState: SurvivorDetectionState) {
         guard newState.count > 0, oldState.count == 0 else { return }
-
-        let haptic = UIImpactFeedbackGenerator(style: .soft)
+        guard Date().timeIntervalSince(lastFeedback) > 4 else { return }
+        lastFeedback = Date()
         haptic.prepare()
-        haptic.impactOccurred(intensity: 0.32)
+        haptic.impactOccurred(intensity: 0.85)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.16) { [weak self] in
+            self?.haptic.impactOccurred(intensity: 0.65)
+        }
 
         do {
             player = try AVAudioPlayer(data: Self.chime)
@@ -506,6 +515,36 @@ final class SurvivorFeedback: ObservableObject {
         for sample in samples { append(sample.littleEndian) }
         return data
     }
+}
+
+/// Session-relative head heading; independent of the robot steering connection.
+@MainActor
+final class RadarHeading: ObservableObject {
+    @Published private(set) var degrees = 0.0
+    private let motion = CMMotionManager()
+    private var origin: Double?
+    private var previous: Double?
+    private var accumulated = 0.0
+
+    func start() {
+        guard motion.isDeviceMotionAvailable, !motion.isDeviceMotionActive else { return }
+        origin = nil; previous = nil; accumulated = 0
+        motion.deviceMotionUpdateInterval = 0.1
+        motion.startDeviceMotionUpdates(using: .xArbitraryZVertical, to: .main) { [weak self] sample, _ in
+            guard let self, let sample else { return }
+            let r = sample.attitude.rotationMatrix
+            guard hypot(r.m31, r.m32) > 0.3 else { return }
+            let angle = atan2(-r.m32, -r.m31)
+            if let previous = self.previous {
+                self.accumulated += atan2(sin(angle - previous), cos(angle - previous))
+            }
+            self.previous = angle
+            // Positive screen rotation is clockwise, opposite to positive yaw.
+            self.degrees = -self.accumulated * 180 / .pi
+        }
+    }
+
+    func stop() { motion.stopDeviceMotionUpdates() }
 }
 
 private extension SurvivorDetectionState {
