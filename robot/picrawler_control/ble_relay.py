@@ -46,10 +46,12 @@ class HeadInput:
                 return
             self.owner = socket
             owned = True
+            logging.info("headset steering connected")
             async for raw in socket:
                 msg = json.loads(raw)
                 turn = msg.get("turn") if isinstance(msg, dict) else None
                 if type(turn) not in (float, int) or not math.isfinite(turn) or abs(turn) > 0.4:
+                    self.turn, self.received = 0.0, 0.0
                     await socket.close(1008, "invalid head turn")
                     break
                 self.turn, self.received = turn, time.monotonic()
@@ -61,6 +63,7 @@ class HeadInput:
                 self.turn = 0.0
                 self.received = 0.0
                 self.owner = None
+                logging.info("headset steering disconnected")
 
 
 def drive_axes(stick, head):

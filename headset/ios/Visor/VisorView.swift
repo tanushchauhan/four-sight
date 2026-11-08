@@ -400,6 +400,12 @@ final class HeadSteering: ObservableObject {
         loop = Task { [weak self] in
             guard let self else { return }
             do {
+                // Confirm the deployed relay accepts this protocol before showing ready.
+                try await ws.send(.string("{\"turn\":0}"))
+                try await receiveAcknowledgement(ws, key: "received")
+                try Task.checkCancellation()
+                guard socket === ws else { return }
+                lastReply = Date()
                 status = "Steering ready — click joystick to enable"
                 while !Task.isCancelled {
                     if Date().timeIntervalSince(video.lastFrameTime) > 1 {
@@ -434,7 +440,7 @@ final class HeadSteering: ObservableObject {
                     try await Task.sleep(nanoseconds: 50_000_000)
                 }
             } catch {
-                if !Task.isCancelled {
+                if !Task.isCancelled, socket === ws {
                     scheduleReconnect(address: address, video: video, status: "Steering reconnecting…")
                 }
             }
