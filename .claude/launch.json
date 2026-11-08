@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "scene-bench",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "agent", "run", "web"],
+      "port": 8787
+    }
+  ]
+}

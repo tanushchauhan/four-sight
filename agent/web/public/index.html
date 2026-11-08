@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark light">
+  <title>Rescue Agent Test Bench</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2376b900'/%3E%3Cpath d='M16 7v18M7 16h18' stroke='%23000' stroke-width='5' stroke-linecap='round'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true"></span>
+      <div>
+        <h1>Rescue Agent Test Bench</h1>
+        <p class="brand-sub">Nemotron multi-agent search &amp; rescue · scene replay</p>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <span id="serverPill" class="pill pill-muted" role="status">connecting…</span>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <!-- Server unreachable -->
+    <section id="offline" class="panel offline" hidden>
+      <h2>Can't reach the test bench server</h2>
+      <p id="offlineMsg">The page loaded, but <code>/api/scenes</code> didn't answer.</p>
+      <p>Start it from the repo, then retry:</p>
+      <pre class="cmd">cd agent
+npm run web</pre>
+      <p class="muted">It serves this page and the API on <code>http://localhost:8787</code>. Open the page from there, not from the file system.</p>
+      <button id="retryBtn" class="btn btn-primary" type="button">Retry</button>
+    </section>
+
+    <!-- Scene picker -->
+    <section id="picker" class="panel" aria-labelledby="pickerTitle">
+      <div class="panel-head">
+        <h2 id="pickerTitle">1 · Pick a scene</h2>
+        <div class="panel-actions">
+          <button id="randomBtn" class="btn" type="button" title="Pick a random scene (within the active filter) and run it">⚄ Randomize &amp; run</button>
+          <button id="collapsePicker" class="btn btn-ghost" type="button" aria-expanded="true">Hide</button>
+        </div>
+      </div>
+      <div id="pickerBody">
+        <div id="filters" class="chips" role="toolbar" aria-label="Category filter"></div>
+        <div id="grid" class="grid" aria-live="polite">
+          <div class="empty muted">Loading scenes…</div>
+        </div>
+      </div>
+      <div id="pickerSummary" class="picker-summary" hidden></div>
+    </section>
+
+    <!-- Run options -->
+    <section id="options" class="panel options" aria-labelledby="optionsTitle">
+      <h2 id="optionsTitle" class="sr-only">Run options</h2>
+      <div class="opt-group">
+        <span class="opt-label">Agents</span>
+        <div class="seg" role="radiogroup" aria-label="Agent mode">
+          <label><input type="radio" name="agentMode" value="team" checked><span>Team (3 agents)</span></label>
+          <label><input type="radio" name="agentMode" value="single"><span>Single</span></label>
+        </div>
+      </div>
+      <div class="opt-group">
+        <span class="opt-label">Model</span>
+        <div class="seg" role="radiogroup" aria-label="Model">
+          <label id="llmNvidiaLabel"><input type="radio" name="llm" value="nvidia"><span>Nemotron</span></label>
+          <label><input type="radio" name="llm" value="mock" checked><span>Offline mock</span></label>
+        </div>
+        <span id="llmHint" class="hint" hidden>No NVIDIA_API_KEY on the server · mock only</span>
+      </div>
+      <div class="opt-group">
+        <span class="opt-label">Approvals</span>
+        <div class="seg" role="radiogroup" aria-label="Approvals">
+          <label><input type="radio" name="approvals" value="auto" checked><span>Auto-approve</span></label>
+          <label><input type="radio" name="approvals" value="ask"><span>Ask me</span></label>
+        </div>
+      </div>
+      <div class="opt-run">
+        <span id="selectedLabel" class="muted">No scene selected</span>
+        <button id="runBtn" class="btn btn-primary btn-lg" type="button" disabled>▶ Run</button>
+      </div>
+    </section>
+
+    <!-- Live run -->
+    <section id="run" class="run" hidden aria-label="Live run">
+      <div class="run-head panel">
+        <div class="run-title">
+          <span id="phasePill" class="pill pill-muted">starting</span>
+          <h2 id="runSceneTitle">Scene</h2>
+          <span id="runMeta" class="muted"></span>
+        </div>
+        <div class="run-stats">
+          <span><span class="muted">elapsed</span> <b id="statElapsed">0.0 s</b></span>
+          <span><span class="muted">tool calls</span> <b id="statTools">0</b></span>
+          <span id="runMsg" class="muted"></span>
+        </div>
+      </div>
+
+      <div id="approvals" class="approvals" aria-live="assertive"></div>
+      <div id="runError" class="banner banner-error" role="alert" hidden></div>
+
+      <div id="resultCard" class="panel result" hidden></div>
+
+      <div class="run-grid">
+        <div class="col-left">
+          <section class="panel camera" aria-labelledby="camTitle">
+            <div class="panel-head">
+              <h3 id="camTitle">Robot camera</h3>
+              <span id="frameCount" class="muted">no frames yet</span>
+            </div>
+            <div class="cam-view">
+              <img id="camImg" alt="Current robot camera frame" hidden>
+              <div id="camEmpty" class="cam-empty">Waiting for the first camera frame…</div>
+              <div id="camChange" class="cam-change" hidden></div>
+              <span class="cam-rec" aria-hidden="true">● CAM</span>
+            </div>
+            <div id="camSource" class="cam-source muted"></div>
+            <div id="strip" class="strip" aria-label="Frames seen so far"></div>
+          </section>
+
+          <section class="panel" aria-labelledby="convTitle">
+            <div class="panel-head"><h3 id="convTitle">Conversation</h3></div>
+            <div id="conversation" class="conversation">
+              <div class="empty muted">Nothing said yet.</div>
+            </div>
+          </section>
+
+          <section class="panel" aria-labelledby="sitTitle">
+            <div class="panel-head"><h3 id="sitTitle">Situation</h3></div>
+            <div id="situation" class="situation">
+              <div class="empty muted">No state yet.</div>
+            </div>
+          </section>
+        </div>
+
+        <section class="panel trace-panel col-right" aria-labelledby="traceTitle">
+          <div class="panel-head">
+            <h3 id="traceTitle">Agent trace</h3>
+            <div class="panel-actions">
+              <span class="legend">
+                <span class="ag ag-coordinator">coordinator</span>
+                <span class="ag ag-triage">triage</span>
+                <span class="ag ag-search">search</span>
+                <span class="ag ag-solo">solo</span>
+              </span>
+              <button id="scrollToggle" class="btn btn-sm" type="button" aria-pressed="false">Pause scroll</button>
+            </div>
+          </div>
+          <div id="trace" class="trace" role="log" aria-live="off">
+            <div class="empty muted">The agents' thoughts and tool calls will stream here.</div>
+          </div>
+        </section>
+      </div>
+    </section>
+
+    <!-- History -->
+    <section id="history" class="panel" aria-labelledby="histTitle">
+      <div class="panel-head">
+        <h2 id="histTitle">Run history</h2>
+        <button id="clearHistory" class="btn btn-ghost btn-sm" type="button">Clear</button>
+      </div>
+      <div id="historyBody"><div class="empty muted">No runs yet.</div></div>
+    </section>
+  </main>
+
+  <footer class="foot muted">HackUTD 2026 · local test bench · runs fully offline with the mock model</footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
