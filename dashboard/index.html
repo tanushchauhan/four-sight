@@ -103,6 +103,11 @@
 </div>
 </div>
 </section>
+<section class="well block" aria-label="Shared database records">
+<div class="panel-top" ><h2>Shared mission record</h2><span class="badge" id="database-state">Connecting to SpacetimeDB</span></div>
+<div class="pad"><p id="database-detail">Rescue cases, handoff requests, alerts, incident evidence, and operator history are stored together.</p>
+<div class="mission-metrics"><span>Survivor cases<strong id="shared-cases">—</strong></span><span>Takeover requests<strong id="shared-requests">—</strong></span><span>Damage incidents<strong id="shared-incidents">—</strong></span></div>
+<p id="shared-latest"></p><a href="/damage" >Review incident evidence and build a report ↗</a></div></section>
 <div class="lower block">
 <section class="well">
 <div class="panel-top"><h2>Device roster</h2><span class="label">Three systems</span></div>
@@ -248,6 +253,7 @@ set('audio-status','Connecting live audio…');
 window.addEventListener('pagehide',()=>stopLiveRadio());
 
 if(!controlAllowed)for(const id of ['auto-speed','person-toggle','auto-start','mission-stop','audio-take','audio-live','person-arm','person-takeover'])$(id).disabled=true;
-</script>
-</body>
-</html>
+
+async function refreshShared(){try{const r=await fetch('/api/shared',{signal:AbortSignal.timeout(5000)});const d=await r.json();if(!r.ok)throw Error(d.error||'Database unavailable');badge('database-state','SpacetimeDB connected','good');set('shared-cases',d.cases.length);set('shared-requests',d.requests.filter(x=>x.status==='waiting').length);set('shared-incidents',d.incidentCount);set('database-detail',d.error?'Database connected; live snapshot delayed: '+d.error:'Stored in the local SpacetimeDB server · Last dashboard snapshot '+(d.dashboard?.savedAt?new Date(d.dashboard.savedAt).toLocaleTimeString():'pending'));set('shared-latest',d.operatorUpdates[0]?'Latest operator update: '+d.operatorUpdates[0].text:'No operator updates recorded yet.')}catch(e){badge('database-state','Database unavailable','bad');set('database-detail',e.message);for(const id of ['shared-cases','shared-requests','shared-incidents'])set(id,'—')}}
+refreshShared();setInterval(refreshShared,5000);
+</script></body></html>

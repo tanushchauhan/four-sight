@@ -1,6 +1,7 @@
 import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
-import { mkdir, readFile, readdir, rename, writeFile } from 'node:fs/promises';
-import { resolve, join } from 'node:path';
+import { resolve } from 'node:path';
+import { FileIncidentStore, SpacetimeIncidentStore, type IncidentStore } from './storage.js';
+import { SpacetimeState } from '../adapters/spacetime-state.js';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import OpenAI from 'openai';
 import type { Config } from '../config.js';
@@ -62,12 +63,14 @@ export class DamageService {
   private lastCheck: number | null = null;
   private lastResult = 'Survey is stopped. Analyze a frame or start a survey.';
   private error: string | null = null;
-  private dir: string;
+  private store: IncidentStore;
+  private db?: SpacetimeState;
   private analyze: (image: string) => Promise<Assessment>;
   constructor(private robot: RobotAdapter, private config: Config, options: {
-    dir?: string; analyze?: (image: string) => Promise<Assessment>;
+    dir?: string; store?: IncidentStore; analyze?: (image: string) => Promise<Assessment>;
   } = {}) {
-    this.dir = resolve(options.dir ?? process.env.DAMAGE_DATA_DIR ?? 'data/incidents');
+    this.db = config.stateMode === 'spacetime' ? new SpacetimeState(config.spacetimeUrl, config.spacetimeDb, config.spacetimeToken, config.searchArea) : undefined;
+    this.store = options.store ?? (this.db ? new SpacetimeIncidentStore(this.db) : new FileIncidentStore(resolve(options.dir ?? process.env.DAMAGE_DATA_DIR ?? 'data/incidents')));
     const client = config.nvidiaApiKey && config.llmMode === 'nvidia'
       ? new OpenAI({ apiKey: config.nvidiaApiKey, baseURL: config.nvidiaBaseUrl, timeout: 30000, maxRetries: 0 }) : null;
     this.analyze = options.analyze ?? (async image => {
@@ -80,16 +83,18 @@ export class DamageService {
     });
   }
   status() { return { enabled: this.enabled, busy: this.busy, survey: this.survey, location: this.location,
-    lastCheck: this.lastCheck, lastResult: this.lastResult, error: this.error, intervalSeconds: 20 }; }
-  configure(data: any) {
-    if (this.busy && data?.enabled === false) { this.stop(); return this.status(); }
+    lastCheck: this.lastCheck, lastResult: this.lastResult, error: this.error, storage: this.db ? 'spacetime' : 'file', intervalSeconds: 20 }; }
+  async configure(data: any) {
+    if (this.busy && data?.enabled === false) { this.stop(); await this.persistStatus(); return this.status(); }
     if (this.busy) throw new Error('A frame is being analyzed. Wait before changing survey details.');
     if (typeof data.survey !== 'string' || !data.survey.trim() || data.survey.length > 120
       || typeof data.location !== 'string' || data.location.length > 200 || typeof data.enabled !== 'boolean') throw new Error('Provide a survey name, location label, and enabled flag.');
     this.survey = data.survey.trim(); this.location = data.location.trim(); this.enabled = data.enabled;
     clearTimeout(this.timer); this.error = null;
+    this.lastResult = this.enabled ? 'Survey started. Waiting for a camera frame.' : 'Survey stopped. Saved incidents remain available.';
+    try { await this.persistStatus(); }
+    catch (e) { this.enabled = false; this.error = (e as Error).message; throw e; }
     if (this.enabled) this.schedule(0);
-    else this.lastResult = 'Survey stopped. Saved incidents remain available.';
     return this.status();
   }
   stop() { this.enabled = false; clearTimeout(this.timer); }
@@ -97,17 +102,18 @@ export class DamageService {
     this.timer = setTimeout(async () => { try { await this.capture(); } catch { /* surfaced in status */ }
       if (this.enabled) this.schedule(); }, delay); this.timer.unref();
   }
-  async list(): Promise<Incident[]> {
-    await mkdir(this.dir, { recursive: true });
-    const names = (await readdir(this.dir)).filter(n => /^[0-9a-f-]{36}\.json$/.test(n));
-    return (await Promise.all(names.map(async n => JSON.parse(await readFile(join(this.dir, n), 'utf8')) as Incident)))
-      .sort((a, b) => b.recordedAt - a.recordedAt);
+  async initialize() {
+    if (!this.db) return;
+    const previous = await this.db.getSharedState('damage_survey');
+    if (previous) {
+      this.survey = previous.survey || this.survey; this.location = previous.location || '';
+      this.lastCheck = previous.lastCheck ?? null;
+      this.lastResult = 'Survey stopped after agent restart. Saved incidents remain available.';
+    }
+    await this.persistStatus();
   }
-  private async save(record: Incident) {
-    const temp = join(this.dir, `${record.id}.${randomUUID()}.tmp`);
-    await writeFile(temp, JSON.stringify(record, null, 2));
-    await rename(temp, join(this.dir, `${record.id}.json`));
-  }
+  private async persistStatus() { if (this.db) await this.db.saveSharedState('damage_survey', this.status()); }
+  async list(): Promise<Incident[]> { return this.store.list(); }
   async capture(): Promise<{ assessment: Assessment; record: Incident | null; duplicate: boolean }> {
     if (this.busy) throw new Error('A frame is already being analyzed.');
     this.busy = true; this.error = null;
@@ -130,23 +136,21 @@ export class DamageService {
         robotId: snap.robotId, snapshotId: snap.id, imageSha256: hash, model: this.config.visionModel,
         position: this.config.robotMode === 'prada' ? null : { x: snap.x, y: snap.y, heading: snap.heading },
         status: 'needs_review', reviewNote: '', reviewedAt: null };
-      await writeFile(join(this.dir, `${record.id}.jpg`), image, { flag: 'wx' });
-      await this.save(record);
+      await this.store.insert(record, image);
       this.lastResult = `Recorded: ${record.title}`;
       return { assessment: result, record, duplicate: false };
     } catch (e) { this.error = (e as Error).message; throw e; }
-    finally { this.busy = false; }
+    finally { this.busy = false; await this.persistStatus(); }
   }
   async review(id: string, note: string) {
-    const record = (await this.list()).find(r => r.id === id);
-    if (!record) throw new Error('Incident not found');
     if (typeof note !== 'string' || note.length > 3000) throw new Error('Review note must be under 3000 characters.');
-    record.status = 'reviewed'; record.reviewNote = note; record.reviewedAt = Date.now(); await this.save(record); return record;
+    return this.store.review(id, note);
   }
+
   async report(records: Incident[]) {
     const sections = await Promise.all(records.map(async r => `<article><h2>${escape(r.title)}</h2>
       <p>${escape(r.id)} · ${escape(r.category)} · ${escape(r.severity)} visible impact · ${Math.round(r.confidence * 100)}% model confidence</p>
-      <img alt="Captured incident evidence" src="data:image/jpeg;base64,${(await readFile(join(this.dir, r.id + '.jpg'))).toString('base64')}">
+      <img alt="Captured incident evidence" src="data:image/jpeg;base64,${(await this.store.photo(r.id)).toString('base64')}">
       <dl><dt>Survey / operator location label</dt><dd>${escape(r.survey)} / ${escape(r.location || 'Not provided')}</dd>
       <dt>Captured (UTC)</dt><dd>${new Date(r.capturedAt).toISOString()}</dd><dt>Recorded (UTC)</dt><dd>${new Date(r.recordedAt).toISOString()}</dd>
       <dt>Robot / snapshot</dt><dd>${r.robotId} / ${escape(r.snapshotId)}</dd><dt>Position</dt><dd>${escape(r.position ? JSON.stringify(r.position) + ' (robot map meters)' : 'Unknown — no localization')}</dd>
@@ -168,20 +172,20 @@ export class DamageService {
       else if (req.method === 'GET' && path === '/api/damage/export.json') {
         res.writeHead(200, { 'Content-Type': 'application/json', 'Content-Disposition': 'attachment; filename="damage-evidence.json"', 'Cache-Control': 'no-store' });
         const incidents = await this.list();
-        res.end(JSON.stringify({ version: 1, exportedAt: Date.now(), incidents: await Promise.all(incidents.map(async r => ({ ...r, imageBase64: (await readFile(join(this.dir, r.id + '.jpg'))).toString('base64'), mimeType: 'image/jpeg' }))) }, null, 2));
+        res.end(JSON.stringify({ version: 1, exportedAt: Date.now(), incidents: await Promise.all(incidents.map(async r => ({ ...r, imageBase64: (await this.store.photo(r.id)).toString('base64'), mimeType: 'image/jpeg' }))) }, null, 2));
       } else if (req.method === 'GET' && path === '/api/damage/report') {
         const id = url.searchParams.get('id'); const records = (await this.list()).filter(r => !id || r.id === id);
         if (id && !records.length) json(res, 404, { error: 'Incident not found' });
         else { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' }); res.end(await this.report(records)); }
       } else if (req.method === 'GET' && path.endsWith('/photo') && validId(path.split('/')[3] ?? '')) {
         const id = path.split('/')[3]!;
-        const image = await readFile(join(this.dir, id + '.jpg'));
+        const image = await this.store.photo(id);
         res.writeHead(200, { 'Content-Type': 'image/jpeg', 'Cache-Control': 'no-store' }); res.end(image);
       } else if (req.method === 'POST' && ['/api/damage/config', '/api/damage/analyze', '/api/damage/review'].includes(path)) {
         let size = 0; const chunks: Buffer[] = [];
         for await (const chunk of req) { size += chunk.length; if (size > 10000) throw new Error('Request too large'); chunks.push(chunk); }
         const body = JSON.parse(Buffer.concat(chunks).toString() || '{}');
-        if (path.endsWith('/config')) json(res, 200, this.configure(body));
+        if (path.endsWith('/config')) json(res, 200, await this.configure(body));
         else if (path.endsWith('/analyze')) json(res, 200, await this.capture());
         else json(res, 200, await this.review(body.id, body.note));
       } else json(res, 404, { error: 'Not found' });

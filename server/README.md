@@ -1,78 +1,95 @@
-# server/: SpacetimeDB module
+# Local SpacetimeDB backend
 
-TypeScript SpacetimeDB module that holds the shared state and rules for the rescue robot: robots, coverage, survivor cases, the takeover queue, responder teams, hazards, alerts, agent confirmations and the agent log. Video and controls never go through here.
+SpacetimeDB 2.14.1 now stores the app's shared rescue state and property evidence:
+robots, coverage, survivor cases, takeover requests, responder teams, hazards,
+alerts, approvals, audit events, operator updates, dashboard snapshots, survey
+settings, incident observations, review notes, and JPEG photos. Photos and incident
+metadata are inserted in one transaction. Reviews update their record without
+changing the saved observations or photo.
 
-Full table and reducer reference: [docs/spacetime.md](../docs/spacetime.md).
+## Start the local stack
 
-```
-server/
-  package.json      spacetimedb (module library) + typescript
-  tsconfig.json     copied from the official basic-ts template; don't change the "required" options
-  src/index.ts      the whole module: tables, reducers, watchdog
-```
+From the repository root (Python 3.11+, Node, and the existing robot Python
+virtual environment are required):
 
-The layout matches what `spacetime init --lang typescript` generates for the module part (`package.json`, `tsconfig.json`, `src/index.ts`), so the CLI's default module path works when you run it from this folder.
-
-## Typecheck
-
-```
-cd server
-npm install
-npm run typecheck
+```sh
+python3 scripts/local-stack.py start
 ```
 
-`spacetimedb` 2.14.1 asks for Node 22.23.4+ in its `engines` field. Node 22.20 installs it with a warning and typechecks fine.
+The helper installs the official project-local runtime if needed, starts a durable
+server on `127.0.0.1:3000`, publishes the module without deleting data, configures
+`agent/.env`, imports legacy evidence/logs, then starts the dashboard and agent.
+It uses the local server's identity; no Maincloud login, credit, or internet is
+needed for database operation. Installation and Nemotron model requests still
+need internet. Existing manually launched old services should be stopped before
+the first run to avoid port conflicts. Service logs and managed PIDs are under
+`.spacetime/run/`.
 
-## Install the CLI
+- Operations: http://localhost:8090
+- Damage & incidents: http://localhost:8090/damage
+- Operator voice: http://localhost:8788/operator
+- Stored shared state: http://localhost:8090/api/shared
 
-Follow https://spacetimedb.com/install. (Windows: the PowerShell one-liner on that page. macOS/Linux: `curl -sSf https://install.spacetimedb.com | sh`.)
-
-## Publish to Maincloud
-
-```
-spacetime login                       # opens the browser
-cd server
-spacetime publish -s maincloud rescue-robot
-spacetime logs -s maincloud rescue-robot -f
-```
-
-- Database name: `rescue-robot` (pick another if it's taken; everyone uses the same one).
-- Maincloud HTTP base URL: `https://maincloud.spacetimedb.com`.
-- Hackathon credit: redeem the code **`HACKUTD2026`** (from the leaflet QR) on your spacetimedb.com account before publishing. We haven't checked which page you redeem it on.
-
-Republish after a code change with the same command. If the schema change isn't compatible with the existing data (for example a column was removed or retyped), wipe the data:
-
-```
-spacetime publish -s maincloud -c on-conflict rescue-robot   # or -c always
+```sh
+python3 scripts/local-stack.py status
+python3 scripts/local-stack.py stop
 ```
 
-`init` (seed robot 1, two responder teams, the watchdog schedule) runs only when a database is first created or its data is wiped.
+Stop only stops processes started by this helper. It never removes database data.
+Restarting leaves robot control disabled and the damage survey stopped; survey
+names, location labels, incident evidence, reviews, and operator history remain.
 
-## Local fallback (flaky venue internet)
+Individual actions: `database` starts only the database; `publish` builds and
+publishes the module; `configure` updates local connection settings. Do not use
+`--delete-data` when publishing this database.
 
-On a laptop that sits on our own router:
+## Storage and identity
 
+All runtime data and local credentials are under the ignored `.spacetime/`
+directory. Keep it when restarting or updating the app; copy it while the server
+is stopped to make a local backup. Do not commit it. The helper backs up the prior
+`.env` inside that private directory and saves the service token in the ignored
+`agent/.env` with restricted file permissions. Tokens never go to the browser.
+
+The database is loopback-only. The dashboard mediates LAN reads and restricts
+changes to the host Mac as before. New evidence/state tables are private, and
+external reducers require the publishing service identity. Existing public rescue
+tables remain queryable by local database clients. Do not expose port 3000 to an
+untrusted network.
+
+In active use `STATE_MODE=spacetime`; unavailable database writes fail explicitly.
+Memory state and file evidence are retained only for isolated offline tests and
+legacy import. Camera/video, radio, motor commands, hardware leases, and emergency
+stop handling stay on the direct local hardware path. Persisted control snapshots
+are history, never commands to resume motion.
+
+## Legacy import
+
+```sh
+cd agent
+npm run migrate:spacetime
 ```
-spacetime start                       # listens on http://localhost:3000 by default
-cd server
-spacetime publish -s local rescue-robot
+
+Imports JSON/JPEG incidents from `DAMAGE_DATA_DIR` (default `data/incidents`) and
+JSONL logs from `logs/`. Each photo is hash-verified after insertion. Imports are
+idempotent and do not overwrite later human reviews. Original files remain as
+backups; the running app reads records and photos from SpacetimeDB.
+
+## Verify
+
+```sh
+npm --prefix server run typecheck
+npm --prefix agent run typecheck
 ```
 
-For the Pi and the phone to reach it, listen on all interfaces: `spacetime start --listen-addr 0.0.0.0:3000`. Then clients use `http://<laptop-ip>:3000` as the base URL.
+The live integration test uses a separate database, never production incidents:
+publish this module as `rescue-robot-test`, then run from `agent/`:
 
-## Quick smoke test
-
-```
-spacetime call -s local rescue-robot robot_checkin 1 0.5 0.5 90 0.8 searching
-spacetime call -s local rescue-robot report_detection 1 2.0 3.0 0.9 "http://pi.local/snap/1.jpg"
-spacetime sql  -s local rescue-robot "SELECT * FROM survivor_case"
-spacetime sql  -s local rescue-robot "SELECT * FROM takeover_request"
+```sh
+SPACETIME_TEST_DB=rescue-robot-test npm test
 ```
 
-## Not verified yet
-
-The CLI isn't installed on the dev machine, so nothing here has been built or published. Only `tsc` has run. Things to check on first publish:
-
-- `spacetime publish` builds this folder as is (`package.json` + `src/index.ts`).
-- The watchdog runs every second (`spacetime logs`, or watch a robot go `offline` 5 s after the last checkin).
-- `spacetime call` argument syntax (positional, as above).
+The migration was verified against the actual local server, including a full
+server restart with preserved audit-event counts, incident records, reviewed
+status, and matching photo hashes. Normal tests skip that integration check unless
+`SPACETIME_TEST_DB` is set. Table/reducer details: [docs/spacetime.md](../docs/spacetime.md).

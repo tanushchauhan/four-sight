@@ -15,7 +15,8 @@
     "web": "tsx src/web/server.ts",
     "eval:scenes": "tsx src/scenes/eval.ts",
     "latency": "tsx src/scenes/latency.ts",
-    "prada:check": "tsx src/prada-check.ts"
+    "prada:check": "tsx src/prada-check.ts",
+    "migrate:spacetime": "tsx src/shared/migrate.ts"
   },
   "dependencies": {
     "jpeg-js": "^0.4.4",

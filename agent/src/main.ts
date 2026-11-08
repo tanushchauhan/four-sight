@@ -1,3 +1,5 @@
+import { SharedService } from './shared/service.js';
+import { SpacetimeState } from './adapters/spacetime-state.js';
 import { DamageService } from './damage/service.js';
 import { MissionLink } from "./adapters/mission.js";
 import { createInterface } from "node:readline";
@@ -21,6 +23,8 @@ loadEnvFile();
 const config = loadConfig();
 const app = buildApp(config);
 const { runner, robot, state, logger } = app;
+const shared = SharedService.from(config);
+await shared?.initialize(app.voice);
 
 logger.info(
   `rescue-agent: llm=${config.llmMode}${config.llmMode === "nvidia" ? ` (${config.reasoningModel}, tools=${config.toolCallMode})` : ""} robot=${config.robotMode} state=${config.stateMode} notify=${config.notifyMode}`,
@@ -41,8 +45,8 @@ rl.on("line", async (raw) => {
     } else if (cmd === "/release") {
       await robot.setMode("searching");
       runner.push({ kind: "operator_released", robotId: config.robotId });
-    } else if ((cmd === "/approve" || cmd === "/deny") && state instanceof MemoryState) {
-      state.resolveConfirmation(Number(arg), cmd === "/approve");
+    } else if ((cmd === "/approve" || cmd === "/deny") && (state instanceof MemoryState || state instanceof SpacetimeState)) {
+      await state.resolveConfirmation(Number(arg), cmd === "/approve");
     } else if (cmd === "/sitrep") {
       runner.push({ kind: "sitrep_due" });
     } else {
@@ -60,10 +64,11 @@ const intake =
   config.robotMode === "prada" ? new DetectionIntake(app.state, (e) => runner.push(e), { token: config.agentToken, robotId: config.robotId, admit: (s) => mission!.admit(s) }) : null;
 if (app.voice || intake) {
   const damage = new DamageService(robot, config);
+  await damage.initialize();
   const commands = commandRoute(config.agentToken, (text) => runner.push({ kind: "voice_command", text }));
   const feed = await startOperatorFeed(app.voice ?? new OperatorVoice(), {
     host: config.operatorFeedHost, port: config.operatorFeedPort,
-    routes: async (req, res, url) => (await damage.routes(req, res, url)) || (await commands(req, res, url)) || (await intake?.routes(req, res, url)) || false,
+    routes: async (req, res, url) => (await shared?.routes(req, res, url)) || (await damage.routes(req, res, url)) || (await commands(req, res, url)) || (await intake?.routes(req, res, url)) || false,
   });
   const url = feed.url.replace("127.0.0.1", "localhost");
   if (app.voice) logger.info(`Operator voice: open ${url}/operator on the rescuer's phone or laptop and tap "enable voice"`);

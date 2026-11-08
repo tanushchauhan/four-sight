@@ -239,6 +239,12 @@ export class OperatorVoice {
     this.listeners.delete(fn);
   }
 
+  /** Restore the durable feed without re-emitting any speech or enabling its timers. */
+  restore(history: Utterance[]): void {
+    this.history.splice(0, this.history.length, ...history.slice(-this.historySize));
+    this.nextId = Math.max(this.nextId, ...history.map(u => u.id));
+  }
+
   /** Last n utterances said, oldest first (max 50 kept). */
   recent(n = 20): Utterance[] {
     const k = Math.max(0, Math.floor(n));

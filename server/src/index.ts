@@ -9,6 +9,7 @@
 
 import { schema, table, t, SenderError, ScheduleAt } from 'spacetimedb/server';
 import type { Identity } from 'spacetimedb';
+import type { ReducerCtx } from 'spacetimedb/server';
 
 // ---------------------------------------------------------------------------
 // Enums (stored as strings so SQL filters and JSON stay simple)
@@ -182,6 +183,27 @@ const watchdog_schedule = table(
   }
 );
 
+// The local service identity owns writes. Evidence and runtime snapshots are private;
+// the dashboard receives only data returned by the authenticated agent.
+const service_owner = table({}, { id: t.u32().primaryKey(), identity: t.identity() });
+const damage_incident = table({}, {
+  id: t.string().primaryKey(), survey: t.string(), location: t.string(),
+  image_sha256: t.string(), record_json: t.string(),
+  recorded_at: t.timestamp(), updated_at: t.timestamp(),
+});
+const damage_photo = table({}, {
+  id: t.string().primaryKey(), image_base64: t.string(), mime_type: t.string(),
+});
+const shared_state = table({}, {
+  key: t.string().primaryKey(), value_json: t.string(), updated_at: t.timestamp(),
+});
+const app_event = table({}, {
+  id: t.string().primaryKey(), value_json: t.string(), created_at: t.timestamp(),
+});
+const operator_update = table({}, {
+  id: t.u64().primaryKey().autoInc(), value_json: t.string(), created_at: t.timestamp(),
+});
+
 const spacetimedb = schema({
   robot,
   coverage_cell,
@@ -192,7 +214,7 @@ const spacetimedb = schema({
   alert,
   confirmation,
   agent_log,
-  watchdog_schedule,
+  watchdog_schedule, service_owner, damage_incident, damage_photo, shared_state, operator_update, app_event,
 });
 export default spacetimedb;
 
@@ -209,6 +231,7 @@ function sameIdentity(a: Identity | undefined, b: Identity): boolean {
 // ---------------------------------------------------------------------------
 
 export const init = spacetimedb.init(ctx => {
+  ctx.db.service_owner.insert({ id: 1, identity: ctx.sender });
   // The one physical robot. Starts offline until the Pi checks in.
   if (ctx.db.robot.id.find(1) === null) {
     ctx.db.robot.insert({
@@ -258,6 +281,7 @@ export const robot_checkin = spacetimedb.reducer(
     mode: t.string(),
   },
   (ctx, { robot_id, x, y, heading, battery, mode }) => {
+    requireService(ctx);
     checkEnum('mode', mode, ROBOT_MODES);
     checkFinite('x', x);
     checkFinite('y', y);
@@ -325,6 +349,7 @@ export const report_detection = spacetimedb.reducer(
     snapshot_url: t.string(),
   },
   (ctx, { robot_id, x, y, confidence, snapshot_url }) => {
+    requireService(ctx);
     checkFinite('x', x);
     checkFinite('y', y);
     checkFinite('confidence', confidence);
@@ -379,6 +404,7 @@ export const report_detection = spacetimedb.reducer(
 // ---------------------------------------------------------------------------
 
 export const claim_robot = spacetimedb.reducer(ctx => {
+  requireService(ctx);
   // One robot per operator.
   for (const r of ctx.db.robot.iter()) {
     if (sameIdentity(r.operator_identity, ctx.sender) && r.mode === 'manual') {
@@ -426,6 +452,7 @@ export const claim_robot = spacetimedb.reducer(ctx => {
 export const release_robot = spacetimedb.reducer(
   { robot_id: t.u32() },
   (ctx, { robot_id }) => {
+    requireService(ctx);
     const bot = ctx.db.robot.id.find(robot_id);
     if (bot === null) {
       throw new SenderError(`unknown robot ${robot_id}`);
@@ -444,6 +471,7 @@ export const release_robot = spacetimedb.reducer(
 export const resolve_confirmation = spacetimedb.reducer(
   { confirmation_id: t.u64(), approved: t.bool() },
   (ctx, { confirmation_id, approved }) => {
+    requireService(ctx);
     const row = ctx.db.confirmation.id.find(confirmation_id);
     if (row === null) {
       throw new SenderError(`unknown confirmation ${confirmation_id}`);
@@ -466,6 +494,7 @@ export const resolve_confirmation = spacetimedb.reducer(
 export const set_triage = spacetimedb.reducer(
   { case_id: t.u64(), color: t.string(), description: t.string() },
   (ctx, { case_id, color, description }) => {
+    requireService(ctx);
     checkEnum('color', color, TRIAGE_COLORS);
     const c = ctx.db.survivor_case.id.find(case_id);
     if (c === null) {
@@ -483,6 +512,7 @@ export const set_triage = spacetimedb.reducer(
 export const set_priority = spacetimedb.reducer(
   { request_id: t.u64(), priority: t.u32(), reason: t.string() },
   (ctx, { request_id, priority, reason }) => {
+    requireService(ctx);
     const req = ctx.db.takeover_request.id.find(request_id);
     if (req === null) {
       throw new SenderError(`unknown takeover request ${request_id}`);
@@ -494,6 +524,7 @@ export const set_priority = spacetimedb.reducer(
 export const request_takeover = spacetimedb.reducer(
   { robot_id: t.u32(), case_id: t.u64(), priority: t.u32(), reason: t.string() },
   (ctx, { robot_id, case_id, priority, reason }) => {
+    requireService(ctx);
     if (ctx.db.robot.id.find(robot_id) === null) {
       throw new SenderError(`unknown robot ${robot_id}`);
     }
@@ -516,6 +547,7 @@ export const request_takeover = spacetimedb.reducer(
 export const dispatch_responders = spacetimedb.reducer(
   { case_id: t.u64(), team_id: t.u32() },
   (ctx, { case_id, team_id }) => {
+    requireService(ctx);
     const c = ctx.db.survivor_case.id.find(case_id);
     if (c === null) {
       throw new SenderError(`unknown case ${case_id}`);
@@ -543,6 +575,7 @@ export const dispatch_responders = spacetimedb.reducer(
 export const mark_hazard = spacetimedb.reducer(
   { x: t.f32(), y: t.f32(), kind: t.string(), note: t.string() },
   (ctx, { x, y, kind, note }) => {
+    requireService(ctx);
     checkEnum('kind', kind, HAZARD_KINDS);
     checkFinite('x', x);
     checkFinite('y', y);
@@ -553,6 +586,7 @@ export const mark_hazard = spacetimedb.reducer(
 export const push_alert = spacetimedb.reducer(
   { text: t.string(), level: t.string() },
   (ctx, { text, level }) => {
+    requireService(ctx);
     checkEnum('level', level, ALERT_LEVELS);
     ctx.db.alert.insert({ id: 0n, text, level, created_at: ctx.timestamp });
   }
@@ -561,6 +595,7 @@ export const push_alert = spacetimedb.reducer(
 export const request_confirmation = spacetimedb.reducer(
   { action: t.string(), details_json: t.string() },
   (ctx, { action, details_json }) => {
+    requireService(ctx);
     if (action.length === 0) {
       throw new SenderError('action must not be empty');
     }
@@ -578,6 +613,7 @@ export const request_confirmation = spacetimedb.reducer(
 export const log_agent_action = spacetimedb.reducer(
   { event: t.string(), tool: t.string(), args_json: t.string(), result_json: t.string() },
   (ctx, { event, tool, args_json, result_json }) => {
+    requireService(ctx);
     ctx.db.agent_log.insert({
       id: 0n,
       time: ctx.timestamp,
@@ -586,6 +622,86 @@ export const log_agent_action = spacetimedb.reducer(
       args_json,
       result_json,
     });
+  }
+);
+
+// Durable property evidence: the photo and its observations commit together.
+function requireService(ctx: ReducerCtx<typeof spacetimedb.schemaType>): void {
+  const owner = ctx.db.service_owner.id.find(1);
+  if (!owner || !owner.identity.isEqual(ctx.sender)) throw new SenderError('Service identity required');
+}
+function checkedRecord(record_json: string) {
+  if (record_json.length > 50000) throw new SenderError('Incident record too large');
+  const r = JSON.parse(record_json);
+  if (!r || !/^[0-9a-f-]{36}$/.test(r.id) || typeof r.survey !== 'string' || !r.survey.trim()
+      || typeof r.location !== 'string' || !/^[a-f0-9]{64}$/.test(r.imageSha256)
+      || !['water', 'fire', 'structural', 'debris', 'electrical', 'other'].includes(r.category)
+      || !['low', 'moderate', 'high', 'unknown'].includes(r.severity)
+      || typeof r.title !== 'string' || !r.title.trim() || r.incident !== true
+      || !Number.isFinite(r.confidence) || r.confidence < 0 || r.confidence > 1
+      || !Array.isArray(r.observations) || r.observations.length === 0 || !Array.isArray(r.uncertainties)
+      || !Number.isFinite(r.capturedAt) || !Number.isFinite(r.recordedAt)) throw new SenderError('Invalid incident record');
+  return r;
+}
+export const record_damage = spacetimedb.reducer(
+  { record_json: t.string(), image_base64: t.string() },
+  (ctx, { record_json, image_base64 }) => {
+    requireService(ctx);
+    const r = checkedRecord(record_json);
+    if (!image_base64.startsWith('/9j/') || image_base64.length > 5600000) throw new SenderError('Expected a JPEG under 4 MB');
+    const existing = ctx.db.damage_incident.id.find(r.id);
+    if (existing) {
+      if (existing.image_sha256 !== r.imageSha256) throw new SenderError('Incident ID already has different evidence');
+      return; // Retry/import is idempotent; never overwrite a later human review.
+    }
+    for (const old of ctx.db.damage_incident.iter()) {
+      if (old.survey === r.survey && old.location === r.location && old.image_sha256 === r.imageSha256) return;
+    }
+    ctx.db.damage_photo.insert({ id: r.id, image_base64, mime_type: 'image/jpeg' });
+    ctx.db.damage_incident.insert({ id: r.id, survey: r.survey, location: r.location,
+      image_sha256: r.imageSha256, record_json, recorded_at: ctx.timestamp, updated_at: ctx.timestamp });
+  }
+);
+export const review_damage = spacetimedb.reducer(
+  { incident_id: t.string(), note: t.string() },
+  (ctx, { incident_id, note }) => {
+    requireService(ctx);
+    if (note.length > 3000) throw new SenderError('Review note too long');
+    const row = ctx.db.damage_incident.id.find(incident_id);
+    if (!row) throw new SenderError('Incident not found');
+    const r = JSON.parse(row.record_json);
+    r.status = 'reviewed'; r.reviewNote = note;
+    r.reviewedAt = Number(ctx.timestamp.microsSinceUnixEpoch / 1000n);
+    ctx.db.damage_incident.id.update({ ...row, record_json: JSON.stringify(r), updated_at: ctx.timestamp });
+  }
+);
+export const save_shared_state = spacetimedb.reducer(
+  { key: t.string(), value_json: t.string() },
+  (ctx, { key, value_json }) => {
+    requireService(ctx);
+    if (!['dashboard', 'damage_survey'].includes(key) || value_json.length > 100000) throw new SenderError('Invalid shared state');
+    JSON.parse(value_json);
+    const value = { key, value_json, updated_at: ctx.timestamp };
+    if (ctx.db.shared_state.key.find(key)) ctx.db.shared_state.key.update(value);
+    else ctx.db.shared_state.insert(value);
+  }
+);
+export const import_app_event = spacetimedb.reducer(
+  { id: t.string(), value_json: t.string() },
+  (ctx, { id, value_json }) => {
+    requireService(ctx);
+    if (!/^[a-f0-9]{64}$/.test(id) || value_json.length > 100000) throw new SenderError('Invalid audit event');
+    JSON.parse(value_json);
+    if (!ctx.db.app_event.id.find(id)) ctx.db.app_event.insert({ id, value_json, created_at: ctx.timestamp });
+  }
+);
+export const append_operator_update = spacetimedb.reducer(
+  { value_json: t.string() },
+  (ctx, { value_json }) => {
+    requireService(ctx);
+    if (value_json.length > 2000) throw new SenderError('Operator update too long');
+    JSON.parse(value_json);
+    ctx.db.operator_update.insert({ id: 0n, value_json, created_at: ctx.timestamp });
   }
 );
 

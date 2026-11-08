@@ -120,7 +120,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         path = self.path.split('?', 1)[0]
-        if path == '/api/damage' or path.startswith('/api/damage/'):
+        if path == '/api/shared' or path == '/api/damage' or path.startswith('/api/damage/'):
             self.damage_proxy()
         elif path in ('/damage', '/damage.js'):
             name = 'damage.js' if path.endswith('.js') else 'damage.html'
