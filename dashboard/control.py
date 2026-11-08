@@ -138,6 +138,20 @@ class DebugControl:
             threading.Thread(target=self.run_zero, args=('tilt',), daemon=True).start()
             return self.snapshot()
 
+    def gesture(self, name):
+        if name not in ('hello', 'dance'):
+            raise ValueError('Unknown gesture')
+        with self.lock:
+            if self.maintenance:
+                raise ValueError('A robot pose operation is already running')
+            self.maintenance = True
+            self.disarm()
+            self.closing.set()
+            self.status = {'connection': 'maintenance', 'enabled': False,
+                           'reason': 'Preparing ' + name + '; drive paused'}
+            threading.Thread(target=self.run_zero, args=(name,), daemon=True).start()
+            return self.snapshot()
+
     def zero_servos(self):
         with self.lock:
             if self.maintenance:
@@ -149,6 +163,8 @@ class DebugControl:
             return {'connection': 'maintenance', 'enabled': False, 'reason': 'Stopping control before moving servos to zero'}
 
     def run_zero(self, operation="zero"):
+        if operation not in ('zero', 'tilt', 'hello', 'dance'):
+            raise ValueError('Unknown pose operation')
         restore = False
         try:
             self.close()
@@ -157,16 +173,21 @@ class DebugControl:
                 raise RuntimeError('Control did not release; no zero command sent')
             with self.lock:
                 self.status = {'connection':'maintenance', 'enabled':False, 'reason':'Tilting backward, rocking three times between 8° and 17°, then returning level' if operation == 'tilt' else 'Moving 12 servos to calibrated zero'}
+            if operation in ('hello', 'dance'):
+                with self.lock:
+                    self.status = {'connection':'maintenance', 'enabled':False, 'reason': 'Waving hello' if operation == 'hello' else 'Performing short dance'}
             p = subprocess.run(self.ssh('systemctl is-active prada-joystick'), capture_output=True, text=True, timeout=7)
             restore = p.stdout.strip() == 'active'
             subprocess.run(self.ssh('sudo -n systemctl stop prada-joystick prada-server'), check=True, capture_output=True, timeout=30)
             script = "from picrawler_control.backend import Hardware; h=Hardware(); h.initialize(); h.close(); print('calibrated zero complete')"
             command = ('/home/liquidiv/hackutd26/robot/.venv/bin/python -m picrawler_control.tilt' if operation == 'tilt' else '/home/liquidiv/hackutd26/robot/.venv/bin/python -c ' + shlex.quote(script))
-            subprocess.run(self.ssh(command), check=True, capture_output=True, timeout=60 if operation == 'tilt' else 15)
+            if operation in ('hello', 'dance'):
+                command = '/home/liquidiv/hackutd26/robot/.venv/bin/python -m picrawler_control.gestures ' + operation
+            subprocess.run(self.ssh(command), check=True, capture_output=True, timeout=60 if operation != 'zero' else 15)
             subprocess.run(self.ssh('sudo -n systemctl start prada-server' + (' prada-joystick' if restore else '')), check=True, capture_output=True, timeout=10)
-            status = {'connection':'idle', 'enabled':False, 'reason':('Tilt completed; check whether the AirTag dropped. ' if operation == 'tilt' else 'Servos at calibrated zero. ') + 'Control restarted disabled; take control to resume.'}
+            status = {'connection':'idle', 'enabled':False, 'reason':('Tilt completed; check whether the AirTag dropped. ' if operation == 'tilt' else operation.capitalize() + ' completed. ' if operation in ('hello', 'dance') else 'Servos at calibrated zero. ') + 'Control restarted disabled; take control to resume.'}
         except Exception as exc:
-            status = {'connection':'error', 'enabled':False, 'reason':('Tilt test failed: ' if operation == 'tilt' else 'Servo zero failed: ') + str(exc)[:250] + '. Check robot services before resuming.'}
+            status = {'connection':'error', 'enabled':False, 'reason':('Tilt test failed: ' if operation == 'tilt' else operation.capitalize() + ' failed: ') + str(exc)[:250] + '. Check robot services before resuming.'}
         finally:
             with self.lock:
                 self.maintenance = False
