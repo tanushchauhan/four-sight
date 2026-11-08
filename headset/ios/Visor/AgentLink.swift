@@ -5,9 +5,49 @@ import AVFoundation
 import Speech
 
 @MainActor
+final class RobotTelemetry: ObservableObject {
+    @Published private(set) var systems: FeedState = .loading
+    @Published private(set) var mission: FeedState = .loading
+    private var task: Task<Void, Never>?
+    func start(camera: String) {
+        stop()
+        guard var components = URLComponents(string: AgentLink.defaultAddress(camera: camera)) else { return }
+        components.port = 8090; components.path = "/api/status"; components.query = nil
+        guard let url = components.url else { return }
+        task = Task { [weak self] in
+            while !Task.isCancelled {
+                do {
+                    var request = URLRequest(url: url); request.timeoutInterval = 4
+                    let (data, response) = try await URLSession.shared.data(for: request)
+                    guard !Task.isCancelled else { return }
+                    guard (response as? HTTPURLResponse)?.statusCode == 200,
+                          let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else { throw URLError(.badServerResponse) }
+                    let checked = json["checked_at"] as? Double ?? 0
+                    let fresh = Date().timeIntervalSince1970 - checked < (json["stale_after"] as? Double ?? 30)
+                    let reachable = json["reachable"] as? Bool == true && fresh
+                    let voltage = (json["battery_voltage"] as? Double).map { String(format: "%.1f V", $0) } ?? "Battery —"
+                    let temperature = (json["temperature"] as? Double).map { String(format: "%.0f°C", $0) } ?? "Temp —"
+                    self?.systems = reachable ? .ready(value: "\(voltage) · \(temperature)", detail: "Robot online · signal strength unavailable") : .failed(value: "Robot offline", detail: "Telemetry unavailable or stale")
+                    let mission = json["mission"] as? [String: Any] ?? [:]
+                    self?.mission = reachable ? .ready(value: mission["mode"] as? String ?? "Unknown", detail: mission["reason"] as? String ?? "No mission status") : .loading
+                } catch {
+                    guard !Task.isCancelled else { return }
+                    self?.systems = .failed(value: "No telemetry", detail: "Start dashboard on port 8090")
+                    self?.mission = .loading
+                }
+                try? await Task.sleep(nanoseconds: 3_000_000_000)
+            }
+        }
+    }
+    func stop() { task?.cancel(); task = nil }
+}
+
+@MainActor
 final class CoordinatorAudio: ObservableObject {
     @Published private(set) var listening = false
     @Published private(set) var handsFree = false
+    @Published private(set) var awake = false
+    @Published private(set) var lastReply = "Awaiting coordinator update"
     @Published private(set) var transcript = ""
     @Published private(set) var status = "Coordinator voice off"
     private let speaker = AVSpeechSynthesizer()
@@ -41,6 +81,7 @@ final class CoordinatorAudio: ObservableObject {
     func start(camera: String) {
         guard poll == nil else { return }
         active = true
+        handsFree = true
         let endpoint = AgentLink.defaultAddress(camera: camera)
         if base != endpoint { lastID = 0 }
         base = endpoint
@@ -61,7 +102,7 @@ final class CoordinatorAudio: ObservableObject {
                         self.endCapture()
                         self.nextListen = Date().addingTimeInterval(0.5)
                     }
-                    if !self.listening {
+                    if !self.listening || !self.awake {
                         for line in lines.sorted(by: { $0.id < $1.id }) where line.id > self.lastID {
                             self.lastID = line.id
                             self.lastLineTime = max(self.lastLineTime, line.time)
@@ -70,6 +111,8 @@ final class CoordinatorAudio: ObservableObject {
                                 guard self.waitingReply else { continue }
                                 self.waitingReply = false
                             }
+                            if self.listening { self.endCapture() }
+                            self.lastReply = line.text
                             if line.interrupt { self.speaker.stopSpeaking(at: .immediate) }
                             try self.configureAudio()
                             let utterance = AVSpeechUtterance(string: line.text)
@@ -87,6 +130,7 @@ final class CoordinatorAudio: ObservableObject {
                         self.nextListen = Date().addingTimeInterval(1)
                     }
                     if self.handsFree && !self.listening && !self.waitingReply && !self.authorizing && !self.speaker.isSpeaking && Date() > self.nextListen {
+                        self.awake = false
                         self.beginListening()
                     } else if !self.handsFree && !self.listening && !self.waitingReply && !self.speaker.isSpeaking {
                         self.status = "Coordinator connected · alerts only"
@@ -166,6 +210,13 @@ final class CoordinatorAudio: ObservableObject {
                         let text = result.bestTranscription.formattedString
                         if text != self.transcript {
                             self.transcript = text
+                            if !self.awake {
+                                let words = text.lowercased().split(whereSeparator: { !$0.isLetter })
+                                guard words.contains("sight") || words.contains("site") else { return }
+                                self.awake = true
+                                self.status = "Sight heard · listening to your command"
+                                UIImpactFeedbackGenerator(style: .medium).impactOccurred(intensity: 0.6)
+                            }
                             self.silence?.cancel()
                             self.silence = Task { [weak self] in
                                 try? await Task.sleep(nanoseconds: 1_200_000_000)
@@ -183,11 +234,15 @@ final class CoordinatorAudio: ObservableObject {
             }
             engine.prepare()
             try engine.start()
-            status = handsFree ? "Listening · pause to send" : "Listening · pause or tap Send"
+            status = "Say Sight, then your command"
             timeout = Task { [weak self] in
                 try? await Task.sleep(nanoseconds: 20_000_000_000)
                 guard !Task.isCancelled, let self, self.captureID == id else { return }
                 self.sendCommand()
+                if self.listening {
+                    self.endCapture(); self.awake = false
+                    self.nextListen = Date().addingTimeInterval(0.3)
+                }
             }
         } catch { endCapture(); handsFree = false; status = "Microphone unavailable" }
     }
@@ -205,8 +260,16 @@ final class CoordinatorAudio: ObservableObject {
 
     func sendCommand() {
         guard listening else { return }
-        let text = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard awake else {
+            endCapture(); nextListen = Date().addingTimeInterval(0.3); return
+        }
+        var text = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let range = text.range(of: "\\b(sight|site)\\b", options: [.regularExpression, .caseInsensitive]) {
+            text = String(text[range.upperBound...]).trimmingCharacters(in: .punctuationCharacters.union(.whitespacesAndNewlines))
+        }
+        if text.isEmpty { status = "Sight heard · listening to your command"; return }
         endCapture()
+        awake = false
         nextListen = Date().addingTimeInterval(0.7)
         guard !text.isEmpty else { status = "No speech heard"; return }
         waitingReply = true

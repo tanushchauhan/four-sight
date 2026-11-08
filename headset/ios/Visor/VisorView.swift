@@ -15,6 +15,7 @@ struct VisorView: View {
     @State private var sightingHeadings: [UUID: Double] = [:]
     @StateObject private var agent = AgentLink()
     @StateObject private var coordinatorAudio = CoordinatorAudio()
+    @StateObject private var telemetry = RobotTelemetry()
     @AppStorage("cameraURL") private var address = "http://prada.local:8080/stream"
     @AppStorage("agentURL") private var agentAddress = ""
     @AppStorage("cameraSource") private var sourceName = CameraSource.robot.rawValue
@@ -76,12 +77,13 @@ struct VisorView: View {
         } else {
             briefing.breadcrumb = .empty(value: "No confirmed survivor", detail: "No relative fix")
         }
-        briefing.systems = .ready(
-            value: "84% · Good · 42°",
-            detail: "Battery · link · thermal · simulated"
-        )
+        briefing.systems = telemetry.systems
         briefing.coordinator = agent.coordinatorFeed
         if source == .phone {
+            briefing.rescuer = true
+            briefing.coordinator = .ready(value: coordinatorAudio.awake ? "Listening" : "Say Sight", detail: coordinatorAudio.status)
+            briefing.slam = telemetry.mission
+            briefing.conversation = coordinatorAudio.lastReply
             briefing.camera = .ready(value: "Phone", detail: "")
             return briefing
         }
@@ -118,12 +120,14 @@ struct VisorView: View {
         .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { radarTime = $0 }
         .persistentSystemOverlays(.hidden)
         .onAppear {
+            telemetry.start(camera: address)
             coordinatorAudio.start(camera: address)
             radarHeading.start()
             UIApplication.shared.isIdleTimerDisabled = true
             apply(source)
         }
         .onDisappear {
+            telemetry.stop()
             coordinatorAudio.stop()
             radarHeading.stop()
             steering.stop()
@@ -132,6 +136,7 @@ struct VisorView: View {
             UIApplication.shared.isIdleTimerDisabled = false
         }
         .onChange(of: scenePhase) { _, phase in
+            if phase == .active { telemetry.start(camera: address) } else { telemetry.stop() }
             if phase == .active { coordinatorAudio.start(camera: address) }
             else { coordinatorAudio.stop() }
             if phase == .active { radarHeading.start() } else { radarHeading.stop() }
@@ -247,19 +252,14 @@ struct VisorView: View {
                     Text("Coordinator").font(VisorToken.label(16))
                     Text(agent.status.text).font(VisorToken.body(16))
                     Text(coordinatorAudio.status).font(VisorToken.body(16))
-                    Button(coordinatorAudio.handsFree ? "End conversation" : "Start hands-free conversation") {
+                    Button(coordinatorAudio.handsFree ? "Mute microphone" : "Enable Sight wake word") {
                         steering.stop()
                         coordinatorAudio.toggleConversation()
                     }
                     .buttonStyle(SheetButtonStyle(primary: true, focused: false))
-                    Text("Pause to send. Listening resumes after Nemotron replies. Use the dashboard live radio to talk to the person.")
+                    Text("Say Sight followed by your command. Pause to send; replies play automatically.")
                         .font(VisorToken.body(14))
                         .foregroundStyle(VisorToken.muted.color)
-                    Button(coordinatorAudio.listening ? "Send voice command" : "Speak to coordinator") {
-                        if coordinatorAudio.listening { coordinatorAudio.sendCommand() }
-                        else { steering.stop(); coordinatorAudio.beginListening() }
-                    }
-                    .buttonStyle(SheetButtonStyle(primary: true, focused: false))
                     if !coordinatorAudio.transcript.isEmpty {
                         Text(coordinatorAudio.transcript).font(VisorToken.body(18))
                     }

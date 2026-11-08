@@ -1,5 +1,15 @@
 # Native Prada visor
 
+Robot feed mode retains segmentation, range, motion, and the survivor radar. Phone camera mode is
+the rescuer HUD: coordinator voice/transcript, real robot systems and mission status, without local
+person segmentation. The foreground microphone listens for "Sight" (also accepting the transcription
+"site"), followed by a command and a pause. Mute microphone in settings to disable wake listening.
+Speech recognition may use Apple's network service. Playback suspends wake capture to prevent echo.
+
+Robot telemetry is read from the coordinator Mac's dashboard at port 8090 `/api/status`; start the
+dashboard on that Mac with a LAN-accessible bind address. Battery is displayed in volts, temperature
+in Celsius, and unavailable/stale readings are labeled. Signal strength is not exposed by that API.
+
 The visor reports structured person observations (normalized boxes, confidence, mask coverage,
 estimated range/bearing and image-motion category) with stable robot-feed detections, at most every
 five seconds. Raw mask pixels are not uploaded. The coordinator receives these as provisional evidence,

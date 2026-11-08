@@ -190,10 +190,6 @@ final class StereoRenderer: NSObject, MTKViewDelegate {
             robotTexture = try? MTKTextureLoader(device: device).newTexture(data: jpeg, options: [.SRGB: false])
             if source == .robot, let ciImage = CIImage(data: jpeg) { detector.submit(ciImage) }
         }
-        if source == .phone, let frame = phone.currentFrame(), frame.timestamp != lastPhoneTimestamp {
-            lastPhoneTimestamp = frame.timestamp
-            detector.submit(CIImage(cvPixelBuffer: frame.capturedImage))
-        }
         updateSurvivorTexture()
         if Date().timeIntervalSince(session.lastFrameTime) > 2, robotTexture != nil {
             robotTexture = nil
@@ -338,7 +334,7 @@ final class StereoRenderer: NSObject, MTKViewDelegate {
                 encoder.setFragmentTexture(planes.luma, index: 0)
                 encoder.setFragmentTexture(planes.chroma, index: 1)
                 encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
-                if let survivorTexture {
+                if source == .robot, let survivorTexture {
                     encoder.setRenderPipelineState(survivorPhonePipeline)
                     encoder.setFragmentBytes(&u, length: MemoryLayout<EyeUniforms>.stride, index: 0)
                     encoder.setFragmentTexture(survivorTexture, index: 0)

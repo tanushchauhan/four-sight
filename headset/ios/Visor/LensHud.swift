@@ -9,6 +9,8 @@ enum FeedState: Equatable {
 }
 
 struct VisorBriefing: Equatable {
+    var rescuer = false
+    var conversation = "Awaiting coordinator update"
     var sightings: [SurvivorSighting] = []
     var radarTime = Date()
     var headingDegrees = 0.0
@@ -56,6 +58,16 @@ struct LensLayerView: View {
 
     var body: some View {
         ZStack {
+            if briefing.rescuer {
+                VStack(alignment: .leading, spacing: 22) {
+                    Text("RESCUER · COORDINATOR").font(VisorToken.label(30)).foregroundStyle(VisorToken.muted.color)
+                    Readout(label: "Voice", state: briefing.coordinator)
+                    Readout(label: "Robot", state: briefing.systems)
+                    Readout(label: "Mission", state: briefing.slam)
+                    Text(briefing.conversation).font(VisorToken.body(34))
+                        .foregroundStyle(VisorToken.ink.color).lineLimit(3).overFeed()
+                }.frame(width: 480).padding(.vertical, 220)
+            } else {
             Reticle()
                 .stroke(VisorToken.rule2.color, lineWidth: VisorToken.hairline)
                 .frame(width: 40, height: 40)
@@ -86,6 +98,7 @@ struct LensLayerView: View {
             .padding(.horizontal, 270)
             .padding(.vertical, 260)
             .scaleEffect(1.0)
+            }
         }
         .frame(width: LensLayer.side, height: LensLayer.side)
     }
