@@ -1,0 +1,115 @@
+# prada
+
+prada is our PiCrawler: Raspberry Pi 5 Model B (4 GB), SunFounder Robot HAT v4, Ubuntu Server 24.04.5 LTS (arm64). This folder holds everything specific to it, so a fresh SD card can be brought back with a clone and one script.
+
+| | |
+| --- | --- |
+| Hostname | `prada` (mDNS: `prada.local`, via avahi) |
+| User | `liquidiv` (no hyphen) |
+| Wi-Fi | phone hotspot `liquid-iv-iot` |
+| Repo checkout | `/home/liquidiv/hackutd26` |
+| Vendor sources | `~/vendor/robot-hat`, `~/vendor/picrawler`, `~/vendor/raspi-utils` |
+| HAT on I2C | bus 1, address `0x14` |
+| Battery at bring-up | 7.84 V |
+
+## Files
+
+| File | What it is |
+| --- | --- |
+| `install.sh` | Idempotent setup: packages, pinned vendor libraries, `pinctrl`, I2C/GPIO access, venv, calibration restore, token, services |
+| `prada.toml` | Bridge config: loopback only, every gait at speed 100 |
+| `picrawler.config` | Saved calibration offsets (copied to `~/.config/.picrawler.config` if missing) |
+| `system/prada-server.service` | Bridge server in hardware mode |
+| `system/prada-joystick.service` | Bluetooth relay from the Arduino 101 joystick |
+| `system/60-picrawler-gpiomem.rules` | Gives the `gpio` group the Pi 5 GPIO memory windows that `pinctrl` needs |
+| `system/picrawler-lock.conf` | Recreates `/run/lock/picrawler-control.lock` at boot |
+
+## Fresh install
+
+1. Flash Ubuntu Server 24.04 LTS (64-bit) with Raspberry Pi Imager: hostname `prada`, user `liquidiv`, Wi-Fi `liquid-iv-iot`, SSH on with your key.
+2. SSH in, clone, and run the script:
+
+   ```bash
+   git clone https://github.com/tanushchauhan/hackutd26.git ~/hackutd26
+   cd ~/hackutd26
+   robot/prada/install.sh            # add --enable to start both services at boot
+   sudo reboot                       # picks up the new groups
+   ```
+
+   The repo is private for now, so the Pi needs GitHub access to clone (a read-only deploy key, or make the repo public, which the Spacetime track requires anyway). Until then, copy a checkout from a laptop: `rsync -a --exclude .venv hackutd26/ prada:hackutd26/`.
+
+3. Start it:
+
+   ```bash
+   sudo systemctl start prada-server prada-joystick
+   journalctl -fu prada-server -u prada-joystick
+   ```
+
+Updating later: `git -C ~/hackutd26 pull && robot/prada/install.sh && sudo systemctl restart prada-server prada-joystick`.
+
+## Driving
+
+**Arduino 101 joystick** (`controller/joystick_ble`): flash it once from a laptop (needs Rosetta on Apple Silicon, since the Intel Curie toolchain is x86 only):
+
+```bash
+arduino-cli core install Intel:arc32
+arduino-cli compile --fqbn Intel:arc32:arduino_101 controller/joystick_ble
+arduino-cli upload --fqbn Intel:arc32:arduino_101 -p /dev/cu.usbmodem* controller/joystick_ble
+```
+
+Grove wiring: thumb joystick on A0 (X on A0, Y on A1), buzzer on D3. It advertises over Bluetooth LE as `prada`, and the relay on the Pi finds it by service UUID. Leave the stick alone while it powers on, because it measures its center then.
+
+| Buzzer | Meaning |
+| --- | --- |
+| Three quick beeps | Joystick connected to the Pi |
+| One long beep | Enabled |
+| Two short beeps | Stopped |
+
+Click the stick to enable, push to walk or turn, click again to stop. If the stick drives the wrong way, add `--invert-forward` or `--invert-turn` to `ExecStart` in `prada-joystick.service`.
+
+**Laptop keyboard** (for testing). The server only listens on the Pi's loopback, so tunnel to it. Stop the joystick relay first, since the server takes one controller at a time:
+
+```bash
+ssh prada sudo systemctl stop prada-joystick
+ssh -N -L '[::1]:18765:127.0.0.1:8765' prada &
+ROBOT_CONTROL_TOKEN=... robot/.venv/bin/python -m picrawler_control.controller 'ws://[::1]:18765'
+```
+
+Get the token with `ssh prada sudo cat /etc/picrawler-control.env`.
+
+## SSH from a laptop
+
+```
+Host prada
+  HostName prada.local
+  User liquidiv
+  AddressFamily inet6
+  IdentityFile ~/.ssh/id_prada
+  IdentitiesOnly yes
+```
+
+`AddressFamily inet6` is there because a Mac on the same iPhone hotspot often only gets IPv6 (NAT64), so IPv4 to the Pi's `172.20.10.x` address fails. The Pi's IPv6 address is global, so keep password login off or strong.
+
+## Calibration
+
+Offsets from the paper-sheet calibration (`0_calibration.py`), per leg in servo order:
+
+| Leg | HAT ports | Servo 1 | Servo 2 | Servo 3 (hip) |
+| --- | --- | --- | --- | --- |
+| 1 front right | P9 P10 P11 | 3.24 | 1.82 | 6.16 |
+| 2 front left | P3 P4 P5 | 10.74 | 6.03 | **-19.91** |
+| 3 back left | P0 P1 P2 | 9.98 | 5.61 | 6.70 |
+| 4 back right | P6 P7 P8 | 2.40 | 1.35 | -7.17 |
+
+**Known issue:** leg 2's hip servo (P5) is at the helper's 20° limit, so its horn is most likely one spline notch off. With power off, reseat it one notch toward zero and recalibrate leg 2. Watch that servo for buzzing or heat until then.
+
+To recalibrate: stop both services, set the robot flat on the sheet, then `cd ~/vendor/picrawler/examples && ~/hackutd26/robot/.venv/bin/python 0_calibration.py`. Save with space then `Y`. Copy the new `~/.config/.picrawler.config` into this folder and commit it.
+
+## Bring-up notes
+
+- The Imager first-boot password didn't work, so the key and password were reset by editing cloud-init on the SD card's `system-boot` partition. Bump `instance-id` in `meta-data` and the `i=` value in `cmdline.txt` to make cloud-init run again. `chpasswd` runs too early on a re-run, so use a `runcmd` entry with `chpasswd -e` instead.
+- Passwordless sudo for `liquidiv` is in `/etc/sudoers.d/90-liquidiv-nopasswd` for the hackathon. Remove it afterwards.
+- The Ubuntu mirror had a version mismatch for `libgnutls28-dev`. `pinctrl` builds without it, so `install.sh` skips it.
+- `gpiodetect` without root still fails on chips 0 to 3; only `gpiochip4` (RP1, the 40-pin header) matters and the `dialout` group already has it.
+- The 128-bit service UUID plus a name must fit in a 31-byte advertisement, which is why the joystick advertises as `prada` rather than a longer name.
+- ROS is not installed on prada. The bridge runs without `--ros`.

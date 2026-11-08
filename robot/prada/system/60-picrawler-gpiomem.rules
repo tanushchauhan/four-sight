@@ -1,0 +1,2 @@
+# Let the gpio group use the Pi 5 GPIO memory windows (pinctrl resets the HAT MCU through these).
+KERNEL=="gpiomem[0-9]*", GROUP="gpio", MODE="0660"

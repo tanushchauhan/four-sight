@@ -1,0 +1,18 @@
+# Bluetooth relay from the Arduino 101 joystick (controller/joystick_ble) to the local server.
+[Unit]
+Description=prada Bluetooth joystick relay
+After=bluetooth.target prada-server.service
+Requires=prada-server.service bluetooth.target
+
+[Service]
+Type=simple
+User=liquidiv
+WorkingDirectory=/home/liquidiv/hackutd26
+EnvironmentFile=/etc/picrawler-control.env
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/home/liquidiv/hackutd26/robot/.venv/bin/python -m picrawler_control.ble_relay
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

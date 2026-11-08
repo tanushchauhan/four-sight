@@ -4,6 +4,8 @@ Initial software milestone for **PiCrawler + Raspberry Pi 5 (4 GB) + Robot HAT v
 
 The Python bridge receives normalized joystick commands directly over private local Wi-Fi. A terminal laptop controller substitutes for the future ESP controller. Default mode is hardware-free; vendor modules aren't imported at startup. See [Ubuntu setup](SETUP.md) for the real deployment path and hardware checks.
 
+Our robot, **prada**, is set up and running: see [prada/README.md](prada/README.md) for its one-script install, services, Bluetooth joystick and calibration.
+
 ## Run on a laptop first
 
 From the repository root (Python 3.11+, macOS or Linux):
@@ -21,7 +23,7 @@ In another terminal, set the same `ROBOT_CONTROL_TOKEN` and run:
 robot/.venv/bin/python -m picrawler_control.controller ws://127.0.0.1:8765
 ```
 
-`e` enables; `w/s` selects forward/backward; `a/d` selects left/right; space stops and disables; `q` releases and exits. Direction presses produce 0.2 s input pulses. Hold/repeat a key for continued input; OS key repeat may pause between the first and second pulse. The controller sends a drive packet about every 50 ms while enabled, including neutral packets. This is a test controller, not a physical hold-to-run switch. Gaits may outlast a key pulse. A neutral command stops scheduling gaits but leaves control enabled; space requires a fresh `e`.
+`e` enables; `w/s` selects forward/backward; `a/d` selects left/right; space stops and disables; `q` releases and exits. Direction presses produce 0.5 s input pulses (long enough to bridge the OS key-repeat delay). Hold/repeat a key for continued input; OS key repeat may pause between the first and second pulse. The controller sends a drive packet about every 50 ms while enabled, including neutral packets. This is a test controller, not a physical hold-to-run switch. Gaits may outlast a key pulse. A neutral command stops scheduling gaits but leaves control enabled; space requires a fresh `e`.
 
 For Wi-Fi, copy `robot/config/control.toml` to a local file and set `host` to the Pi's private Wi-Fi IP (or `0.0.0.0` to listen on all interfaces). Use the Pi IP in the laptop URI. No cloud service or SpacetimeDB is on this path. The secret authenticates control but `ws://` is unencrypted: use a trusted private router/hotspot, restrict port 8765 to the controller, and never expose it to the internet. A client receives status after authentication and after each accepted packet; unsolicited periodic status is available through ROS only.
 
@@ -47,7 +49,7 @@ Then send strictly increasing integer `seq` values (0 through 2^53−1), reset f
 
 Enable clears old axes and starts a fresh command deadline. Send drive at 20 Hz, including neutral while enabled. **No drive packet for 0.5 s disables control**; new drive packets alone cannot re-enable it. Stop, release, disconnect, malformed input and backend errors also disable movement. A backend error is latched until process restart. Enable is rejected while a gait/initialization is still in progress.
 
-Deadzone defaults to 0.15. The larger axis selects a discrete vendor gait; turn wins ties. The bridge does not blend forward and turn into curved walking. Magnitude above the deadzone scales vendor speed from 20 to 50; these are vendor speed units, not m/s. Config validates limits (max permitted speed 80). Decreasing speed makes a gait take longer; it does not necessarily make stopping quicker.
+Deadzone defaults to 0.15. The larger axis selects a discrete vendor gait; turn wins ties. The bridge does not blend forward and turn into curved walking. Magnitude above the deadzone scales vendor speed from 20 to 50; these are vendor speed units, not m/s. Config validates limits (max permitted speed 100, the vendor maximum; the vendor still caps servo rate at 428 deg/s). Decreasing speed makes a gait take longer; it does not necessarily make stopping quicker.
 
 Status example:
 

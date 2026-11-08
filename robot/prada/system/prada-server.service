@@ -1,0 +1,20 @@
+# prada bridge server in hardware mode. Starting it moves nothing; the first
+# enabled, non-neutral drive initializes and moves all 12 servos.
+[Unit]
+Description=prada PiCrawler bridge (hardware)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=liquidiv
+WorkingDirectory=/home/liquidiv/hackutd26
+EnvironmentFile=/etc/picrawler-control.env
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/home/liquidiv/hackutd26/robot/.venv/bin/python -m picrawler_control.server --hardware --config /home/liquidiv/hackutd26/robot/prada/prada.toml
+Restart=no
+# Keep the single-owner rule while a vendor call is stuck; use the power switch.
+TimeoutStopSec=infinity
+
+[Install]
+WantedBy=multi-user.target

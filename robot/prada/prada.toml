@@ -1,0 +1,11 @@
+# Bridge config for prada. Loopback only: the joystick relay runs on the Pi
+# itself, and laptops reach the server through an SSH tunnel.
+host = "127.0.0.1"
+port = 8765
+timeout = 0.5
+deadzone = 0.15
+# Every gait runs at the vendor maximum. The vendor still caps servo rate at 428 deg/s.
+min_speed = 100
+max_speed = 100
+poll_interval = 0.02
+dry_gait_seconds = 0.15
