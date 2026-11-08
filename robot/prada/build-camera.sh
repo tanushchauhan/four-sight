@@ -6,8 +6,8 @@
 set -euo pipefail
 
 VENDOR="$HOME/vendor"
-LIBCAMERA_REV=v0.5.2+rpt20250903
-RPICAM_REV=v1.9.1
+LIBCAMERA_REV=v0.7.2+rpt20261009
+RPICAM_REV=v1.14.0
 
 if command -v rpicam-vid >/dev/null && rpicam-hello --list-cameras 2>&1 | grep -q imx; then
   echo "rpicam-apps already installed and sees the camera"
