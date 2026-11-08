@@ -93,18 +93,58 @@ movement and cancels subsequent poses. Resume always requires explicit enable.
 
 ## Autonomous demo and responder handoff
 
-The mission panel uses camera-only Nemotron vision guidance (no SLAM or position estimate).
-Ultrasonic sensing is not initialized or required. Start is explicit. The speed slider
-scales conservative command magnitudes of 0.22–0.30, not measured walking velocity.
-The Mac owns one SSH control connection and ignores headset steering in autonomous mode.
-While stationary, it requests a fresh camera image and a constrained forward/left/right/wait
-assessment. Two consecutive matching movement assessments are required. Confidence below 0.70, malformed output, camera/API failure, and responses
-older than eight seconds hold motion and retry without releasing autonomous ownership.
-A movement command lasts at most 150 ms, followed by neutral and a new stationary view;
-a committed vendor gait can finish after neutral or Stop. This is experimental visual
-guidance, not reliable obstacle ranging or drop-off detection. Test on clear, level ground.
-The NVIDIA key and vision model come from ignored agent/.env. No model output can directly
-execute a tool or arbitrary robot action.
+The mission panel uses local camera-only perception on the dashboard Mac. No NVIDIA
+API calls participate in steering, and ultrasonic sensing is not initialized.
+YOLO26n detects objects; NVIDIA SegFormer B5 (ADE20K) identifies floor/rug pixels.
+B0 misclassified this reflective corridor, while B5 recognized it in stationary tests.
+On the M4 Pro, the tested warm B5 segmentation pass took about 184 ms; actual combined
+inference and image age are shown in the dashboard and depend on load.
+
+**Local navigation vision** shows a recent annotated frame, three floor-coverage
+scores, detections, proposed direction, processing time and image age. These are
+image-space estimates, not measured distances or calibrated safety confidence.
+The preview runs even while manual/disarmed and cannot command motion by itself.
+Green pixels are confidently classified floor with a boundary margin. Object boxes
+are inflated and excluded from the candidate paths. Unknown pixels are not free space.
+
+Start remains explicit. Two distinct matching fresh frames establish a direction.
+Fresh clear results sustain motion continuously, including while a vendor gait runs;
+there is no periodic stop/look cycle. A still-clear current route is retained while
+confirming a changed preference. Blocked/unknown routes and results older than 750 ms
+command neutral, keep autonomous ownership, and retry. The gait already committed
+can finish. Transport faults, explicit Stop, and manual takeover still disarm.
+The speed slider scales conservative command magnitudes 0.22–0.30, not measured velocity.
+No reverse is requested. Head steering is ignored in autonomous mode.
+
+This is a camera-only demo policy: no SLAM, metric depth, or reliable drop-off protection.
+It has not been validated for general navigation; reflections, unseen hazards and model
+errors remain limitations. Test movement in a clear, level area with the Stop button ready.
+Nemotron remains responsible for conversations and person-assessment workflows.
+
+### Local perception setup
+
+On an Apple Silicon Mac, from the repository root:
+
+```sh
+python3 -m venv dashboard/.venv-vision
+dashboard/.venv-vision/bin/python -m pip install -r dashboard/requirements-vision.txt
+PYTHONPATH=robot:dashboard robot/.venv/bin/python dashboard/server.py
+```
+
+The dashboard starts the local perception process automatically when the optional venv
+exists. Model weights download on first use into ignored `dashboard/.vision-cache/`.
+The model service listens only on `127.0.0.1:8790`, with `/perception` and `/frame` read-only
+endpoints; logs are in `.vision-cache/service.log`. Dashboard proxies these to its UI.
+If dependencies, camera, or models are unavailable, motion holds; there is no cloud fallback.
+For standalone diagnosis: `dashboard/.venv-vision/bin/python dashboard/perception.py`.
+The dashboard leaves an independently started perception service running on shutdown.
+
+Validate policies without moving the robot:
+
+```sh
+PYTHONPATH=dashboard dashboard/.venv-vision/bin/python -m unittest dashboard/test_local_navigation.py dashboard/test_local_guidance.py -q
+PYTHONPATH=robot:dashboard robot/.venv/bin/python -m unittest discover -s dashboard -p 'test_*.py' -q
+```
 
 Person detection defaults OFF for an obstacle-only demo. Toggle it while running.
 When ON, the local Prada agent must heartbeat within three seconds, or exploration

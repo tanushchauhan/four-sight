@@ -153,7 +153,7 @@ to calibrated initial angles. The separate explicit zero operation is unchanged.
 
 ### Camera autonomy and responder radio
 
-The dashboard uses camera-only guidance. The legacy `picrawler_control.autonomy`
+The dashboard uses continuous local YOLO + SegFormer camera guidance on the Mac. The legacy `picrawler_control.autonomy`
 sonar module is unused by active control. Motion remains behind the single-owner
 motor server and its deadman. Camera `/frame` includes `X-Frame-Age` so the dashboard
 can reject stale images. See `dashboard/README.md` for speed controls and behavior.

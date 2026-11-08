@@ -109,6 +109,30 @@ class MissionWorkerTests(unittest.TestCase):
         finally:
             release.set();mission.close()
 
+    def test_local_vision_hold_keeps_owner_and_enabled(self):
+        control=DebugControl('not-a-robot')
+        def acquire(mode):
+            control.owner='owner';control.mode=mode
+            control.status={'connection':'connected','enabled':False}
+            return 'owner'
+        control.acquire=acquire
+        mission=Mission(control,Mock())
+        mission.guide=Mock()
+        mission.guide.command.return_value=(.25,0,'Clear floor')
+        try:
+            mission.start()
+            deadline=time.monotonic()+1
+            while control.axes[0]==0 and time.monotonic()<deadline:time.sleep(.01)
+            self.assertEqual(control.axes,(.25,0))
+            mission.guide.command.return_value=(0,0,'Obstacle')
+            deadline=time.monotonic()+1
+            while control.axes[0]!=0 and time.monotonic()<deadline:time.sleep(.01)
+            self.assertEqual(control.axes,(0,0))
+            self.assertTrue(control.armed)
+            self.assertEqual(control.owner,'owner')
+            self.assertEqual(mission.mode,'autonomous')
+        finally:mission.close()
+
 class MissionRouteTests(unittest.TestCase):
     def test_global_stop_cancels_person_found_admission(self):
         import json, threading, urllib.request

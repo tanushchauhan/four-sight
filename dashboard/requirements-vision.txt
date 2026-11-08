@@ -1,0 +1,8 @@
+# Install separately from robot hardware dependencies; tested on Apple M4 Pro.
+torch==2.15.0
+torchvision==0.29.2
+transformers==4.57.6
+ultralytics==8.4.207
+pillow==13.0.0
+numpy==2.4.6
+opencv-python==5.0.0.93

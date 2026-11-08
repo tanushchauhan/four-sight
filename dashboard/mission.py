@@ -7,7 +7,7 @@ import time
 import urllib.request
 import urllib.error
 from pathlib import Path
-from vision_navigation import CameraGuide
+from local_guidance import LocalGuide
 
 
 def settings():
@@ -50,7 +50,7 @@ class Media:
 class Mission:
     def __init__(self, control, media):
         self.control, self.media = control, media
-        self.guide = CameraGuide(settings())
+        self.guide = LocalGuide()
         self.lock = threading.RLock()
         self.mode = 'manual'
         self.speed = .5
@@ -70,7 +70,7 @@ class Mission:
             return dict(mode=self.mode, speed=self.speed, person_detection=self.detection,
                         reason=self.reason, person=self.last_person,
                         agent_connected=time.monotonic()-self.agent_seen < 3,
-                        navigation='camera')
+                        navigation='local')
 
     def configure(self, data):
         with self.lock:
@@ -109,7 +109,7 @@ class Mission:
             self.owner = self.control.acquire(mode='auto')
             self.seq = 0
             self.control_generation = self.control.generation
-            self.mode, self.reason = 'autonomous', 'Connecting; waiting for camera guidance'
+            self.mode, self.reason = 'autonomous', 'Connecting; waiting for local vision'
             return self.snapshot()
 
     def stop(self, reason='Stopped by operator', mode='stopped'):

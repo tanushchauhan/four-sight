@@ -121,6 +121,13 @@ class Handler(BaseHTTPRequestHandler):
         path = self.path.split('?', 1)[0]
         if path == '/api/status':
             self.send_body(200, 'application/json', json.dumps(dict(self.server.monitor.snapshot(), control=self.server.control.snapshot(), usb=self.server.usb.snapshot(), mission=self.server.mission.snapshot())).encode())
+        elif path in ('/api/perception', '/api/perception/frame'):
+            endpoint = '/frame' if path.endswith('/frame') else '/perception'
+            try:
+                with urllib.request.urlopen('http://127.0.0.1:8790' + endpoint, timeout=1) as response:
+                    self.send_body(200, response.headers.get('Content-Type', 'application/json'), response.read(2_000_000))
+            except Exception:
+                self.send_body(503, 'application/json', b'{"ready":false,"action":"wait","reason":"Local perception unavailable"}')
         elif path == '/api/mission':
             self.send_body(200, 'application/json', json.dumps(self.server.mission.snapshot()).encode())
         elif path == '/api/agent/recent':
@@ -272,6 +279,9 @@ def main():
     server.monitor = monitor
     server.control = DebugControl(args.robot)
     server.media = Media(settings())
+    from perception_runtime import PerceptionRuntime
+    perception_runtime = PerceptionRuntime()
+    perception_runtime.start()
     server.mission = Mission(server.control, server.media)
     server.usb = USBGlove(server.control)
     def glove_takeover():
@@ -297,6 +307,7 @@ def main():
         pass
     finally:
         server.mission.close()
+        perception_runtime.close()
         server.usb.close()
         server.control.close()
         monitor.stop.set()
