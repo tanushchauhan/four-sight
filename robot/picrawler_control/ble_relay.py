@@ -2,7 +2,9 @@
 
 Runs on the Pi next to the server. It reads joystick notifications over BLE and
 speaks protocol v1 to the server on loopback, so the control port stays private.
-Clicking the stick toggles enable/stop. If joystick data goes stale or Bluetooth
+Each click toggles enable/stop; enable is refused (error beep) unless the stick
+reads centered, so a bad center can never start the robot moving by itself.
+Hold the click 1.5 s on the joystick to re-center it. If joystick data goes stale or Bluetooth
 drops, the relay stops sending drive packets and the server's 0.5 s deadline
 disables movement. Requires `bleak` (pip install bleak) and BlueZ.
 """
@@ -21,6 +23,7 @@ SERVICE = "6b3f0001-8c1a-4d3e-9a0b-7d1f2c5e4a10"
 JOYSTICK = "6b3f0002-8c1a-4d3e-9a0b-7d1f2c5e4a10"
 STATE = "6b3f0003-8c1a-4d3e-9a0b-7d1f2c5e4a10"
 STALE_SECONDS = 0.3
+CENTERED = 0.15  # both axes must be inside this to enable (same as the server deadzone)
 PERIOD = 0.05
 
 
@@ -28,7 +31,7 @@ class Stick:
     def __init__(self, invert_forward, invert_turn):
         self.forward = 0.0
         self.turn = 0.0
-        self.click = False
+        self.clicks = None  # firmware click counter; None until the first packet
         self.received = 0.0
         self.sign_f = -1.0 if invert_forward else 1.0
         self.sign_t = -1.0 if invert_turn else 1.0
@@ -36,15 +39,18 @@ class Stick:
     def update(self, _sender, data):
         if len(data) != 3:
             return
-        turn, forward, click = struct.unpack("bbB", bytes(data))
+        turn, forward, clicks = struct.unpack("bbB", bytes(data))
         # Server convention: positive turn is left. Stick right reads positive X.
         self.turn = max(-1.0, min(1.0, -self.sign_t * turn / 127))
         self.forward = max(-1.0, min(1.0, self.sign_f * forward / 127))
-        self.click = bool(click)
+        self.clicks = clicks
         self.received = time.monotonic()
 
     def fresh(self):
         return time.monotonic() - self.received < STALE_SECONDS
+
+    def centered(self):
+        return abs(self.forward) < CENTERED and abs(self.turn) < CENTERED
 
 
 async def release_stale_links():
@@ -94,7 +100,7 @@ async def session(device, uri, token, stick):
         logging.info("server backend %s", status.get("backend"))
         seq = 0
         enabled = False
-        last_click = False
+        last_clicks = None
 
         async def send(kind, **extra):
             nonlocal seq
@@ -105,22 +111,31 @@ async def session(device, uri, token, stick):
                 raise RuntimeError(reply.get("message"))
             return reply
 
+        async def tell_joystick(state):
+            with contextlib.suppress(Exception):
+                await ble.write_gatt_char(STATE, bytes([state]), response=False)
+
         async def set_enabled(value):
             nonlocal enabled
             if value != enabled:
                 logging.info("enabled" if value else "disabled")
-                with contextlib.suppress(Exception):
-                    await ble.write_gatt_char(STATE, bytes([1 if value else 0]), response=False)
+                await tell_joystick(1 if value else 0)
             enabled = value
 
         try:
             while ble.is_connected:
                 started = time.monotonic()
-                click = stick.click and stick.fresh()
-                if click and not last_click:
-                    reply = await send("stop" if enabled else "enable")
-                    await set_enabled(reply["enabled"])
-                last_click = click
+                if stick.fresh() and stick.clicks is not None:
+                    if last_clicks is not None and stick.clicks != last_clicks:
+                        if enabled:
+                            await set_enabled((await send("stop"))["enabled"])
+                        elif stick.centered():
+                            await set_enabled((await send("enable"))["enabled"])
+                        else:
+                            logging.warning("enable refused: stick reads forward=%.2f turn=%.2f, "
+                                            "hold the click 1.5 s to re-center", stick.forward, stick.turn)
+                            await tell_joystick(2)
+                    last_clicks = stick.clicks
                 if enabled:
                     if not stick.fresh():
                         await set_enabled((await send("stop"))["enabled"])

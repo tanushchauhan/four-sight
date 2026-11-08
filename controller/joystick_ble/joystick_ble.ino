@@ -5,9 +5,13 @@
 //   D3 connector: Grove buzzer (active, HIGH = sound)
 //
 // Bluetooth LE: advertises as "prada". The joystick characteristic notifies
-// 3 bytes at 20 Hz: int8 turn, int8 forward, uint8 click. The Pi relay writes
-// 1 byte to the state characteristic (1 = enabled, 0 = disabled) so the buzzer
-// can confirm what the robot is doing.
+// 3 bytes at 20 Hz: int8 turn, int8 forward, uint8 click count. The count goes
+// up by one on each short click (on release), so the relay toggles exactly once
+// per click and never misses one. Holding the click for 1.5 s re-centers the
+// stick instead. The stick is also re-centered on every new connection, so leave
+// it alone while it connects. The Pi relay writes 1 byte to the state
+// characteristic (0 disabled, 1 enabled, 2 refused because the stick was not
+// centered) so the buzzer can confirm what the robot is doing.
 
 #include <CurieBLE.h>
 
@@ -18,6 +22,7 @@ const int PIN_BUZZER = 3;
 const int CLICK_THRESHOLD = 1000;  // X reading while the stick is pressed
 const float AXIS_SPAN = 300.0;     // raw counts from center to full deflection
 const unsigned long SEND_MS = 50;
+const unsigned long RECENTER_HOLD_MS = 1500;
 
 BLEService joyService("6b3f0001-8c1a-4d3e-9a0b-7d1f2c5e4a10");
 BLECharacteristic joyChar("6b3f0002-8c1a-4d3e-9a0b-7d1f2c5e4a10", BLERead | BLENotify, 3);
@@ -52,6 +57,8 @@ void updateBuzzer() {
 const int BEEP_CONNECTED[] = {60, 80, 60, 80, 60};
 const int BEEP_ENABLED[] = {200};
 const int BEEP_DISABLED[] = {60, 80, 60};
+const int BEEP_REFUSED[] = {400, 120, 400};   // stick not centered: re-center, then click again
+const int BEEP_RECENTERED[] = {60, 60, 300};
 
 int8_t toAxis(int raw, int center) {
   float value = (raw - center) / AXIS_SPAN;
@@ -101,25 +108,47 @@ void loop() {
   BLEDevice central = BLE.central();
   if (!central) return;
 
+  calibrate();
   beep(BEEP_CONNECTED, 5);
   unsigned long lastSend = 0;
+  unsigned char clicks = 0;
+  bool pressed = false;
+  bool recentered = false;
+  unsigned long pressStart = 0;
   while (central.connected()) {
     updateBuzzer();
     if (stateChar.written()) {
-      if (stateChar.value()) beep(BEEP_ENABLED, 1);
+      unsigned char state = stateChar.value();
+      if (state == 1) beep(BEEP_ENABLED, 1);
+      else if (state == 2) beep(BEEP_REFUSED, 3);
       else beep(BEEP_DISABLED, 3);
     }
     if (millis() - lastSend >= SEND_MS) {
       lastSend = millis();
       int rawX = analogRead(PIN_X);
       int rawY = analogRead(PIN_Y);
-      bool click = rawX >= CLICK_THRESHOLD;
+      bool down = rawX >= CLICK_THRESHOLD;
+      if (down && !pressed) { pressed = true; recentered = false; pressStart = millis(); }
+      if (down && pressed && !recentered && millis() - pressStart >= RECENTER_HOLD_MS) {
+        recentered = true;  // re-center after release, once the stick is let go
+      }
+      if (!down && pressed) {
+        pressed = false;
+        if (recentered) {
+          delay(300);
+          calibrate();
+          beep(BEEP_RECENTERED, 3);
+        } else {
+          clicks++;
+        }
+      }
       unsigned char packet[3];
-      packet[0] = (unsigned char)(click ? 0 : toAxis(rawX, centerX));
-      packet[1] = (unsigned char)toAxis(rawY, centerY);
-      packet[2] = click ? 1 : 0;
+      packet[0] = (unsigned char)(pressed ? 0 : toAxis(rawX, centerX));
+      packet[1] = (unsigned char)(pressed ? 0 : toAxis(rawY, centerY));
+      packet[2] = clicks;
       joyChar.setValue(packet, 3);
-      Serial.print(rawX); Serial.print(' '); Serial.print(rawY); Serial.print(' '); Serial.println(click);
+      Serial.print(rawX); Serial.print(' '); Serial.print(rawY); Serial.print(' ');
+      Serial.print(centerX); Serial.print(' '); Serial.print(centerY); Serial.print(' '); Serial.println(clicks);
     }
   }
   digitalWrite(PIN_BUZZER, LOW);

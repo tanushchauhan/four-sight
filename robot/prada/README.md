@@ -70,15 +70,19 @@ arduino-cli compile --fqbn Intel:arc32:arduino_101 controller/joystick_ble
 arduino-cli upload --fqbn Intel:arc32:arduino_101 -p /dev/cu.usbmodem* controller/joystick_ble
 ```
 
-Grove wiring: thumb joystick on A0 (X on A0, Y on A1), buzzer on D3. It advertises over Bluetooth LE as `prada`, and the relay on the Pi finds it by service UUID. Leave the stick alone while it powers on, because it measures its center then.
+Grove wiring: thumb joystick on A0 (X on A0, Y on A1), buzzer on D3. It advertises over Bluetooth LE as `prada`, and the relay on the Pi finds it by service UUID. It re-centers each time it connects, so leave the stick alone while it connects.
 
 | Buzzer | Meaning |
 | --- | --- |
-| Three quick beeps | Joystick connected to the Pi |
+| Three quick beeps | Joystick connected to the Pi (it re-centers then, so don't touch the stick) |
 | One long beep | Enabled |
 | Two short beeps | Stopped |
+| Two long beeps | Enable refused: the stick doesn't read centered |
+| Two short, one long | Re-centered |
 
-Click the stick to enable, push to walk or turn, click again to stop. If the stick drives the wrong way, add `--invert-forward` or `--invert-turn` to `ExecStart` in `prada-joystick.service`.
+Click the stick to enable, push to walk or turn, click again to stop. Enable only works when the stick reads centered, so a bad center can't make the robot move by itself. If you get two long beeps, let go of the stick, **hold the click for 1.5 s** and release to re-center, then click again.
+
+If the stick drives the wrong way, add `--invert-forward` or `--invert-turn` to `ExecStart` in `prada-joystick.service`.
 
 **Laptop keyboard** (for testing). The server only listens on the Pi's loopback, so tunnel to it. Stop the joystick relay first, since the server takes one controller at a time:
 
