@@ -1,0 +1,268 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		B00100000000000000000001 /* VisorApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00100000000000000000001 /* VisorApp.swift */; };
+		B00100000000000000000002 /* VisorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00100000000000000000002 /* VisorView.swift */; };
+		B00100000000000000000003 /* ARSessionController.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00100000000000000000003 /* ARSessionController.swift */; };
+		B00100000000000000000004 /* StereoRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00100000000000000000004 /* StereoRenderer.swift */; };
+		B00100000000000000000005 /* LensDistortion.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00100000000000000000005 /* LensDistortion.swift */; };
+		B00100000000000000000006 /* Shaders.metal in Sources */ = {isa = PBXBuildFile; fileRef = F00100000000000000000006 /* Shaders.metal */; };
+		B00100000000000000000010 /* ARKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F00100000000000000000010 /* ARKit.framework */; };
+		B00100000000000000000011 /* Metal.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F00100000000000000000011 /* Metal.framework */; };
+		B00100000000000000000012 /* MetalKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F00100000000000000000012 /* MetalKit.framework */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		F00100000000000000000001 /* VisorApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Visor/VisorApp.swift; sourceTree = SOURCE_ROOT; };
+		F00100000000000000000002 /* VisorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Visor/VisorView.swift; sourceTree = SOURCE_ROOT; };
+		F00100000000000000000003 /* ARSessionController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Visor/ARSessionController.swift; sourceTree = SOURCE_ROOT; };
+		F00100000000000000000004 /* StereoRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Visor/StereoRenderer.swift; sourceTree = SOURCE_ROOT; };
+		F00100000000000000000005 /* LensDistortion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Visor/LensDistortion.swift; sourceTree = SOURCE_ROOT; };
+		F00100000000000000000006 /* Shaders.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = Visor/Shaders.metal; sourceTree = SOURCE_ROOT; };
+		F00100000000000000000007 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Visor/Info.plist; sourceTree = SOURCE_ROOT; };
+		F00100000000000000000008 /* Visor.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Visor.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		F00100000000000000000010 /* ARKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ARKit.framework; path = System/Library/Frameworks/ARKit.framework; sourceTree = SDKROOT; };
+		F00100000000000000000011 /* Metal.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Metal.framework; path = System/Library/Frameworks/Metal.framework; sourceTree = SDKROOT; };
+		F00100000000000000000012 /* MetalKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MetalKit.framework; path = System/Library/Frameworks/MetalKit.framework; sourceTree = SDKROOT; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		C00100000000000000000003 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B00100000000000000000010 /* ARKit.framework in Frameworks */,
+				B00100000000000000000011 /* Metal.framework in Frameworks */,
+				B00100000000000000000012 /* MetalKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		G00100000000000000000001 = {
+			isa = PBXGroup;
+			children = (
+				G00100000000000000000002 /* Visor */,
+				G00100000000000000000003 /* Frameworks */,
+				G00100000000000000000004 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		G00100000000000000000002 /* Visor */ = {
+			isa = PBXGroup;
+			children = (
+				F00100000000000000000001 /* VisorApp.swift */,
+				F00100000000000000000002 /* VisorView.swift */,
+				F00100000000000000000003 /* ARSessionController.swift */,
+				F00100000000000000000004 /* StereoRenderer.swift */,
+				F0010000000000000000005 /* LensDistortion.swift */,
+				F00100000000000000000006 /* Shaders.metal */,
+				F00100000000000000000007 /* Info.plist */,
+			);
+			path = Visor;
+			sourceTree = "<group>";
+		};
+		G00100000000000000000003 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				F00100000000000000000010 /* ARKit.framework */,
+				F00100000000000000000011 /* Metal.framework */,
+				F00100000000000000000012 /* MetalKit.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		G00100000000000000000004 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				F00100000000000000000008 /* Visor.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		T00100000000000000000001 /* Visor */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = L00100000000000000000002 /* Build configuration list for PBXNativeTarget "Visor" */;
+			buildPhases = (
+				C00100000000000000000001 /* Sources */,
+				C00100000000000000000003 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = Visor;
+			productName = Visor;
+			productReference = F00100000000000000000008 /* Visor.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		P00100000000000000000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastUpgradeCheck = 2620;
+				TargetAttributes = {
+					T00100000000000000000001 = {
+						CreatedOnToolsVersion = 26.0;
+					};
+				};
+			};
+			buildConfigurationList = L00100000000000000000001 /* Build configuration list for PBXProject "Visor" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = G00100000000000000000001;
+			productRefGroup = G00100000000000000000004 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				T00100000000000000000001 /* Visor */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		C00100000000000000000001 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B00100000000000000000001 /* VisorApp.swift in Sources */,
+				B00100000000000000000002 /* VisorView.swift in Sources */,
+				B00100000000000000000003 /* ARSessionController.swift in Sources */,
+				B00100000000000000000004 /* StereoRenderer.swift in Sources */,
+				B00100000000000000000005 /* LensDistortion.swift in Sources */,
+				B00100000000000000000006 /* Shaders.metal in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		D00100000000000000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_DEBUG_DYLIB = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		D00100000000000000000002 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		E00100000000000000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = HR96XAST6R;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Visor/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.hackutd26.visor;
+				PRODUCT_NAME = Visor;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		E00100000000000000000002 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = HR96XAST6R;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Visor/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.hackutd26.visor;
+				PRODUCT_NAME = Visor;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		L00100000000000000000001 /* Build configuration list for PBXProject "Visor" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D00100000000000000000001 /* Debug */,
+				D00100000000000000000002 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		L00100000000000000000002 /* Build configuration list for PBXNativeTarget "Visor" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				E00100000000000000000001 /* Debug */,
+				E00100000000000000000002 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = P00100000000000000000001 /* Project object */;
+}
