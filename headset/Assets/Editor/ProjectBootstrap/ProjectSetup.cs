@@ -28,9 +28,9 @@ namespace ProjectBootstrap
         {
             var android = NamedBuildTarget.Android;
 
-            PlayerSettings.companyName = "brenpoly";
+            PlayerSettings.companyName = "HackUTD";
             PlayerSettings.productName = "CardboardXR";
-            PlayerSettings.SetApplicationIdentifier(android, "com.brenpoly.cardboardxr");
+            PlayerSettings.SetApplicationIdentifier(android, "com.hackutd26.visor");
 
             PlayerSettings.SetScriptingBackend(android, ScriptingImplementation.IL2CPP);
             PlayerSettings.Android.targetArchitectures = AndroidArchitecture.ARM64;
@@ -57,7 +57,7 @@ namespace ProjectBootstrap
             PlayerSettings.enableFrameTimingStats = true;
 
             var ios = NamedBuildTarget.iOS;
-            PlayerSettings.SetApplicationIdentifier(ios, "com.brenpoly.cardboardxr");
+            PlayerSettings.SetApplicationIdentifier(ios, "com.hackutd26.visor");
             PlayerSettings.SetScriptingBackend(ios, ScriptingImplementation.IL2CPP);
             // AR Foundation 6 needs iOS 12; 14 is where the LiDAR depth on the iPhone Pro arrived.
             PlayerSettings.iOS.targetOSVersionString = "14.0";

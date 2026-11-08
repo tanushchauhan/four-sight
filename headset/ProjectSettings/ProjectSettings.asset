@@ -12,7 +12,7 @@ PlayerSettings:
   targetDevice: 0
   useOnDemandResources: 0
   accelerometerFrequency: 60
-  companyName: brenpoly
+  companyName: HackUTD
   productName: CardboardXR
   defaultCursor: {fileID: 0}
   cursorHotspot: {x: 0, y: 0}
@@ -170,9 +170,9 @@ PlayerSettings:
   androidMaxAspectRatio: 2.4
   androidMinAspectRatio: 1
   applicationIdentifier:
-    Android: com.brenpoly.cardboardxr
+    Android: com.hackutd26.visor
     Standalone: com.Unity-Technologies.com.unity.template.urp-blank
-    iPhone: com.brenpoly.cardboardxr
+    iPhone: com.hackutd26.visor
   buildNumber:
     Standalone: 0
     VisionOS: 0

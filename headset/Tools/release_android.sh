@@ -11,7 +11,7 @@
 # every asset, so it takes a while. Close the project in the Editor first.
 set -euo pipefail
 VERSION=${1:?usage: zsh Tools/release_android.sh 1.2.3}
-REPO=${CARDBOARDXR_REPO:-brenpoly/CardboardXR}
+REPO=${CARDBOARDXR_REPO:?Set CARDBOARDXR_REPO to owner/name}
 U=${UNITY:-/Applications/Unity/Hub/Editor/6000.6.8f1/Unity.app/Contents/MacOS/Unity}
 KEYSTORE=${CARDBOARDXR_KEYSTORE:-$HOME/.cardboardxr/release.keystore}
 WORK=${TMPDIR:-/tmp}/cardboardxr-release

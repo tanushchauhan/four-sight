@@ -189,21 +189,15 @@ Check:
 
 ## Your own build
 
-Your demos stay in your own build. Pull requests that add demos to this repository won't be merged.
-Keep your demos in a fork or your own clone, and build and install it as
-[the README](README.md#build-and-run) describes.
+Demos belong in this repository. Build and install as [the README](README.md#build-and-run) describes.
 
-- **Use your own app id.** Set `CARDBOARDXR_BUNDLE_ID` to an id of your own, such as
-  `com.example.cardboardxr`. Then your build installs next to this project's released app instead of
-  replacing it. On iOS you need your own id anyway, since an id belongs to the Apple team that first
-  signed it.
-- **Updating from this repository.** Your demos are in their own folders, so pulling new changes
-  rarely conflicts. `DemoCatalog.asset` is the one file that can. Take this repository's version and
-  build, and your demos' entries are added back from their setups. Any changes you made to those
+- **App id.** The visor id is `com.hackutd26.visor`. An iOS bundle id belongs to the Apple team that
+  first signed it, so a different team needs its own id via `CARDBOARDXR_BUNDLE_ID`.
+- **Catalog.** `DemoCatalog.asset` is the file a merge is most likely to touch. Take this repository's
+  version and build, and each demo's entry is added back from its setup. Changes made to those
   entries by hand need making again.
-- **Sharing your build.** You can share your fork or your builds under the terms of the Apache 2.0
-  [license](LICENSE): include the license and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md), and
-  say what you changed.
+- **Sharing a build.** Share it under the Apache 2.0 [license](LICENSE): include the license and
+  [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md), and say what you changed.
 
 ## Using a coding agent
 

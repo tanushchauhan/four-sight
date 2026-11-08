@@ -9,17 +9,11 @@ Tested on a **Pixel 9 Pro** (Android, ARCore) and an **iPhone 15 Pro** (iOS, ARK
 
 This copy is the HackUTD visor. A launch from the phone's home screen stays in 3DoF: no camera, no hand models, 60 fps, eye textures at 75% scale, no MSAA, screen at 70% brightness. `dof 6` brings back the original room-scan lobby.
 
-## Video and viewer
+## Viewer
 
-**Watch the video** about the project on YouTube:
-
-[![CardboardXR on YouTube](https://img.youtube.com/vi/XtNmiTohUcs/maxresdefault.jpg)](https://youtu.be/XtNmiTohUcs)
-
-**Print the viewer**: the 3D print files for a mobile VR viewer made for modern smartphones are on
-MakerWorld: [Mobile VR viewer for modern smartphones](https://makerworld.com/en/models/3511377-mobile-vr-viewer-for-modern-smartphones).
-To make the viewer's phone door fit your phone, enter its dimensions in the
-[phone door generator](https://brenpoly.github.io/CardboardXR/door-generator/). It makes the 3MF and
-STL files in your browser.
+The HackUTD headset shells and doors are in [`../hardware/headsets`](../hardware/headsets).
+To make a phone door from a phone's dimensions, open
+[docs/door-generator/index.html](docs/door-generator/index.html). It makes the 3MF and STL files in the browser.
 
 ## Interactive pages
 
@@ -28,26 +22,23 @@ Three interactive pages go with the project. Click an image to open it.
 **From Cardboard to VR glasses**: every headset since 2013, by launch price or form factor, and
 where phone VR fell away.
 
-[![The headset timeline: every VR headset from 2013 to 2027 plotted by launch price](docs/images/timeline.png)](https://brenpoly.github.io/CardboardXR/)
+[![The headset timeline: every VR headset from 2013 to 2027 plotted by launch price](docs/images/timeline.png)](docs/index.html)
 
 **Inside the iPhone build**: how the hardware, Apple's and Unity's frameworks and the app fit
 together, layer by layer.
 
-[![The iPhone build's architecture: sensors and camera through ARKit and the AI runtime to head, hand and room tracking, rendering and heat control](docs/images/architecture.png)](https://brenpoly.github.io/CardboardXR/iphone-architecture.html)
+[![The iPhone build's architecture: sensors and camera through ARKit and the AI runtime to head, hand and room tracking, rendering and heat control](docs/images/architecture.png)](docs/iphone-architecture.html)
 
 **Phone door generator**: enter your phone's dimensions and download a phone door for the
 3D-printed viewer that fits it, as 3MF or STL files.
 
-[![The phone door generator: a form for the phone's dimensions beside a 3D preview of the door with its orange TPU corner locators](docs/images/door-generator.png)](https://brenpoly.github.io/CardboardXR/door-generator/)
+[![The phone door generator: a form for the phone's dimensions beside a 3D preview of the door with its orange TPU corner locators](docs/images/door-generator.png)](docs/door-generator/index.html)
 
-The pages are in `docs/`, served by GitHub Pages.
+The pages are in `docs/`.
 
 ## Install
 
-For Android, download the APK from [Releases](https://github.com/brenpoly/CardboardXR/releases) on
-an ARCore phone (Android 10 or later, 64-bit, with Vulkan) and open it. Android asks you to allow
-installing apps from your browser or file manager. For iOS there's no download yet: build it from
-source, below.
+Build from source and install it on the phone. Android needs an ARCore phone (Android 10 or later, 64-bit, with Vulkan).
 
 ## Requirements
 
@@ -73,7 +64,7 @@ zsh Tools/ios_launch.sh                                      # iOS, relaunch wit
 
 Builds are release builds. For a development build (debuggable, with the Unity Profiler able to
 connect over the local network), set `CARDBOARDXR_DEVELOPMENT=1`. The app id is
-`com.brenpoly.cardboardxr`; an iOS bundle id belongs to the Apple team that first signed it, so to
+`com.hackutd26.visor`. An iOS bundle id belongs to the Apple team that first signed it, so to
 build for your own iPhone pick your own, the same way for every script:
 
 ```sh
@@ -154,7 +145,7 @@ phone's home screen. The app logs the options it received at startup (`[Stereo] 
   small test clips are bundled. To bundle your own in local builds, put them in a `360` folder
   beside the project (or set `CARDBOARDXR_VIDEOS`): the build scripts copy them into
   `Assets/StreamingAssets`, which git ignores apart from the test clips. Or add your own to the app's `Videos` folder on the phone: on
-  Android `adb push video.mp4 /storage/emulated/0/Android/data/com.brenpoly.cardboardxr/files/Videos`;
+  Android `adb push video.mp4 /storage/emulated/0/Android/data/com.hackutd26.visor/files/Videos`;
   on iPhone, Finder's Files tab for the phone, then CardboardXR > Videos. Tags in the name set the
   format (`_360`, `_180`, `_sbs`, `_tb`, `_mono`). For Google Drive, put share links in
   `videos.txt` in that folder, one per line; each downloads on first play.
@@ -189,7 +180,7 @@ Every launch writes a session log on the phone, replacing the last one (which is
 `session-previous.log`). The scripts print its start; to read the whole thing:
 
 ```sh
-adb pull /storage/emulated/0/Android/data/com.brenpoly.cardboardxr/files/session.log   # Android
+adb pull /storage/emulated/0/Android/data/com.hackutd26.visor/files/session.log   # Android
 ```
 
 On iOS, `ios_launch.sh` copies it to `$TMPDIR/cardboardxr/ios-session.log`.
@@ -254,8 +245,8 @@ and each demo are scenes loaded additively and unloaded on leaving; `DemoManager
 them and demo scripts reach Core through `CoreServices`. Everything a demo has lives in
 `Assets/_Project/Demos/<Name>/`: its scene, assets, scripts and tests, and a `DemoSetup` that
 gives its entry in `DemoCatalog.asset` (its scene and what it needs) and makes its starter scene.
-[ADDING_A_DEMO.md](ADDING_A_DEMO.md) explains how to make one for your own build, either by hand or
-with a coding agent and the skill in `Tools/new-demo`. This repository doesn't take new demos.
+[ADDING_A_DEMO.md](ADDING_A_DEMO.md) explains how to make one, either by hand or
+with a coding agent and the skill in `Tools/new-demo`.
 
 **Core is generated**, not edited by hand: `Assets/Editor/ProjectBootstrap/StereoBuilder.cs`
 builds `Core.unity` and its materials on every build, so changes made to them in the Editor are

@@ -15,7 +15,7 @@ P=${0:A:h:h}
 U=${UNITY:-/Applications/Unity/Hub/Editor/6000.6.8f1/Unity.app/Contents/MacOS/Unity}
 # Another app id (an iOS bundle id belongs to the Apple team that first signed it):
 #   CARDBOARDXR_BUNDLE_ID=com.example.cardboardxr zsh Tools/...
-PKG=${CARDBOARDXR_BUNDLE_ID:-com.brenpoly.cardboardxr}
+PKG=${CARDBOARDXR_BUNDLE_ID:-com.hackutd26.visor}
 LOGS=${TMPDIR:-/tmp}/cardboardxr
 mkdir -p $LOGS
 cd $P || exit 1

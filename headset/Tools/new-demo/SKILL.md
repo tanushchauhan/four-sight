@@ -149,6 +149,5 @@ Give them a test checklist for this demo in particular: the general checks under
 `ADDING_A_DEMO.md`, plus what's specific to it (for example "hit an orb with your hand half out of
 view"). Don't commit unless they ask.
 
-The demo stays in the person's own build. The CardboardXR repository doesn't take new demos, so
-don't suggest a pull request upstream. If they plan to install it next to the released app or share
-it, point them to "Your own build" in `ADDING_A_DEMO.md`.
+The demo stays in this repository. If they plan to share a build, point them to "Your own build" in
+`ADDING_A_DEMO.md`.

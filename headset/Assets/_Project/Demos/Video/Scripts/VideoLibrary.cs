@@ -23,7 +23,7 @@ namespace CardboardXR.Demos.Video
 
     // Finds the videos to offer: the ones bundled with the app, files the user copied into the
     // Videos folder, and Google Drive links listed in videos.txt in that folder.
-    //   Android: /storage/emulated/0/Android/data/com.brenpoly.cardboardxr/files/Videos
+    //   Android: /storage/emulated/0/Android/data/com.hackutd26.visor/files/Videos
     //            (adb push beach_360.mp4 there; no storage permission needed)
     //   iPhone:  the app's Documents/Videos, which Finder (the phone's Files tab) and the Files app
     //            can copy into, since the app shares its Documents folder

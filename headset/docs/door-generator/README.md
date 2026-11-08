@@ -1,6 +1,6 @@
 # Phone door generator
 
-A browser tool that makes the phone door for the 3D-printed CardboardXR viewer, sized for any phone that fits the shell. It's at https://brenpoly.github.io/CardboardXR/door-generator/, served by GitHub Pages.
+A browser tool that makes the phone door for the 3D-printed visor, sized for any phone that fits the shell. Open `index.html` in this folder. Everything runs in the browser.
 
 ## What changes and what doesn't
 - **Fixed:** the door outline, hinge knuckles with the pin hole, and the hair-tie latch. These mate with the viewer shell, so they never change.

@@ -8,7 +8,7 @@
 # log after a test, or to try other options. The phone must be unlocked, because iOS refuses to
 # launch anything on a locked device.
 set -u
-BUNDLE=${CARDBOARDXR_BUNDLE_ID:-com.brenpoly.cardboardxr}
+BUNDLE=${CARDBOARDXR_BUNDLE_ID:-com.hackutd26.visor}
 PREFIX=CARDBOARDXR_
 LOGS=${TMPDIR:-/tmp}/cardboardxr
 mkdir -p $LOGS
