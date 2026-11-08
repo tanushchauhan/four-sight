@@ -141,8 +141,32 @@
 <div class="notice" role="status" aria-live="polite"><strong id="message">Connecting to the field systems…</strong><p id="detail">The monitor checks Prada automatically. Unavailable readings are never treated as healthy.</p><p id="error" class="error" hidden></p></div>
 <p class="hint block">Glove and keyboard use exclusive control. The selected keyboard or glove controller owns enable and stop. A connected headset does not confirm authentication, active steering, or robot movement.</p>
 <footer class="mast"><span>Prada field systems, local status console</span><span id="revision">Robot revision none</span><span>Local keyboard control. No cloud required.</span></footer>
+<section class="card" aria-labelledby="visor-title">
+<div class="panel-top"><h2 id="visor-title">Visor mirror</h2><button id="visor-connect" type="button">Connect visor view</button></div>
+<p id="visor-status" role="status">Enable “Share visor view with console” in the iPhone visor settings, then connect here.</p>
+<img id="visor-frame" alt="Live visor camera and HUD, single-eye preview" hidden style="max-width:100%;max-height:480px;margin:auto;object-fit:contain" />
+<p class="label">Camera + HUD · low-resolution single-eye preview · refreshes about every 2 seconds</p>
+</section>
 </main>
 <script>
+let visorWatching=false,visorTimer=null,visorObjectURL=null;
+document.getElementById('visor-connect').onclick=()=>{
+visorWatching=!visorWatching;
+document.getElementById('visor-connect').textContent=visorWatching?'Disconnect visor view':'Connect visor view';
+if(visorWatching)refreshVisor();else{clearTimeout(visorTimer);document.getElementById('visor-frame').hidden=true;document.getElementById('visor-status').textContent='Visor preview disconnected';if(visorObjectURL){URL.revokeObjectURL(visorObjectURL);visorObjectURL=null;}}
+};
+async function refreshVisor(){
+try{
+const response=await fetch('/api/visor/frame?t='+Date.now(),{signal:AbortSignal.timeout(3000)});
+if(!response.ok)throw Error('Waiting for iPhone. Enable sharing in visor settings; phone and console must be on the same network.');
+const blob=await response.blob();if(!visorWatching)return;
+const next=URL.createObjectURL(blob),image=document.getElementById('visor-frame');
+image.src=next;image.hidden=false;if(visorObjectURL)URL.revokeObjectURL(visorObjectURL);visorObjectURL=next;
+document.getElementById('visor-status').textContent='Receiving visor camera + HUD · delayed preview';
+}catch(error){if(visorWatching){document.getElementById('visor-frame').hidden=true;document.getElementById('visor-status').textContent=error.message;}}
+finally{if(visorWatching)visorTimer=setTimeout(refreshVisor,2000);}
+}
+window.addEventListener('pagehide',()=>{visorWatching=false;clearTimeout(visorTimer);if(visorObjectURL)URL.revokeObjectURL(visorObjectURL);});
 const $=id=>document.getElementById(id);let latest=null,busy=false,imageStamp=null;
 const set=(id,text)=>$(id).textContent=text;
 function badge(id,text,state=''){set(id,text);$(id).className='badge '+state}

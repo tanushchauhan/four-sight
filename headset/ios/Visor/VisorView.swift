@@ -19,6 +19,7 @@ struct VisorView: View {
     @AppStorage("cameraURL") private var address = "http://prada.local:8080/stream"
     @AppStorage("agentURL") private var agentAddress = ""
     @AppStorage("cameraSource") private var sourceName = CameraSource.robot.rawValue
+    @AppStorage("shareVisorMirror") private var shareMirror = false
     @State private var phone = PhoneCamera()
     @State private var settings = true
     @State private var radarTime = Date()
@@ -103,7 +104,7 @@ struct VisorView: View {
 
     var body: some View {
         ZStack {
-            MetalVisor(session: controller, phone: phone, detector: survivorDetector, source: source, briefing: briefing, layerStatus: $layerStatus)
+            MetalVisor(session: controller, phone: phone, detector: survivorDetector, source: source, briefing: briefing, shareMirror: shareMirror, cameraAddress: address, layerStatus: $layerStatus)
                 .ignoresSafeArea()
                 .contentShape(Rectangle())
                 .onTapGesture { settings.toggle() }
@@ -195,6 +196,9 @@ struct VisorView: View {
                 Text(layerStatus)
                     .font(VisorToken.body(16))
                     .foregroundStyle(VisorToken.ink2.color)
+                Toggle("Share visor view with console", isOn: $shareMirror)
+                    .font(VisorToken.label(16))
+                    .tint(VisorToken.ink.color)
             }
             rule
             cell {
@@ -360,6 +364,8 @@ private struct MetalVisor: UIViewRepresentable {
     let detector: SurvivorDetector
     let source: CameraSource
     let briefing: VisorBriefing
+    let shareMirror: Bool
+    let cameraAddress: String
     @Binding var layerStatus: String
 
     func makeCoordinator() -> Coordinator { Coordinator() }
@@ -370,6 +376,7 @@ private struct MetalVisor: UIViewRepresentable {
         view.backgroundColor = VisorToken.paper3.uiColor
         if let renderer = StereoRenderer(view: view, session: session, phone: phone, detector: detector) {
             renderer.source = source
+            renderer.mirrorEndpoint = mirrorEndpoint
             context.coordinator.renderer = renderer
             view.delegate = renderer
             draw(context)
@@ -381,7 +388,14 @@ private struct MetalVisor: UIViewRepresentable {
 
     func updateUIView(_ uiView: MTKView, context: Context) {
         context.coordinator.renderer?.source = source
+        context.coordinator.renderer?.mirrorEndpoint = mirrorEndpoint
         if context.coordinator.drawn != briefing { draw(context) }
+    }
+
+    private var mirrorEndpoint: URL? {
+        guard shareMirror, var url = URLComponents(string: AgentLink.defaultAddress(camera: cameraAddress)) else { return nil }
+        url.port = 8090; url.path = "/api/visor/frame"; url.query = nil
+        return url.url
     }
 
     private func draw(_ context: Context) {

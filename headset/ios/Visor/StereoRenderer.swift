@@ -40,6 +40,8 @@ struct HudUniforms {
 /// frustums and PassthroughController's uncropped camera quad math, then warps both eye textures
 /// through the Cardboard v1 lens distortion mesh onto the screen.
 final class StereoRenderer: NSObject, MTKViewDelegate {
+    var mirrorEndpoint: URL?
+    private let mirror = VisorMirror()
     // Matches StereoRig's m_RenderScale = 0.75 (visor default).
     private static let renderScale: Float = 0.75
     // Leave a small blue margin around each warped eye instead of using the entire phone half.
@@ -230,6 +232,9 @@ final class StereoRenderer: NSObject, MTKViewDelegate {
         }
 
         encoder.endEncoding()
+        if let endpoint = mirrorEndpoint, let eye = eyeTextures.first {
+            mirror.capture(eye, commandBuffer: commandBuffer, endpoint: endpoint)
+        }
         commandBuffer.present(drawable)
         commandBuffer.commit()
     }
@@ -705,4 +710,47 @@ final class StereoRenderer: NSObject, MTKViewDelegate {
             fatalError("Metal pipeline \(vertex) failed: \(error)")
         }
     }
+}
+
+/// Copies one composited eye after GPU completion. Encoding/upload never waits on the render thread.
+private final class VisorMirror {
+    private let lock = NSLock()
+    private let worker = DispatchQueue(label: "visor.mirror", qos: .utility)
+    private var busy = false
+    private var lastCapture = Date.distantPast
+    private let context = CIContext(options: [.cacheIntermediates: false])
+
+    func capture(_ texture: MTLTexture, commandBuffer: MTLCommandBuffer, endpoint: URL) {
+        lock.lock()
+        guard !busy, Date().timeIntervalSince(lastCapture) >= 2 else { lock.unlock(); return }
+        busy = true; lastCapture = Date(); lock.unlock()
+        let rowBytes = ((texture.width * 4 + 255) / 256) * 256
+        guard let buffer = texture.device.makeBuffer(length: rowBytes * texture.height, options: .storageModeShared),
+              let blit = commandBuffer.makeBlitCommandEncoder() else { finish(); return }
+        blit.copy(from: texture, sourceSlice: 0, sourceLevel: 0,
+                  sourceOrigin: MTLOrigin(x: 0, y: 0, z: 0),
+                  sourceSize: MTLSize(width: texture.width, height: texture.height, depth: 1),
+                  to: buffer, destinationOffset: 0, destinationBytesPerRow: rowBytes,
+                  destinationBytesPerImage: rowBytes * texture.height)
+        blit.endEncoding()
+        commandBuffer.addCompletedHandler { [self] command in
+            guard command.status == .completed else { finish(); return }
+            worker.async { [self] in
+                let data = Data(bytes: buffer.contents(), count: rowBytes * texture.height)
+                let image = CIImage(bitmapData: data, bytesPerRow: rowBytes,
+                                    size: CGSize(width: texture.width, height: texture.height),
+                                    format: .RGBA8, colorSpace: CGColorSpaceCreateDeviceRGB())
+                let scale = min(1, 640 / CGFloat(max(texture.width, texture.height)))
+                let small = image.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
+                guard let cgImage = context.createCGImage(small, from: small.extent),
+                      let jpeg = UIImage(cgImage: cgImage).jpegData(compressionQuality: 0.45) else { finish(); return }
+                var request = URLRequest(url: endpoint)
+                request.httpMethod = "POST"; request.timeoutInterval = 3
+                request.setValue("image/jpeg", forHTTPHeaderField: "Content-Type")
+                request.httpBody = jpeg
+                URLSession.shared.dataTask(with: request) { [self] _, _, _ in finish() }.resume()
+            }
+        }
+    }
+    private func finish() { lock.lock(); busy = false; lock.unlock() }
 }

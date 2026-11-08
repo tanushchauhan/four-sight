@@ -1,5 +1,12 @@
 # Native Prada visor
 
+Enable **Share visor view with console** in visor settings, then click **Connect visor view** in the
+dashboard's Visor mirror panel. This shares camera + HUD from the active robot or rescuer view as a
+single-eye preview before lens distortion. Frames are JPEGs, at most 640 px on the long edge and one
+every two seconds, with only one upload in flight. The dashboard is reached on the coordinator Mac,
+port 8090. Only the latest frame is retained in memory and it expires after 12 seconds without updates.
+Flat settings controls and audio are not mirrored. Disable sharing to stop phone uploads.
+
 Robot feed mode retains segmentation, range, motion, and the survivor radar. Phone camera mode is
 the rescuer HUD: coordinator voice/transcript, real robot systems and mission status, without local
 person segmentation. The foreground microphone listens for "Sight" (also accepting the transcription

@@ -16,6 +16,26 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
+# Latest frame only, in memory. Frames expire automatically; no recording is kept.
+class VisorFrames:
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.frame = None
+        self.received = 0
+
+    def put(self, frame):
+        if not 4 <= len(frame) <= 400_000 or not frame.startswith(b'\xff\xd8') or not frame.endswith(b'\xff\xd9'):
+            raise ValueError('Expected JPEG under 400 KB')
+        with self.lock:
+            self.frame, self.received = frame, time.monotonic()
+
+    def get(self):
+        with self.lock:
+            age = time.monotonic() - self.received
+            return (self.frame if age < 12 else None), age
+
+VISOR_FRAMES = VisorFrames()
+
 # Executed on the Pi with its system Python, never the motor-control connection.
 PROBE = r'''
 import base64, json, pathlib, subprocess, time, urllib.request
@@ -120,6 +140,13 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         path = self.path.split('?', 1)[0]
+        if path in ('/api/visor/frame', '/api/visor/status'):
+            frame, age = VISOR_FRAMES.get()
+            if path.endswith('/status'):
+                self.send_body(200, 'application/json', json.dumps({'connected': frame is not None, 'age_seconds': round(age, 1) if frame else None}).encode())
+            else:
+                self.send_body(200 if frame else 404, 'image/jpeg' if frame else 'text/plain', frame or b'No live visor frame')
+            return
         if path == '/api/damage' or path.startswith('/api/damage/'):
             self.damage_proxy()
         elif path in ('/damage', '/damage.js'):
@@ -177,6 +204,19 @@ class Handler(BaseHTTPRequestHandler):
             self.send_body(404, 'text/plain', b'Not found')
 
     def do_POST(self):
+        if self.path == '/api/visor/frame':
+            try:
+                length = int(self.headers.get('Content-Length', '0'))
+                if not 4 <= length <= 400_000: raise ValueError('Frame too large')
+                if self.headers.get('Content-Type') != 'image/jpeg': raise ValueError('Expected image/jpeg')
+                self.connection.settimeout(4)
+                frame = self.rfile.read(length)
+                if len(frame) != length: raise ValueError('Incomplete frame')
+                VISOR_FRAMES.put(frame)
+                self.send_body(200, 'application/json', b'{"ok":true}')
+            except (ValueError, OSError) as exc:
+                self.send_body(400, 'application/json', json.dumps({'error': str(exc)}).encode())
+            return
         if self.path in ('/api/agent/heartbeat', '/api/agent/person', '/api/agent/handoff'):
             token = self.server.media.agent_token
             if not token or not hmac.compare_digest(self.headers.get('Authorization', ''), 'Bearer ' + token):
