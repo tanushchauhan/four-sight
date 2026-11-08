@@ -26,6 +26,8 @@ control socket can stay on loopback while the visor reaches the video.
 
 import argparse
 import logging
+import select
+import socket
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -33,6 +35,10 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from .jpeg import is_jpeg, pattern
 
 BOUNDARY = b"frame"
+# Keep at most a few frames in flight per client. A client that can't keep up
+# gets fewer, newer frames instead of a growing queue (and growing lag).
+SEND_BUFFER = 128 * 1024
+NOTSENT_LOWAT = 32 * 1024
 
 
 class FrameBuffer:
@@ -115,11 +121,18 @@ class _Handler(BaseHTTPRequestHandler):
         self.send_header("Cache-Control", "no-cache")
         self.send_header("Connection", "close")
         self.end_headers()
+        sock = self.connection
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, SEND_BUFFER)
+        if hasattr(socket, "TCP_NOTSENT_LOWAT"):
+            sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NOTSENT_LOWAT, NOTSENT_LOWAT)
         seq = 0
         try:
             while True:
                 seq, jpeg = self.server.frames.wait_newer(seq, timeout=1)
                 if jpeg is None:
+                    continue
+                # Not ready for more yet: skip this frame and send the next new one.
+                if not select.select([], [sock], [], 0)[1]:
                     continue
                 header = (
                     b"--" + BOUNDARY + b"\r\n"
