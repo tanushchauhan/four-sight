@@ -13,13 +13,21 @@ struct VisorBriefing: Equatable {
     var survivors: FeedState
     var slam: FeedState
     var camera: FeedState
+    var range: FeedState
+    var triage: FeedState
+    var systems: FeedState
+    var breadcrumb: FeedState
 
     /// Placeholder until Nemotron, detection and SLAM are wired.
     static let sample = VisorBriefing(
         coordinator: .empty(value: "Offline", detail: "Not connected"),
         survivors: .loading,
         slam: .empty(value: "Offline", detail: "Not connected"),
-        camera: .loading
+        camera: .loading,
+        range: .loading,
+        triage: .loading,
+        systems: .ready(value: "84% · Good · 42°", detail: "Battery · link · thermal · simulated"),
+        breadcrumb: .empty(value: "No fix", detail: "No confirmed survivor location")
     )
 }
 
@@ -52,9 +60,16 @@ struct LensLayerView: View {
                 HStack(alignment: .top) {
                     Readout(label: "Coordinator", state: briefing.coordinator)
                     Spacer(minLength: VisorToken.spaceLg)
-                    Readout(label: "SLAM", state: briefing.slam, trailing: true)
+                    Readout(label: "Robot systems", state: briefing.systems, trailing: true)
                 }
                 Spacer(minLength: 0)
+                HStack(alignment: .center) {
+                    CompactReadout(label: "Range + direction", state: briefing.range)
+                    Spacer(minLength: 180)
+                    CompactReadout(label: "Triage motion", state: briefing.triage, trailing: true)
+                }
+                Spacer(minLength: 0)
+                Breadcrumb(state: briefing.breadcrumb)
                 HStack(alignment: .lastTextBaseline) {
                     CameraLink(state: briefing.camera)
                     Spacer(minLength: VisorToken.spaceLg)
@@ -67,6 +82,63 @@ struct LensLayerView: View {
             .padding(.vertical, 260)
         }
         .frame(width: LensLayer.side, height: LensLayer.side)
+    }
+}
+
+private struct CompactReadout: View {
+    let label: String
+    let state: FeedState
+    var trailing = false
+
+    var body: some View {
+        VStack(alignment: trailing ? .trailing : .leading, spacing: VisorToken.space2xs) {
+            Text(label.uppercased())
+                .font(VisorToken.label(14))
+                .foregroundStyle(VisorToken.muted.color)
+            Text(value)
+                .font(VisorToken.measured(20))
+                .foregroundStyle(VisorToken.ink.color)
+                .lineLimit(1)
+        }
+        .multilineTextAlignment(trailing ? .trailing : .leading)
+        .overFeed()
+    }
+
+    private var value: String {
+        switch state {
+        case .loading: return "WAITING"
+        case .empty(let value, _), .ready(let value, _), .failed(let value, _): return value.uppercased()
+        }
+    }
+}
+
+private struct Breadcrumb: View {
+    let state: FeedState
+
+    var body: some View {
+        HStack(spacing: VisorToken.spaceXs) {
+            Circle()
+                .fill(VisorToken.ink.color)
+                .frame(width: 7, height: 7)
+            Text(text)
+                .font(VisorToken.measured(14))
+                .foregroundStyle(VisorToken.ink2.color)
+                .lineLimit(1)
+        }
+        .padding(.horizontal, VisorToken.spaceSm)
+        .padding(.vertical, VisorToken.space2xs)
+        .background(VisorToken.scrim.color)
+        .overlay(Rectangle().strokeBorder(VisorToken.rule2.color, lineWidth: VisorToken.hairline))
+        .frame(maxWidth: .infinity)
+        .overFeed()
+    }
+
+    private var text: String {
+        switch state {
+        case .loading: return "BREADCRUMB · WAITING FOR MAP FIX"
+        case .empty(let value, _), .ready(let value, _), .failed(let value, _):
+            return "BREADCRUMB · " + value.uppercased()
+        }
     }
 }
 

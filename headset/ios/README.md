@@ -26,6 +26,12 @@ camera path. The generic COCO person class is not rescue-scene validation: fine-
 segmentation model on prone, obscured, low-light, and partially visible people before treating the
 alert as safety-critical.
 
+The lens HUD also reports an approximate distance and horizontal direction for the highest-confidence
+person, a moving/stationary/uncertain marker based on short-term image motion, and a breadcrumb that
+retains the last relative survivor fix. Distance is a monocular human-height heuristic, motion can be
+confused by camera movement, and the breadcrumb is camera-relative rather than a world-map coordinate.
+Battery, link quality, and thermal values are visibly marked simulated until robot telemetry is wired.
+
 The lens profile is the Pop-Tech 34 mm biconvex with a 45 mm focal length: the screen is
 treated as the focal plane, with the Cardboard V2 distortion pair for that lens diameter.
 Inter-lens distance and tray alignment are still the printed viewer's. Check them on the phone.

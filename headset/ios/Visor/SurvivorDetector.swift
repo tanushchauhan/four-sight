@@ -9,6 +9,22 @@ enum SurvivorDetectionState: Equatable {
     case failed(String)
 }
 
+enum TriageMotion: String, Equatable {
+    case moving = "Moving"
+    case stationary = "Stationary"
+    case uncertain = "Uncertain"
+}
+
+struct SurvivorInsight: Equatable {
+    var distanceMeters: Double?
+    var bearingDegrees: Double?
+    var motion: TriageMotion = .uncertain
+    var lastConfirmedDistance: Double?
+    var lastConfirmedBearing: Double?
+
+    static let empty = SurvivorInsight()
+}
+
 struct SurvivorOverlay {
     let revision: UInt64
     let image: CGImage?
@@ -19,6 +35,7 @@ struct SurvivorOverlay {
 /// the bundled model later without changing the camera or overlay path.
 final class SurvivorDetector: ObservableObject {
     @Published private(set) var state: SurvivorDetectionState = .loading
+    @Published private(set) var insight = SurvivorInsight.empty
 
     private let inferenceQueue = DispatchQueue(label: "com.hackutd26.visor.survivor-inference", qos: .userInitiated)
     private let lock = NSLock()
@@ -27,6 +44,11 @@ final class SurvivorDetector: ObservableObject {
     private var generation: UInt64 = 0
     private var lastSubmission = CFAbsoluteTimeGetCurrent() - 1
     private var overlay = SurvivorOverlay(revision: 0, image: nil)
+    private var previousCentroid: CGPoint?
+    private var previousCentroidTime: CFTimeInterval?
+    private var stableFrames = 0
+    private var lastConfirmedDistance: Double?
+    private var lastConfirmedBearing: Double?
 
     /// Inference is deliberately capped below display refresh. Metal remains at 60 FPS and always
     /// uses the latest completed mask instead of waiting for the Neural Engine.
@@ -71,6 +93,7 @@ final class SurvivorDetector: ObservableObject {
             }
             let mask = self.makeSurvivorMask(result: result, survivorIndices: survivors.map(\.offset))
             let confidence = survivors.map(\.element.conf).max() ?? 0
+            let insight = self.makeInsight(survivors: survivors.map(\.element), at: now)
 
             self.lock.lock()
             self.busy = false
@@ -84,6 +107,7 @@ final class SurvivorDetector: ObservableObject {
                 self.lock.unlock()
                 guard current else { return }
                 self.state = .ready(count: survivors.count, confidence: confidence)
+                self.insight = insight
             }
         }
     }
@@ -99,6 +123,56 @@ final class SurvivorDetector: ObservableObject {
     func latestOverlay() -> SurvivorOverlay {
         lock.lock(); defer { lock.unlock() }
         return overlay
+    }
+
+    private func makeInsight(survivors: [Box], at time: CFTimeInterval) -> SurvivorInsight {
+        guard let primary = survivors.max(by: { $0.conf < $1.conf }) else {
+            previousCentroid = nil
+            previousCentroidTime = nil
+            stableFrames = 0
+            return SurvivorInsight(
+                distanceMeters: nil,
+                bearingDegrees: nil,
+                motion: .uncertain,
+                lastConfirmedDistance: lastConfirmedDistance,
+                lastConfirmedBearing: lastConfirmedBearing
+            )
+        }
+
+        let box = primary.xywhn
+        let centroid = CGPoint(x: box.midX, y: box.midY)
+        // Monocular scale estimate: assume a standing/crouched human occupies about 1.7 m vertically.
+        // This is intentionally presented as an estimate until depth or calibrated camera geometry exists.
+        let distance = min(15, max(1, 1.7 / max(box.height, 0.12)))
+        let bearing = min(34, max(-34, (box.midX - 0.5) * 68))
+        var motion: TriageMotion = .uncertain
+
+        if let previousCentroid, let previousCentroidTime {
+            let elapsed = max(0.05, time - previousCentroidTime)
+            let displacement = hypot(centroid.x - previousCentroid.x, centroid.y - previousCentroid.y)
+            let normalizedSpeed = displacement / elapsed
+            if normalizedSpeed > 0.18 {
+                stableFrames = 0
+                motion = .moving
+            } else if normalizedSpeed < 0.05 {
+                stableFrames += 1
+                motion = stableFrames >= 3 ? .stationary : .uncertain
+            } else {
+                stableFrames = 0
+            }
+        }
+
+        previousCentroid = centroid
+        previousCentroidTime = time
+        lastConfirmedDistance = distance
+        lastConfirmedBearing = bearing
+        return SurvivorInsight(
+            distanceMeters: distance,
+            bearingDegrees: bearing,
+            motion: motion,
+            lastConfirmedDistance: distance,
+            lastConfirmedBearing: bearing
+        )
     }
 
     private func makeSurvivorMask(result: YOLOResult, survivorIndices: [Int]) -> CGImage? {
