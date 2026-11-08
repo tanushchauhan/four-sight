@@ -9,6 +9,7 @@ setup(
                 ("share/picrawler_control/config", ["config/control.toml"])],
     entry_points={"console_scripts": [
         "picrawler-server=picrawler_control.server:main",
+        "picrawler-stream=picrawler_control.stream:main",
         "picrawler-controller=picrawler_control.controller:main",
         "picrawler-ble-relay=picrawler_control.ble_relay:main"]},
     maintainer="HackUTD team", maintainer_email="maintainers@example.com",

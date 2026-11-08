@@ -7,6 +7,7 @@ import tomllib
 class Config:
     host: str = "127.0.0.1"
     port: int = 8765
+    stream_port: int = 8080
     timeout: float = 0.5
     deadzone: float = 0.15
     min_speed: int = 20
@@ -17,15 +18,17 @@ class Config:
     def __post_init__(self):
         if not isinstance(self.host, str) or not self.host:
             raise ValueError("host must be a nonempty string")
-        for name in ("port", "min_speed", "max_speed"):
+        for name in ("port", "stream_port", "min_speed", "max_speed"):
             if type(getattr(self, name)) is not int:
                 raise ValueError(f"{name} must be an integer")
         for name in ("timeout", "deadzone", "poll_interval", "dry_gait_seconds"):
             value = getattr(self, name)
             if type(value) not in (int, float) or not math.isfinite(value):
                 raise ValueError(f"{name} must be finite")
-        if not 1 <= self.port <= 65535:
+        if not 1 <= self.port <= 65535 or not 1 <= self.stream_port <= 65535:
             raise ValueError("port out of range")
+        if self.stream_port == self.port:
+            raise ValueError("stream_port must differ from the control port")
         if not 0.1 <= self.timeout <= 2 or not 0 <= self.deadzone < 0.9:
             raise ValueError("timeout/deadzone out of range")
         if not 1 <= self.min_speed <= self.max_speed <= 100:

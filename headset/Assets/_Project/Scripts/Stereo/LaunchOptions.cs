@@ -38,6 +38,32 @@ namespace CardboardXR.Stereo
 #endif
         }
 
+        // A text option, such as the robot stream URL. Android receives it as a string extra
+        // (`--es stream http://...`); iOS and the Editor use CARDBOARDXR_<name>.
+        public static string GetString(string name, string fallback)
+        {
+#if UNITY_ANDROID && !UNITY_EDITOR
+            try
+            {
+                using var unityPlayer = new AndroidJavaClass("com.unity3d.player.UnityPlayer");
+                using var activity = unityPlayer.GetStatic<AndroidJavaObject>("currentActivity");
+                using var intent = activity.Call<AndroidJavaObject>("getIntent");
+                if (!intent.Call<bool>("hasExtra", name))
+                    return fallback;
+                var text = intent.Call<string>("getStringExtra", name);
+                return string.IsNullOrEmpty(text) ? fallback : text;
+            }
+            catch (AndroidJavaException e)
+            {
+                Debug.LogWarning($"[Stereo] Couldn't read launch option {name}: {e.Message}");
+            }
+            return fallback;
+#else
+            var text = Environment.GetEnvironmentVariable(k_EnvironmentPrefix + name);
+            return string.IsNullOrEmpty(text) ? fallback : text;
+#endif
+        }
+
         public static bool TryParse(string text, out int value)
         {
             value = 0;
@@ -57,9 +83,8 @@ namespace CardboardXR.Stereo
                 if (!key.StartsWith(k_EnvironmentPrefix, StringComparison.Ordinal))
                     continue;
                 var text = (string)entry.Value;
-                found.Add(TryParse(text, out _)
-                    ? $"{key.Substring(k_EnvironmentPrefix.Length)} {text}"
-                    : $"{key.Substring(k_EnvironmentPrefix.Length)} \"{text}\" (not a whole number, ignored)");
+                var option = key.Substring(k_EnvironmentPrefix.Length);
+                found.Add(TryParse(text, out _) ? $"{option} {text}" : $"{option}={text}");
             }
             if (found.Count > 0)
                 Debug.Log($"[Stereo] Launch options: {string.Join(", ", found)}");
