@@ -3,26 +3,36 @@ import SwiftUI
 import UIKit
 
 struct VisorView: View {
-    @StateObject private var session = SessionOwner()
+    @StateObject private var controller = ARSessionController()
+    @AppStorage("cameraURL") private var address = "http://prada.local:8080/stream"
+    @State private var settings = true
 
     var body: some View {
-        MetalVisor(session: session.controller)
+        MetalVisor(session: controller)
             .ignoresSafeArea()
+            .overlay(alignment: .topLeading) {
+                VStack(alignment: .leading) {
+                    Button(settings ? "Hide controls" : "Camera settings") { settings.toggle() }
+                    if settings {
+                        TextField("Camera URL", text: $address)
+                            .textInputAutocapitalization(.never).autocorrectionDisabled()
+                            .textFieldStyle(.roundedBorder).frame(width: 360)
+                        Button("Connect") { controller.start(address) }
+                    }
+                    if settings || controller.status != "Live" { Text(controller.status).foregroundStyle(.white) }
+                }.padding().background(.black.opacity(0.7))
+            }
             .statusBarHidden(true)
             .persistentSystemOverlays(.hidden)
             .onAppear {
                 UIApplication.shared.isIdleTimerDisabled = true
-                session.controller.start()
+                controller.start(address)
             }
             .onDisappear {
-                session.controller.pause()
+                controller.pause()
                 UIApplication.shared.isIdleTimerDisabled = false
             }
     }
-}
-
-private final class SessionOwner: ObservableObject {
-    let controller = ARSessionController()
 }
 
 private struct MetalVisor: UIViewRepresentable {

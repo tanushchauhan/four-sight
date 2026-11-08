@@ -38,6 +38,8 @@ final class StereoRenderer: NSObject, MTKViewDelegate {
     private let device: MTLDevice
     private let queue: MTLCommandQueue
     private let eyePipeline: MTLRenderPipelineState
+    private var robotTexture: MTLTexture?
+    private var lastFrameTime = Date.distantPast
     private let warpPipeline: MTLRenderPipelineState
     private let log = Logger(subsystem: "com.hackutd26.visor", category: "stereo")
 
@@ -66,12 +68,14 @@ final class StereoRenderer: NSObject, MTKViewDelegate {
         view.enableSetNeedsDisplay = false
         view.preferredFramesPerSecond = 60
 
-        let library = device.makeDefaultLibrary()
+        guard let shaderURL = Bundle.main.url(forResource: "Shaders", withExtension: "metal.txt"),
+              let source = try? String(contentsOf: shaderURL, encoding: .utf8),
+              let library = try? device.makeLibrary(source: source, options: nil) else { return nil }
         eyePipeline = Self.makePipeline(
             device: device,
             library: library,
             vertex: "eyeVertex",
-            fragment: "eyeFragment",
+            fragment: "robotFragment",
             pixelFormat: .rgba8Unorm,
             vertexDescriptor: nil
         )
@@ -117,9 +121,12 @@ final class StereoRenderer: NSObject, MTKViewDelegate {
         }
         rebuildMeshes()
 
-        if let frame = session.currentFrame() {
-            encodeEyes(frame: frame, into: commandBuffer)
+        if let jpeg = session.takeFrame() {
+            lastFrameTime = Date()
+            robotTexture = try? MTKTextureLoader(device: device).newTexture(data: jpeg, options: [.SRGB: false])
         }
+        if Date().timeIntervalSince(lastFrameTime) > 2 { robotTexture = nil }
+        encodeRobot(into: commandBuffer)
 
         guard let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: pass) else { return }
         encoder.setRenderPipelineState(warpPipeline)
@@ -153,70 +160,28 @@ final class StereoRenderer: NSObject, MTKViewDelegate {
         commandBuffer.commit()
     }
 
-    private func encodeEyes(frame: ARFrame, into commandBuffer: MTLCommandBuffer) {
-        guard eyeTextures.count == 2,
-              eyeProjections.count == 2,
-              let cache = textureCache else { return }
-        CVMetalTextureCacheFlush(cache, 0)
-
-        guard let luma = metalTexture(from: frame.capturedImage, cache: cache, plane: 0, format: .r8Unorm),
-              let chroma = metalTexture(from: frame.capturedImage, cache: cache, plane: 1, format: .rg8Unorm) else {
-            return
-        }
-
-        let orientation = Self.currentInterfaceOrientation()
-        let pixels = ScreenMetrics.landscapePixels()
-        let viewport = CGSize(width: pixels.x, height: pixels.y)
-
-        guard let passthrough = Self.computePassthroughParams(
-            frame: frame,
-            orientation: orientation,
-            viewport: viewport
-        ) else { return }
-
-        if !didLogPassthrough {
-            didLogPassthrough = true
-            let fovX = 2 * atan(passthrough.frustumSize.x / 2) * 180 / Float.pi
-            let fovY = 2 * atan(passthrough.frustumSize.y / 2) * 180 / Float.pi
-            log.info("[Passthrough] Camera frustum \(fovX, format: .fixed(precision: 1)) x \(fovY, format: .fixed(precision: 1)) deg, center (\(passthrough.frustumCenter.x, format: .fixed(precision: 3)), \(passthrough.frustumCenter.y, format: .fixed(precision: 3)))")
-        }
-
+    private func encodeRobot(into commandBuffer: MTLCommandBuffer) {
         for (texture, projection) in zip(eyeTextures, eyeProjections) {
-            var uniforms = EyeUniforms(
-                lensM00: projection.m00,
-                lensM11: projection.m11,
-                lensM02: projection.m02,
-                lensM12: projection.m12,
-                frustumCenterX: passthrough.frustumCenter.x,
-                frustumCenterY: passthrough.frustumCenter.y,
-                frustumSizeX: passthrough.frustumSize.x,
-                frustumSizeY: passthrough.frustumSize.y,
-                wideM00: passthrough.wideM00,
-                wideM01: passthrough.wideM01,
-                wideM10: passthrough.wideM10,
-                wideM11: passthrough.wideM11,
-                wideM20: passthrough.wideM20,
-                wideM21: passthrough.wideM21
-            )
-
             let pass = MTLRenderPassDescriptor()
             pass.colorAttachments[0].texture = texture
             pass.colorAttachments[0].loadAction = .clear
             pass.colorAttachments[0].storeAction = .store
             pass.colorAttachments[0].clearColor = MTLClearColor(red: 0, green: 0, blue: 0, alpha: 1)
-
             guard let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: pass) else { continue }
-            encoder.setRenderPipelineState(eyePipeline)
-            encoder.setFragmentBytes(&uniforms, length: MemoryLayout<EyeUniforms>.stride, index: 0)
-            encoder.setFragmentTexture(luma.texture, index: 0)
-            encoder.setFragmentTexture(chroma.texture, index: 1)
-            encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
+            if let image = robotTexture {
+                // Center the full image on the optical axis, preserving camera aspect ratio.
+                let aspect = Float(image.width) / Float(image.height)
+                let width: Float = 2 * tan(35 * Float.pi / 180)
+                var u = EyeUniforms(lensM00: projection.m00, lensM11: projection.m11,
+                    lensM02: projection.m02, lensM12: projection.m12,
+                    frustumCenterX: 0, frustumCenterY: 0, frustumSizeX: width, frustumSizeY: width / aspect,
+                    wideM00: 1, wideM01: 0, wideM10: 0, wideM11: 1, wideM20: 0, wideM21: 0)
+                encoder.setRenderPipelineState(eyePipeline)
+                encoder.setFragmentBytes(&u, length: MemoryLayout<EyeUniforms>.stride, index: 0)
+                encoder.setFragmentTexture(image, index: 0)
+                encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
+            }
             encoder.endEncoding()
-        }
-
-        commandBuffer.addCompletedHandler { _ in
-            _ = luma.holder
-            _ = chroma.holder
         }
     }
 

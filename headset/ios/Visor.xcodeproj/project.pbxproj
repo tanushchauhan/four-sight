@@ -23,7 +23,7 @@
 		F00100000000000000000003 /* ARSessionController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Visor/ARSessionController.swift; sourceTree = SOURCE_ROOT; };
 		F00100000000000000000004 /* StereoRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Visor/StereoRenderer.swift; sourceTree = SOURCE_ROOT; };
 		F00100000000000000000005 /* LensDistortion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Visor/LensDistortion.swift; sourceTree = SOURCE_ROOT; };
-		F00100000000000000000006 /* Shaders.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = Visor/Shaders.metal; sourceTree = SOURCE_ROOT; };
+		F00100000000000000000006 /* Shaders.metal */ = {isa = PBXFileReference; lastKnownFileType = text; path = Visor/Shaders.metal.txt; sourceTree = SOURCE_ROOT; };
 		F00100000000000000000007 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Visor/Info.plist; sourceTree = SOURCE_ROOT; };
 		F00100000000000000000008 /* Visor.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Visor.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		F00100000000000000000010 /* ARKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ARKit.framework; path = System/Library/Frameworks/ARKit.framework; sourceTree = SDKROOT; };
@@ -94,6 +94,7 @@
 			buildConfigurationList = L00100000000000000000002 /* Build configuration list for PBXNativeTarget "Visor" */;
 			buildPhases = (
 				C00100000000000000000001 /* Sources */,
+                C00100000000000000000009 /* Resources */,
 				C00100000000000000000003 /* Frameworks */,
 			);
 			buildRules = (
@@ -137,6 +138,14 @@
 		};
 /* End PBXProject section */
 
+/* Begin PBXResourcesBuildPhase section */
+        C00100000000000000000009 /* Resources */ = {
+            isa = PBXResourcesBuildPhase;
+            buildActionMask = 2147483647;
+            files = (B00100000000000000000006,);
+            runOnlyForDeploymentPostprocessing = 0;
+        };
+/* End PBXResourcesBuildPhase section */
 /* Begin PBXSourcesBuildPhase section */
 		C00100000000000000000001 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
@@ -147,7 +156,7 @@
 				B00100000000000000000003 /* ARSessionController.swift in Sources */,
 				B00100000000000000000004 /* StereoRenderer.swift in Sources */,
 				B00100000000000000000005 /* LensDistortion.swift in Sources */,
-				B00100000000000000000006 /* Shaders.metal in Sources */,
+
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
