@@ -52,7 +52,16 @@ final class StereoRenderer: NSObject, MTKViewDelegate {
     private let session: ARSessionController
     private let phone: PhoneCamera
     private let detector: SurvivorDetector
-    var source: CameraSource = .robot
+    var source: CameraSource = .robot {
+        didSet {
+            if oldValue != source {
+                detector.reset()
+                survivorTexture = nil
+                robotTexture = nil
+                lastPhoneTimestamp = -1
+            }
+        }
+    }
     private let device: MTLDevice
     private let queue: MTLCommandQueue
     private let eyePipeline: MTLRenderPipelineState
@@ -186,7 +195,11 @@ final class StereoRenderer: NSObject, MTKViewDelegate {
             detector.submit(CIImage(cvPixelBuffer: frame.capturedImage))
         }
         updateSurvivorTexture()
-        if Date().timeIntervalSince(lastFrameTime) > 2 { robotTexture = nil }
+        if Date().timeIntervalSince(session.lastFrameTime) > 2, robotTexture != nil {
+            robotTexture = nil
+            survivorTexture = nil
+            detector.reset()
+        }
         switch source {
         case .robot: encodeRobot(into: commandBuffer)
         case .phone: encodePhone(into: commandBuffer)

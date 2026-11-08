@@ -38,7 +38,7 @@ struct VisorView: View {
             briefing.survivors = .loading
         case .ready(let count, let confidence):
             briefing.survivors = count == 0
-                ? .empty(value: "0", detail: "Area clear")
+                ? .empty(value: "0", detail: "No person detected")
                 : .ready(value: "\(count)", detail: String(format: "Survivor alert · %.0f%%", confidence * 100))
         case .failed:
             briefing.survivors = .failed(value: "Offline", detail: "Detection unavailable")
@@ -63,7 +63,9 @@ struct VisorView: View {
                 .contentShape(Rectangle())
                 .onTapGesture { settings.toggle() }
             if settings {
-                titleBlock
+                ScrollView {
+                    titleBlock.padding(16)
+                }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(VisorToken.paper3.opacity(0.6).color)
                     .ignoresSafeArea()
@@ -183,7 +185,7 @@ struct VisorView: View {
                 }
             }
             rule
-            HStack(spacing: VisorToken.spaceSm) {
+            VStack(spacing: VisorToken.spaceSm) {
                 if source == .robot {
                     Button(controller.status == "Connecting…" ? "Connecting" : "Connect") {
                         focused = nil
@@ -213,7 +215,7 @@ struct VisorView: View {
             }
             .padding(VisorToken.spaceMd)
         }
-        .frame(width: 420)
+        .frame(maxWidth: 420)
         .background(VisorToken.paper.color)
         .overlay(Rectangle().strokeBorder(VisorToken.rule.color, lineWidth: VisorToken.hairline))
     }
@@ -338,6 +340,8 @@ final class HeadSteering: ObservableObject {
     private let motion = CMMotionManager()
     private var socket: URLSessionWebSocketTask?
     private var loop: Task<Void, Never>?
+    private var watchdog: Task<Void, Never>?
+    private var lastReply = Date.distantPast
     private var origin: Double?
     private var filtered = 0.0
 
@@ -349,6 +353,9 @@ final class HeadSteering: ObservableObject {
               var url = URLComponents(string: address), url.host != nil else {
             status = "Motion unavailable or control token missing"; return
         }
+        guard Date().timeIntervalSince(video.lastFrameTime) < 1 else {
+            status = "Connect live robot video before enabling steering"; return
+        }
         url.scheme = "ws"; url.port = 8766; url.path = "/"; url.query = nil
         guard let endpoint = url.url else { return }
         let ws = URLSession.shared.webSocketTask(with: endpoint)
@@ -356,12 +363,27 @@ final class HeadSteering: ObservableObject {
         motion.deviceMotionUpdateInterval = 1.0 / 30
         motion.startDeviceMotionUpdates(using: .xArbitraryZVertical)
         active = true; status = "Connecting steering…"; recenter()
+        lastReply = Date()
+        watchdog = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 100_000_000)
+                guard !Task.isCancelled, let self, self.socket === ws else { return }
+                if Date().timeIntervalSince(video.lastFrameTime) > 1 || Date().timeIntervalSince(self.lastReply) > 2 {
+                    self.stop()
+                    self.status = "Video or steering connection is stale — enable again"
+                    return
+                }
+            }
+        }
         loop = Task { [weak self] in
             guard let self else { return }
             do {
                 let hello = try JSONSerialization.data(withJSONObject: ["token": token])
                 try await ws.send(.string(String(decoding: hello, as: UTF8.self)))
-                _ = try await ws.receive()
+                try await receiveAcknowledgement(ws, key: "ready")
+                try Task.checkCancellation()
+                guard socket === ws else { return }
+                lastReply = Date()
                 status = "Ready — click joystick to enable; center stick for head steering"
                 while !Task.isCancelled {
                     if Date().timeIntervalSince(video.lastFrameTime) > 1 {
@@ -388,16 +410,32 @@ final class HeadSteering: ObservableObject {
                         }
                     }
                     try await ws.send(.string("{\"turn\":\(turn)}"))
-                    _ = try await ws.receive()
+                    try await receiveAcknowledgement(ws, key: "received")
+                    try Task.checkCancellation()
+                    guard socket === ws else { return }
+                    lastReply = Date()
                     try await Task.sleep(nanoseconds: 50_000_000)
                 }
             } catch {
-                if !Task.isCancelled { stop(); status = "Steering disconnected — enable again" }
+                if !Task.isCancelled, socket === ws { stop(); status = "Steering disconnected — check token and enable again" }
             }
         }
     }
 
+    private func receiveAcknowledgement(_ ws: URLSessionWebSocketTask, key: String) async throws {
+        let message = try await ws.receive()
+        let data: Data
+        switch message {
+        case .string(let text): data = Data(text.utf8)
+        case .data(let bytes): data = bytes
+        @unknown default: throw URLError(.badServerResponse)
+        }
+        guard let reply = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              reply[key] as? Bool == true else { throw URLError(.badServerResponse) }
+    }
+
     func stop() {
+        watchdog?.cancel(); watchdog = nil
         loop?.cancel(); loop = nil
         socket?.cancel(with: .goingAway, reason: nil); socket = nil
         motion.stopDeviceMotionUpdates()

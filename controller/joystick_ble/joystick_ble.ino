@@ -98,6 +98,7 @@ void setup() {
 }
 
 void loop() {
+  BLE.poll();
   updateBuzzer();
   static unsigned long lastIdleLog = 0;
   if (millis() - lastIdleLog >= 2000) {
@@ -116,6 +117,7 @@ void loop() {
   bool recentered = false;
   unsigned long pressStart = 0;
   while (central.connected()) {
+    BLE.poll();
     updateBuzzer();
     if (stateChar.written()) {
       unsigned char state = stateChar.value();
@@ -147,10 +149,16 @@ void loop() {
       packet[1] = (unsigned char)(pressed ? 0 : toAxis(rawY, centerY));
       packet[2] = clicks;
       joyChar.setValue(packet, 3);
-      Serial.print(rawX); Serial.print(' '); Serial.print(rawY); Serial.print(' ');
-      Serial.print(centerX); Serial.print(' '); Serial.print(centerY); Serial.print(' '); Serial.println(clicks);
+      // Keep USB diagnostics from delaying the 20 Hz Bluetooth heartbeat.
+      static unsigned long lastInputLog = 0;
+      if (Serial && Serial.availableForWrite() >= 48 && millis() - lastInputLog >= 250) {
+        lastInputLog = millis();
+        Serial.print(rawX); Serial.print(' '); Serial.print(rawY); Serial.print(' ');
+        Serial.print(centerX); Serial.print(' '); Serial.print(centerY); Serial.print(' '); Serial.println(clicks);
+      }
     }
   }
   digitalWrite(PIN_BUZZER, LOW);
   beepLength = 0;
+  BLE.advertise();  // Explicitly recover discoverability after a lost central.
 }

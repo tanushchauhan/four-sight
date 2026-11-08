@@ -16,9 +16,9 @@ struct VisorBriefing: Equatable {
 
     /// Placeholder until Nemotron, detection and SLAM are wired.
     static let sample = VisorBriefing(
-        coordinator: .ready(value: "Nemotron", detail: "Holding the east search"),
-        survivors: .ready(value: "2", detail: "Survivors detected"),
-        slam: .ready(value: "Loaded", detail: "Map is current"),
+        coordinator: .empty(value: "Offline", detail: "Not connected"),
+        survivors: .loading,
+        slam: .empty(value: "Offline", detail: "Not connected"),
         camera: .loading
     )
 }
