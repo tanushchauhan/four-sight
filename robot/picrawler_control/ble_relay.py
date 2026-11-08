@@ -13,7 +13,6 @@ import asyncio
 import contextlib
 import json
 import logging
-import hmac
 import math
 import os
 import struct
@@ -39,17 +38,14 @@ class HeadInput:
     def value(self):
         return self.turn if time.monotonic() - self.received < 0.3 else 0.0
 
-    async def handle(self, socket, token):
+    async def handle(self, socket):
         owned = False
         try:
-            hello = json.loads(await asyncio.wait_for(socket.recv(), 5))
-            if (not isinstance(hello, dict) or not isinstance(hello.get("token"), str)
-                    or not hmac.compare_digest(hello["token"], token) or self.owner is not None):
-                await socket.close(1008, "authentication failed or headset connected")
+            if self.owner is not None:
+                await socket.close(1008, "headset already connected")
                 return
             self.owner = socket
             owned = True
-            await socket.send('{"ready":true}')
             async for raw in socket:
                 msg = json.loads(raw)
                 turn = msg.get("turn") if isinstance(msg, dict) else None
@@ -206,7 +202,7 @@ async def run(uri, token, address, invert_forward, invert_turn):
     asyncio.get_running_loop().add_signal_handler(signal.SIGTERM, task.cancel)
     stick = Stick(invert_forward, invert_turn)
     head = HeadInput()
-    async with serve(lambda ws: head.handle(ws, token), "0.0.0.0", 8766,
+    async with serve(head.handle, "0.0.0.0", 8766,
                      max_size=1024, max_queue=1, compression=None):
         await relay_loop(uri, token, address, stick, head)
 

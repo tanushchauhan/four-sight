@@ -1,4 +1,5 @@
 import CoreMotion
+import AVFoundation
 import MetalKit
 import SwiftUI
 import UIKit
@@ -9,23 +10,21 @@ struct VisorView: View {
     @StateObject private var controller = ARSessionController()
     @StateObject private var steering = HeadSteering()
     @StateObject private var survivorDetector = SurvivorDetector()
+    @StateObject private var survivorFeedback = SurvivorFeedback()
     @AppStorage("cameraURL") private var address = "http://prada.local:8080/stream"
     @AppStorage("cameraSource") private var sourceName = CameraSource.robot.rawValue
     @State private var phone = PhoneCamera()
     @State private var settings = true
-    @State private var token = ""
     @State private var layerStatus = "Lens layer: drawing"
     @FocusState private var focused: Control?
     @Environment(\.scenePhase) private var scenePhase
 
     private enum Control: Hashable {
         case address
-        case token
         case connect
         case wear
         case robot
         case phone
-        case steering
         case recenter
     }
 
@@ -84,11 +83,22 @@ struct VisorView: View {
             UIApplication.shared.isIdleTimerDisabled = false
         }
         .onChange(of: scenePhase) { _, phase in
-            if phase != .active { steering.stop() }
+            if phase != .active {
+                steering.stop()
+            } else if source == .robot, controller.status == "Live" {
+                steering.start(address: address, video: controller)
+            }
         }
         .onChange(of: controller.status) { _, status in
-            if source == .robot, status == "Live", focused == nil { settings = false }
-            if status != "Live" { steering.stop() }
+            if source == .robot, status == "Live" {
+                if focused == nil { settings = false }
+                steering.start(address: address, video: controller)
+            } else {
+                steering.stop()
+            }
+        }
+        .onChange(of: survivorDetector.state) { oldState, newState in
+            survivorFeedback.update(from: oldState, to: newState)
         }
     }
 
@@ -159,21 +169,6 @@ struct VisorView: View {
                         .font(VisorToken.body(16))
                         .foregroundStyle(VisorToken.ink2.color)
                         .frame(minHeight: 22, alignment: .leading)
-                    Text("Robot control token")
-                        .font(VisorToken.label(14))
-                        .foregroundStyle(VisorToken.muted.color)
-                    SecureField("Robot control token", text: $token)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .font(VisorToken.measured(16))
-                        .foregroundStyle(VisorToken.ink.color)
-                        .tint(VisorToken.ink.color)
-                        .padding(.horizontal, VisorToken.spaceSm)
-                        .frame(height: VisorToken.controlHeight)
-                        .background(VisorToken.paper2.color)
-                        .overlay(Rectangle().strokeBorder(VisorToken.rule.color, lineWidth: VisorToken.hairline))
-                        .overlay(focusRing(focused == .token))
-                        .focused($focused, equals: .token)
                     Text(steering.status)
                         .font(VisorToken.body(16))
                         .foregroundStyle(VisorToken.ink2.color)
@@ -195,13 +190,6 @@ struct VisorView: View {
                     .buttonStyle(SheetButtonStyle(primary: true, focused: focused == .connect))
                     .focused($focused, equals: .connect)
                     .disabled(controller.status == "Connecting…")
-                    Button(steering.active ? "Stop head steering" : "Enable head steering") {
-                        focused = nil
-                        if steering.active { steering.stop() }
-                        else { steering.start(address: address, token: token, video: controller) }
-                    }
-                    .buttonStyle(SheetButtonStyle(primary: false, focused: focused == .steering))
-                    .focused($focused, equals: .steering)
                     Button("Recenter head") { steering.recenter() }
                         .buttonStyle(SheetButtonStyle(primary: false, focused: focused == .recenter))
                         .focused($focused, equals: .recenter)
@@ -342,16 +330,18 @@ final class HeadSteering: ObservableObject {
     private var loop: Task<Void, Never>?
     private var watchdog: Task<Void, Never>?
     private var lastReply = Date.distantPast
+    private var reconnect: Task<Void, Never>?
     private var origin: Double?
     private var filtered = 0.0
 
     func recenter() { origin = nil; filtered = 0 }
 
-    func start(address: String, token: String, video: ARSessionController) {
+    func start(address: String, video: ARSessionController) {
+        guard !active else { return }
         stop()
-        guard motion.isDeviceMotionAvailable, token.count >= 16,
+        guard motion.isDeviceMotionAvailable,
               var url = URLComponents(string: address), url.host != nil else {
-            status = "Motion unavailable or control token missing"; return
+            status = "Motion unavailable"; return
         }
         guard Date().timeIntervalSince(video.lastFrameTime) < 1 else {
             status = "Connect live robot video before enabling steering"; return
@@ -369,8 +359,8 @@ final class HeadSteering: ObservableObject {
                 try? await Task.sleep(nanoseconds: 100_000_000)
                 guard !Task.isCancelled, let self, self.socket === ws else { return }
                 if Date().timeIntervalSince(video.lastFrameTime) > 1 || Date().timeIntervalSince(self.lastReply) > 2 {
-                    self.stop()
-                    self.status = "Video or steering connection is stale — enable again"
+                    self.scheduleReconnect(address: address, video: video,
+                                           status: "Video or steering connection is stale — reconnecting…")
                     return
                 }
             }
@@ -378,16 +368,11 @@ final class HeadSteering: ObservableObject {
         loop = Task { [weak self] in
             guard let self else { return }
             do {
-                let hello = try JSONSerialization.data(withJSONObject: ["token": token])
-                try await ws.send(.string(String(decoding: hello, as: UTF8.self)))
-                try await receiveAcknowledgement(ws, key: "ready")
-                try Task.checkCancellation()
-                guard socket === ws else { return }
-                lastReply = Date()
-                status = "Ready — click joystick to enable; center stick for head steering"
+                status = "Steering ready — click joystick to enable"
                 while !Task.isCancelled {
                     if Date().timeIntervalSince(video.lastFrameTime) > 1 {
-                        stop(); status = "Video is stale — reconnect video, then enable steering"; return
+                        scheduleReconnect(address: address, video: video, status: "Waiting for live video")
+                        return
                     }
                     guard let sample = motion.deviceMotion,
                           ProcessInfo.processInfo.systemUptime - sample.timestamp < 0.3 else {
@@ -404,8 +389,8 @@ final class HeadSteering: ObservableObject {
                         if origin == nil { origin = heading }
                         let delta = atan2(sin(heading - origin!), cos(heading - origin!)) * 180 / .pi
                         filtered += 0.3 * (delta - filtered)
-                        if abs(filtered) > 12 {
-                            turn = min(0.4, 0.18 + (abs(filtered) - 12) / 100) * (filtered > 0 ? 1 : -1)
+                        if abs(filtered) > 18 {
+                            turn = min(0.4, 0.18 + (abs(filtered) - 18) / 100) * (filtered > 0 ? 1 : -1)
                             if reverse { turn = -turn }
                         }
                     }
@@ -417,7 +402,29 @@ final class HeadSteering: ObservableObject {
                     try await Task.sleep(nanoseconds: 50_000_000)
                 }
             } catch {
-                if !Task.isCancelled, socket === ws { stop(); status = "Steering disconnected — check token and enable again" }
+                if !Task.isCancelled {
+                    scheduleReconnect(address: address, video: video, status: "Steering reconnecting…")
+                }
+            }
+        }
+    }
+
+    private func scheduleReconnect(address: String, video: ARSessionController, status: String) {
+        watchdog?.cancel(); watchdog = nil
+        loop?.cancel(); loop = nil
+        socket?.cancel(with: .goingAway, reason: nil); socket = nil
+        motion.stopDeviceMotionUpdates()
+        active = false; origin = nil; filtered = 0
+        self.status = status
+        reconnect?.cancel()
+        reconnect = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 1_000_000_000)
+                guard !Task.isCancelled else { return }
+                if Date().timeIntervalSince(video.lastFrameTime) <= 1 {
+                    self?.start(address: address, video: video)
+                    return
+                }
             }
         }
     }
@@ -436,10 +443,74 @@ final class HeadSteering: ObservableObject {
 
     func stop() {
         watchdog?.cancel(); watchdog = nil
+        reconnect?.cancel(); reconnect = nil
         loop?.cancel(); loop = nil
         socket?.cancel(with: .goingAway, reason: nil); socket = nil
         motion.stopDeviceMotionUpdates()
         active = false; origin = nil; filtered = 0
         status = "Head steering off"
+    }
+}
+
+@MainActor
+final class SurvivorFeedback: ObservableObject {
+    private var player: AVAudioPlayer?
+
+    func update(from oldState: SurvivorDetectionState, to newState: SurvivorDetectionState) {
+        guard newState.count > 0, oldState.count == 0 else { return }
+
+        let haptic = UIImpactFeedbackGenerator(style: .soft)
+        haptic.prepare()
+        haptic.impactOccurred(intensity: 0.32)
+
+        do {
+            player = try AVAudioPlayer(data: Self.chime)
+            player?.volume = 0.22
+            player?.play()
+        } catch {
+            // Detection remains functional if audio is unavailable or another session owns output.
+        }
+    }
+
+    private static let chime: Data = {
+        let sampleRate = 22_050
+        let sampleCount = Int(Double(sampleRate) * 0.14)
+        var pcm = [Int16](repeating: 0, count: sampleCount)
+        for index in pcm.indices {
+            let time = Double(index) / Double(sampleRate)
+            let envelope = sin(.pi * Double(index) / Double(sampleCount))
+            let tone = 0.7 * sin(2 * .pi * 740 * time) + 0.3 * sin(2 * .pi * 988 * time)
+            pcm[index] = Int16(max(-1, min(1, tone * envelope * 0.16)) * Double(Int16.max))
+        }
+        return SurvivorFeedback.wav(samples: pcm, sampleRate: sampleRate)
+    }()
+
+    private static func wav(samples: [Int16], sampleRate: Int) -> Data {
+        var data = Data()
+        func append<T>(_ value: T) {
+            var value = value
+            withUnsafeBytes(of: &value) { data.append(contentsOf: $0) }
+        }
+        data.append("RIFF".data(using: .ascii)!)
+        append(UInt32(36 + samples.count * 2).littleEndian)
+        data.append("WAVEfmt ".data(using: .ascii)!)
+        append(UInt32(16).littleEndian)
+        append(UInt16(1).littleEndian)
+        append(UInt16(1).littleEndian)
+        append(UInt32(sampleRate).littleEndian)
+        append(UInt32(sampleRate * 2).littleEndian)
+        append(UInt16(2).littleEndian)
+        append(UInt16(16).littleEndian)
+        data.append("data".data(using: .ascii)!)
+        append(UInt32(samples.count * 2).littleEndian)
+        for sample in samples { append(sample.littleEndian) }
+        return data
+    }
+}
+
+private extension SurvivorDetectionState {
+    var count: Int {
+        if case .ready(let count, _) = self { return count }
+        return 0
     }
 }
