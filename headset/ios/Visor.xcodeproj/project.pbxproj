@@ -17,6 +17,9 @@
 		B00100000000000000000012 /* MetalKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F00100000000000000000012 /* MetalKit.framework */; };
 		B00100000000000000000013 /* VisorTokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00100000000000000000013 /* VisorTokens.swift */; };
 		B00100000000000000000018 /* PhoneCamera.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00100000000000000000018 /* PhoneCamera.swift */; };
+		B00100000000000000000019 /* SurvivorDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00100000000000000000019 /* SurvivorDetector.swift */; };
+		B00100000000000000000020 /* yolo26n-seg.mlpackage in Resources */ = {isa = PBXBuildFile; fileRef = F00100000000000000000020 /* yolo26n-seg.mlpackage */; };
+		B00100000000000000000021 /* UltralyticsYOLO in Frameworks */ = {isa = PBXBuildFile; productRef = P00100000000000000000021 /* UltralyticsYOLO */; };
 		B00100000000000000000014 /* LensHud.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00100000000000000000014 /* LensHud.swift */; };
 		B00100000000000000000015 /* ChakraPetch-SemiBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = F00100000000000000000015 /* ChakraPetch-SemiBold.ttf */; };
 		B00100000000000000000017 /* IBMPlexMono-Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = F00100000000000000000017 /* IBMPlexMono-Medium.ttf */; };
@@ -37,6 +40,8 @@
 		F00100000000000000000012 /* MetalKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MetalKit.framework; path = System/Library/Frameworks/MetalKit.framework; sourceTree = SDKROOT; };
 		F00100000000000000000013 /* VisorTokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Visor/VisorTokens.swift; sourceTree = SOURCE_ROOT; };
 		F00100000000000000000018 /* PhoneCamera.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Visor/PhoneCamera.swift; sourceTree = SOURCE_ROOT; };
+		F00100000000000000000019 /* SurvivorDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Visor/SurvivorDetector.swift; sourceTree = SOURCE_ROOT; };
+		F00100000000000000000020 /* yolo26n-seg.mlpackage */ = {isa = PBXFileReference; lastKnownFileType = folder.mlpackage; path = Visor/Models/yolo26n-seg.mlpackage; sourceTree = SOURCE_ROOT; };
 		F00100000000000000000014 /* LensHud.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Visor/LensHud.swift; sourceTree = SOURCE_ROOT; };
 		F00100000000000000000015 /* ChakraPetch-SemiBold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = Visor/Fonts/ChakraPetch-SemiBold.ttf; sourceTree = SOURCE_ROOT; };
 		F00100000000000000000017 /* IBMPlexMono-Medium.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = Visor/Fonts/IBMPlexMono-Medium.ttf; sourceTree = SOURCE_ROOT; };
@@ -48,6 +53,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				B00100000000000000000021 /* UltralyticsYOLO in Frameworks */,
 				B00100000000000000000010 /* ARKit.framework in Frameworks */,
 				B00100000000000000000011 /* Metal.framework in Frameworks */,
 				B00100000000000000000012 /* MetalKit.framework in Frameworks */,
@@ -79,6 +85,8 @@
 				F00100000000000000000013 /* VisorTokens.swift */,
 				F00100000000000000000014 /* LensHud.swift */,
 				F00100000000000000000018 /* PhoneCamera.swift */,
+				F00100000000000000000019 /* SurvivorDetector.swift */,
+				F00100000000000000000020 /* yolo26n-seg.mlpackage */,
 				F00100000000000000000015 /* ChakraPetch-SemiBold.ttf */,
 				F00100000000000000000016 /* IBMPlexSans.ttf */,
 				F00100000000000000000017 /* IBMPlexMono-Medium.ttf */,
@@ -119,6 +127,9 @@
 			);
 			dependencies = (
 			);
+			packageProductDependencies = (
+				P00100000000000000000021 /* UltralyticsYOLO */,
+			);
 			name = Visor;
 			productName = Visor;
 			productReference = F00100000000000000000008 /* Visor.app */;
@@ -147,6 +158,9 @@
 				Base,
 			);
 			mainGroup = G00100000000000000000001;
+			packageReferences = (
+				P00100000000000000000020 /* XCRemoteSwiftPackageReference "yolo-ios-app" */,
+			);
 			productRefGroup = G00100000000000000000004 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -162,6 +176,7 @@
             buildActionMask = 2147483647;
             files = (
 				B00100000000000000000006 /* Shaders.metal in Sources */,
+				B00100000000000000000020 /* yolo26n-seg.mlpackage in Resources */,
 				B00100000000000000000015 /* ChakraPetch-SemiBold.ttf in Resources */,
 				B00100000000000000000016 /* IBMPlexSans.ttf in Resources */,
 				B00100000000000000000017 /* IBMPlexMono-Medium.ttf in Resources */,
@@ -182,11 +197,31 @@
 				B00100000000000000000013 /* VisorTokens.swift in Sources */,
 				B00100000000000000000014 /* LensHud.swift in Sources */,
 				B00100000000000000000018 /* PhoneCamera.swift in Sources */,
+				B00100000000000000000019 /* SurvivorDetector.swift in Sources */,
 
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		P00100000000000000000020 /* XCRemoteSwiftPackageReference "yolo-ios-app" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/ultralytics/yolo-ios-app.git";
+			requirement = {
+				kind = exactVersion;
+				version = 8.9.19;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		P00100000000000000000021 /* UltralyticsYOLO */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = P00100000000000000000020 /* XCRemoteSwiftPackageReference "yolo-ios-app" */;
+			productName = UltralyticsYOLO;
+		};
+/* End XCSwiftPackageProductDependency section */
 
 /* Begin XCBuildConfiguration section */
 		D00100000000000000000001 /* Debug */ = {

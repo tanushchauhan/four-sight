@@ -4,6 +4,7 @@ import MetalKit
 import os
 import simd
 import UIKit
+import CoreImage
 
 struct EyeUniforms {
     var lensM00: Float
@@ -50,6 +51,7 @@ final class StereoRenderer: NSObject, MTKViewDelegate {
 
     private let session: ARSessionController
     private let phone: PhoneCamera
+    private let detector: SurvivorDetector
     var source: CameraSource = .robot
     private let device: MTLDevice
     private let queue: MTLCommandQueue
@@ -59,7 +61,12 @@ final class StereoRenderer: NSObject, MTKViewDelegate {
     private var lastFrameTime = Date.distantPast
     private let warpPipeline: MTLRenderPipelineState
     private let hudPipeline: MTLRenderPipelineState
+    private let survivorRobotPipeline: MTLRenderPipelineState
+    private let survivorPhonePipeline: MTLRenderPipelineState
     private var hudTexture: MTLTexture?
+    private var survivorTexture: MTLTexture?
+    private var survivorRevision: UInt64 = 0
+    private var lastPhoneTimestamp: TimeInterval = -1
     private let log = Logger(subsystem: "com.hackutd26.visor", category: "stereo")
 
     private var textureCache: CVMetalTextureCache?
@@ -72,11 +79,12 @@ final class StereoRenderer: NSObject, MTKViewDelegate {
     private var eyeProjections: [EyeProjection] = []
     private var didLogPassthrough = false
 
-    init?(view: MTKView, session: ARSessionController, phone: PhoneCamera) {
+    init?(view: MTKView, session: ARSessionController, phone: PhoneCamera, detector: SurvivorDetector) {
         guard let device = view.device ?? MTLCreateSystemDefaultDevice(),
               let queue = device.makeCommandQueue() else { return nil }
         self.session = session
         self.phone = phone
+        self.detector = detector
         self.device = device
         self.queue = queue
 
@@ -136,6 +144,14 @@ final class StereoRenderer: NSObject, MTKViewDelegate {
             vertexDescriptor: nil,
             blending: true
         )
+        survivorRobotPipeline = Self.makePipeline(
+            device: device, library: library, vertex: "eyeVertex", fragment: "survivorRobotFragment",
+            pixelFormat: .rgba8Unorm, vertexDescriptor: nil, blending: true
+        )
+        survivorPhonePipeline = Self.makePipeline(
+            device: device, library: library, vertex: "eyeVertex", fragment: "survivorPhoneFragment",
+            pixelFormat: .rgba8Unorm, vertexDescriptor: nil, blending: true
+        )
 
         super.init()
 
@@ -163,7 +179,13 @@ final class StereoRenderer: NSObject, MTKViewDelegate {
         if let jpeg = session.takeFrame() {
             lastFrameTime = Date()
             robotTexture = try? MTKTextureLoader(device: device).newTexture(data: jpeg, options: [.SRGB: false])
+            if source == .robot, let ciImage = CIImage(data: jpeg) { detector.submit(ciImage) }
         }
+        if source == .phone, let frame = phone.currentFrame(), frame.timestamp != lastPhoneTimestamp {
+            lastPhoneTimestamp = frame.timestamp
+            detector.submit(CIImage(cvPixelBuffer: frame.capturedImage))
+        }
+        updateSurvivorTexture()
         if Date().timeIntervalSince(lastFrameTime) > 2 { robotTexture = nil }
         switch source {
         case .robot: encodeRobot(into: commandBuffer)
@@ -227,6 +249,11 @@ final class StereoRenderer: NSObject, MTKViewDelegate {
                 encoder.setFragmentBytes(&u, length: MemoryLayout<EyeUniforms>.stride, index: 0)
                 encoder.setFragmentTexture(image, index: 0)
                 encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
+                if let survivorTexture {
+                    encoder.setRenderPipelineState(survivorRobotPipeline)
+                    encoder.setFragmentTexture(survivorTexture, index: 0)
+                    encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
+                }
             }
             encoder.endEncoding()
         }
@@ -298,12 +325,32 @@ final class StereoRenderer: NSObject, MTKViewDelegate {
                 encoder.setFragmentTexture(planes.luma, index: 0)
                 encoder.setFragmentTexture(planes.chroma, index: 1)
                 encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
+                if let survivorTexture {
+                    encoder.setRenderPipelineState(survivorPhonePipeline)
+                    encoder.setFragmentBytes(&u, length: MemoryLayout<EyeUniforms>.stride, index: 0)
+                    encoder.setFragmentTexture(survivorTexture, index: 0)
+                    encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
+                }
             }
             encoder.endEncoding()
         }
         if let holders = planes?.holders {
             commandBuffer.addCompletedHandler { _ in _ = holders }
         }
+    }
+
+    private func updateSurvivorTexture() {
+        let overlay = detector.latestOverlay()
+        guard overlay.revision != survivorRevision else { return }
+        survivorRevision = overlay.revision
+        guard let image = overlay.image else {
+            survivorTexture = nil
+            return
+        }
+        survivorTexture = try? MTKTextureLoader(device: device).newTexture(
+            cgImage: image,
+            options: [.SRGB: false]
+        )
     }
 
     /// Uploads the lens layer as 8-bit premultiplied sRGB, whatever format the renderer produced.

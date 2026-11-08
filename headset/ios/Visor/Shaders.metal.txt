@@ -117,6 +117,30 @@ fragment float4 robotFragment(EyeVarying in [[stage_in]],
  return image.sample(linearSampler, float2(uv.x, 1.0-uv.y));
 }
 
+fragment float4 survivorRobotFragment(EyeVarying in [[stage_in]],
+ constant EyeUniforms &eye [[buffer(0)]], texture2d<float> mask [[texture(0)]]) {
+ constexpr sampler linearSampler(address::clamp_to_zero, filter::linear);
+ float2 ray = (in.uv * 2.0 - 1.0 + float2(eye.lensM02, eye.lensM12)) / float2(eye.lensM00, eye.lensM11);
+ float2 uv = ray / float2(eye.frustumSizeX, eye.frustumSizeY) + 0.5;
+ if (any(uv < 0.0) || any(uv > 1.0)) discard_fragment();
+ return mask.sample(linearSampler, float2(uv.x, 1.0-uv.y));
+}
+
+fragment float4 survivorPhoneFragment(EyeVarying in [[stage_in]],
+ constant EyeUniforms &eye [[buffer(0)]], texture2d<float> mask [[texture(0)]]) {
+ constexpr sampler linearSampler(address::clamp_to_zero, filter::linear);
+ float2 ndc = in.uv * 2.0 - 1.0;
+ float2 ray = float2((ndc.x + eye.lensM02) / eye.lensM00, (ndc.y + eye.lensM12) / eye.lensM11);
+ float2 quadUV = (ray - float2(eye.frustumCenterX, eye.frustumCenterY)) / float2(eye.frustumSizeX, eye.frustumSizeY) + 0.5;
+ if (any(quadUV < 0.0) || any(quadUV > 1.0)) discard_fragment();
+ float2 texUV = float2(
+     quadUV.x * eye.wideM00 + quadUV.y * eye.wideM10 + eye.wideM20,
+     quadUV.x * eye.wideM01 + quadUV.y * eye.wideM11 + eye.wideM21
+ );
+ if (any(texUV < 0.0) || any(texUV > 1.0)) discard_fragment();
+ return mask.sample(linearSampler, texUV);
+}
+
 struct HudUniforms {
     float lensM00;
     float lensM11;

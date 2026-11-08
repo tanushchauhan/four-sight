@@ -152,13 +152,23 @@ private struct SurvivorCount: View {
                     .font(VisorToken.label(22))
                     .foregroundStyle(VisorToken.muted.color)
             case .empty(let value, let detail), .ready(let value, let detail), .failed(let value, let detail):
-                Text(value)
-                    .font(VisorToken.display(56))
-                    .foregroundStyle(VisorToken.ink.color)
-                Text(detail.lowercased())
-                    .font(VisorToken.label(22))
-                    .foregroundStyle(VisorToken.ink2.color)
-                    .fixedSize()
+                HStack(alignment: .lastTextBaseline, spacing: VisorToken.spaceXs) {
+                    Text(value)
+                        .font(VisorToken.display(56))
+                        .foregroundStyle(VisorToken.ink.color)
+                    Text(detail.uppercased())
+                        .font(VisorToken.label(18))
+                        .foregroundStyle(VisorToken.ink2.color)
+                        .fixedSize()
+                }
+                .padding(.horizontal, detail.localizedCaseInsensitiveContains("alert") ? VisorToken.spaceSm : 0)
+                .padding(.vertical, detail.localizedCaseInsensitiveContains("alert") ? VisorToken.spaceXs : 0)
+                .background(detail.localizedCaseInsensitiveContains("alert") ? VisorToken.scrim.color : Color.clear)
+                .overlay(
+                    Rectangle()
+                        .strokeBorder(VisorToken.rule.color, lineWidth: VisorToken.hairline)
+                        .opacity(detail.localizedCaseInsensitiveContains("alert") ? 1 : 0)
+                )
             }
         }
         .overFeed()

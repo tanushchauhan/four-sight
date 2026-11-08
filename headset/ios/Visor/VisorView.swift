@@ -8,6 +8,7 @@ import UIKit
 struct VisorView: View {
     @StateObject private var controller = ARSessionController()
     @StateObject private var steering = HeadSteering()
+    @StateObject private var survivorDetector = SurvivorDetector()
     @AppStorage("cameraURL") private var address = "http://prada.local:8080/stream"
     @AppStorage("cameraSource") private var sourceName = CameraSource.robot.rawValue
     @State private var phone = PhoneCamera()
@@ -32,6 +33,16 @@ struct VisorView: View {
 
     private var briefing: VisorBriefing {
         var briefing = VisorBriefing.sample
+        switch survivorDetector.state {
+        case .loading:
+            briefing.survivors = .loading
+        case .ready(let count, let confidence):
+            briefing.survivors = count == 0
+                ? .empty(value: "0", detail: "Area clear")
+                : .ready(value: "\(count)", detail: String(format: "Survivor alert · %.0f%%", confidence * 100))
+        case .failed:
+            briefing.survivors = .failed(value: "Offline", detail: "Detection unavailable")
+        }
         if source == .phone {
             briefing.camera = .ready(value: "Phone", detail: "")
             return briefing
@@ -47,7 +58,7 @@ struct VisorView: View {
 
     var body: some View {
         ZStack {
-            MetalVisor(session: controller, phone: phone, source: source, briefing: briefing, layerStatus: $layerStatus)
+            MetalVisor(session: controller, phone: phone, detector: survivorDetector, source: source, briefing: briefing, layerStatus: $layerStatus)
                 .ignoresSafeArea()
                 .contentShape(Rectangle())
                 .onTapGesture { settings.toggle() }
@@ -270,6 +281,7 @@ private struct SheetButton: View {
 private struct MetalVisor: UIViewRepresentable {
     let session: ARSessionController
     let phone: PhoneCamera
+    let detector: SurvivorDetector
     let source: CameraSource
     let briefing: VisorBriefing
     @Binding var layerStatus: String
@@ -280,7 +292,7 @@ private struct MetalVisor: UIViewRepresentable {
         let view = MTKView(frame: .zero, device: MTLCreateSystemDefaultDevice())
         view.isOpaque = true
         view.backgroundColor = VisorToken.paper3.uiColor
-        if let renderer = StereoRenderer(view: view, session: session, phone: phone) {
+        if let renderer = StereoRenderer(view: view, session: session, phone: phone, detector: detector) {
             renderer.source = source
             context.coordinator.renderer = renderer
             view.delegate = renderer
