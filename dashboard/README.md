@@ -74,3 +74,12 @@ The installed vendor geometry clips at 18 degrees; 17 is the largest whole-degre
 unclipped pose checked, not a measured chassis angle or proof against tipping.
 Use level ground with the rear clear. The maintenance sequence cannot be instantly
 stopped with dashboard Stop. No autonomous movement is enabled by this test.
+
+### Hello and dance
+
+**Hello / wave** runs the vendor wave once at speed 55. **Dance** runs two short
+side-to-side sway and body-bob cycles at speed 60, validating the dance poses
+against vendor joint limits first. Both use the same exclusive maintenance path
+as the tilt test, return to standing, and restart driving disabled. Hello is a
+physical greeting, without speech playback. These sequences cannot be instantly
+stopped from the dashboard; leave space around the legs before triggering them.
