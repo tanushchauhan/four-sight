@@ -15,8 +15,11 @@ if command -v rpicam-vid >/dev/null && rpicam-hello --list-cameras 2>&1 | grep -
 fi
 
 export DEBIAN_FRONTEND=noninteractive
+sudo apt-get update -q
+# No libdw-dev: its libzstd-dev lags the installed libzstd1 on this mirror, and
+# libcamera only uses it for backtraces.
 sudo apt-get install -y -q git meson ninja-build pkg-config cmake python3-yaml python3-ply \
-  python3-jinja2 libyaml-dev libssl-dev libdw-dev libudev-dev libevent-dev libdrm-dev \
+  python3-jinja2 libyaml-dev libssl-dev libudev-dev libevent-dev libdrm-dev \
   libjpeg-dev libtiff-dev libpng-dev libexif-dev libboost-program-options-dev nlohmann-json3-dev
 
 mkdir -p "$VENDOR"
