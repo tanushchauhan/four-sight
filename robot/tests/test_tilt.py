@@ -1,6 +1,6 @@
 import unittest
 from unittest.mock import Mock
-from picrawler_control.tilt import release_test, MAX_TILT
+from picrawler_control.tilt import release_test, MAX_TILT, ROCK_LOW, ROCK_CYCLES, SPEED
 
 
 class TiltTests(unittest.TestCase):
@@ -11,12 +11,13 @@ class TiltTests(unittest.TestCase):
         r.limit_angle.return_value = (False, [0, 0, 0])
         return r
 
-    def test_returns_level_and_only_holds_once(self):
+    def test_bounded_rocking_and_return_to_level(self):
         r = self.robot(); sleep = Mock()
         release_test(r, sleep)
         pitch = [c.args[0][0][0] for c in r.do_step.call_args_list]
-        self.assertEqual(pitch, list(range(0, -MAX_TILT-1, -1)) + list(range(-MAX_TILT+1, 1)))
-        sleep.assert_called_once_with(3)
+        self.assertEqual(pitch, list(range(0, -MAX_TILT-1, -1)) + [-ROCK_LOW, -MAX_TILT] * ROCK_CYCLES + list(range(-MAX_TILT+1, 1)))
+        self.assertEqual(sleep.call_count, 2 + 2 * ROCK_CYCLES)
+        self.assertTrue(all(c.kwargs["speed"] == SPEED for c in r.do_step.call_args_list))
         self.assertTrue(all(c.kwargs['israise'] for c in r.do_step.call_args_list))
 
     def test_invalid_pose_prevents_all_motion(self):
