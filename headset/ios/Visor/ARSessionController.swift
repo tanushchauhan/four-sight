@@ -4,6 +4,7 @@ import Combine
 // Latest-frame MJPEG receiver. Network callbacks run serially; render access is locked.
 final class ARSessionController: NSObject, ObservableObject, URLSessionDataDelegate {
     @Published var status = "Disconnected"
+    private(set) var lastFrameTime = Date.distantPast
     private let lock = NSLock()
     private var latest: Data?
     private var buffer = Data()
@@ -39,6 +40,7 @@ final class ARSessionController: NSObject, ObservableObject, URLSessionDataDeleg
         task?.cancel(); task = nil
         connection?.invalidateAndCancel(); connection = nil
         lock.lock(); latest = nil; lock.unlock()
+        lastFrameTime = .distantPast
         status = "Disconnected"
     }
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive response: URLResponse,
@@ -57,6 +59,7 @@ final class ARSessionController: NSObject, ObservableObject, URLSessionDataDeleg
             let jpeg = buffer.subdata(in: start.lowerBound..<end.upperBound)
             buffer.removeSubrange(buffer.startIndex..<end.upperBound)
             lock.lock(); latest = jpeg; lock.unlock()
+            lastFrameTime = Date()
             status = "Live"
         }
         if buffer.count > 4 * 1024 * 1024 { buffer.removeAll() }

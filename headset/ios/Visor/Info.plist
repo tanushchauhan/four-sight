@@ -2,6 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+    <key>NSMotionUsageDescription</key>
+    <string>Head movement steers the robot camera left and right.</string>
     <key>NSLocalNetworkUsageDescription</key>
     <string>Connect to Prada’s camera over your local Wi-Fi.</string>
     <key>NSAppTransportSecurity</key>
