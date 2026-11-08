@@ -187,7 +187,7 @@ class Handler(BaseHTTPRequestHandler):
             data = json.loads(self.rfile.read(length))
             if not isinstance(data, dict): raise ValueError('Expected an object')
             if self.path.startswith('/api/control/') and self.path != '/api/control/input':
-                if self.server.mission.owner or (self.server.control.mode == 'auto' and self.server.control.owner):
+                if self.server.mission.mode in ('autonomous', 'person_found') or self.server.mission.owner or (self.server.control.mode == 'auto' and self.server.control.owner):
                     self.server.mission.stop('Manual takeover requested', 'manual')
                     self.server.control.close()
                 if self.path in ('/api/control/acquire', '/api/control/usb', '/api/control/release'):

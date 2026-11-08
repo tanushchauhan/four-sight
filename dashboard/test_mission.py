@@ -108,3 +108,25 @@ class MissionWorkerTests(unittest.TestCase):
             release.set();worker.join(1)
         finally:
             release.set();mission.close()
+
+class MissionRouteTests(unittest.TestCase):
+    def test_global_stop_cancels_person_found_admission(self):
+        import json, threading, urllib.request
+        from server import Handler, ThreadingHTTPServer
+        server=ThreadingHTTPServer(('127.0.0.1',0),Handler)
+        server.control=DebugControl('not-a-robot')
+        server.media=Mock()
+        server.mission=Mission(server.control,server.media)
+        server.mission.mode='person_found'
+        server.mission.detection=True
+        server.nonce='test-nonce'
+        thread=threading.Thread(target=server.serve_forever,daemon=True);thread.start()
+        base='http://127.0.0.1:'+str(server.server_port)
+        try:
+            request=urllib.request.Request(base+'/api/control/stop',data=b'{}',headers={
+                'Origin':base,'Content-Type':'application/json','X-Control-Nonce':server.nonce})
+            with urllib.request.urlopen(request,timeout=2) as r:self.assertEqual(r.status,200)
+            self.assertEqual(server.mission.mode,'manual')
+            self.assertFalse(server.mission.person({'count':1,'confidence':.9})['accepted'])
+        finally:
+            server.shutdown();server.server_close();server.mission.close()
