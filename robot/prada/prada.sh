@@ -44,7 +44,8 @@ case "${1:-help}" in
   status)
     for s in "${SERVICES[@]}"; do printf '%-16s %s\n' "$s" "$(systemctl is-active "$s")"; done
     printf '%-16s %s\n' "repo" "$(git -C "$REPO" log --oneline -1)"
-    if i2cdetect -y 1 2>/dev/null | grep -qE ' 14 | 15 '; then hat=found; else hat=missing; fi
+    scan="$(i2cdetect -y 1 2>/dev/null || true)"  # not piped: grep -q would SIGPIPE it under pipefail
+    if grep -qE ' (14|15) ' <<<"$scan"; then hat=found; else hat=missing; fi
     printf '%-16s %s\n' "HAT on I2C" "$hat"
     if running; then
       printf '%-16s %s\n' "battery" "(skipped while the server owns the HAT)"
