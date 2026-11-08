@@ -27,11 +27,21 @@ Checks: `python3 -m unittest discover -s dashboard -p 'test_*.py' -v`.
 
 Open **http://localhost:8090** on the Mac running the server. LAN visitors can view status, but only requests originating on this Mac can control the robot (localhost or the Mac’s own LAN IP).
 
-1. Click **Take keyboard control**. This pauses `prada-joystick`, including headset steering, and opens a single authenticated connection to the motor server through SSH. The token stays on Prada.
-2. Wait for **connected / Disabled**. Press **E** to enable, then hold **W/S** to walk or **A/D** to turn. Key release sends neutral input. Pick 50%, 75%, or 100% input; these are command magnitudes, not measured physical speed.
+1. Click **Take keyboard control**. This pauses the glove relay and starts a replacement headset listener on port 8766, and opens a single authenticated connection to the motor server through SSH. The token stays on Prada.
+2. Wait for **connected / Disabled**. Press **E** to enable, then hold **W/S** to walk or **A/D** to turn. With WASD released, fresh headset turn commands are used instead. Direction keys override the headset. E enables both sources, and space/blur/stale browser updates disable both. Headset commands expire independently after 0.3 seconds. Pick 50%, 75%, or 100% input; these are command magnitudes, not measured physical speed.
 3. Press **space** or click **Stop** to disable. Losing browser focus, hiding the tab, or missing browser updates for 0.3 seconds also disarms. You must explicitly enable again.
 4. Click **Release control** to close the control connection and restore the glove relay if it was running before takeover. An abandoned tab automatically releases after 15 seconds without updates.
 
 The motor server's independent 0.5-second timeout also remains active. Network delay and synchronous vendor gaits mean stop is not instantaneous: one committed gait or initialization must finish. The dashboard starts disarmed, and it never restores enabled motion automatically. If the dashboard crashes, the Pi disables motion on timeout, but you may need `ssh prada sudo systemctl start prada-joystick` to restore the glove relay.
 
 The Prada deployment maximum is now 100 vendor units (previously 80); the dashboard defaults to 50% input. Use the physical servo-power switch if a vendor call gets stuck.
+
+## Keyboard + headset mode
+
+Keyboard takeover now hosts the same head-steering listener as the glove relay on Prada port 8766. Visor reconnects automatically after the handoff. Press E in the focused dashboard to enable; when no WASD key is held, the latest head turn is used. WASD overrides head input, and space disables both. The browser must remain focused and send updates for either source to move. The panel reports whether the headset is connected and which input source was selected. No iPhone rebuild is required for this dashboard mode.
+
+## Calibrated servo zero
+
+**Move servos to zero** commands all 12 servos to the vendor's initial zero angles with the saved calibration offsets applied. Support the robot before pressing it. It releases keyboard control, stops the glove and motor services, and then uses the same advisory hardware lock and lazy initialization code as the motor server. It does not change calibration offsets. After completion the motor server is restarted disabled, and the glove relay is restored if previously running. Take keyboard control and enable again to resume. A stop failure prevents the maintenance command from running; failures are displayed instead of claiming success.
+
+Hardware-free protocol integration: `PYTHONPATH=robot:dashboard robot/.venv/bin/python -m unittest discover -s dashboard -p 'test_*.py' -v`. This tests head steering, keyboard override, stale head input, and stop against the actual WebSocket bridge without a gait worker or hardware. The servo-zero failure paths are mocked; physical zeroing is initiated only by the operator's button press.

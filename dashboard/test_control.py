@@ -56,3 +56,20 @@ class DebugControlTests(unittest.TestCase):
 
 
 if __name__ == '__main__': unittest.main()
+
+class ServoZeroTests(unittest.TestCase):
+    def test_control_is_blocked_during_maintenance(self):
+        c = DebugControl('prada'); c.maintenance=True
+        with self.assertRaises(ValueError): c.acquire()
+        with self.assertRaises(ValueError): c.update({'owner':'owner','seq':0,'action':'enable'})
+
+    @patch('control.subprocess.run')
+    def test_failed_service_stop_never_touches_hardware(self, run):
+        import subprocess
+        c = DebugControl('prada'); c.maintenance=True
+        run.side_effect=[subprocess.CompletedProcess([],0,'active',''),subprocess.TimeoutExpired('stop',30)]
+        c.run_zero()
+        self.assertEqual(run.call_count,2)
+        self.assertEqual(c.status['connection'],'error')
+        self.assertFalse(c.maintenance)
+        self.assertFalse(any('Hardware' in str(call) for call in run.call_args_list))

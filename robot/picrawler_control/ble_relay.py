@@ -47,6 +47,7 @@ class HeadInput:
             self.owner = socket
             owned = True
             logging.info("headset steering connected")
+            last_log = 0.0
             async for raw in socket:
                 msg = json.loads(raw)
                 turn = msg.get("turn") if isinstance(msg, dict) else None
@@ -55,9 +56,12 @@ class HeadInput:
                     await socket.close(1008, "invalid head turn")
                     break
                 self.turn, self.received = turn, time.monotonic()
+                if self.received - last_log >= 2:
+                    logging.info("headset command turn=%.3f", turn)
+                    last_log = self.received
                 await socket.send('{"received":true}')
-        except Exception:
-            pass
+        except Exception as exc:
+            logging.info("headset connection ended: %s", exc)
         finally:
             if owned:
                 self.turn = 0.0

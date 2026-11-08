@@ -137,6 +137,10 @@ class Handler(BaseHTTPRequestHandler):
             if not isinstance(data, dict): raise ValueError('Expected an object')
             if self.path == '/api/control/acquire':
                 result = {'owner': self.server.control.acquire(), 'control': self.server.control.snapshot()}
+            elif self.path == '/api/control/zero':
+                result = self.server.control.zero_servos()
+            elif self.path == '/api/control/release':
+                result = self.server.control.release()
             elif self.path == '/api/control/input':
                 result = self.server.control.update(data)
             else:
@@ -185,7 +189,7 @@ def main():
     except KeyboardInterrupt:
         pass
     finally:
-        server.control.closing.set()
+        server.control.close()
         monitor.stop.set()
         server.server_close()
 

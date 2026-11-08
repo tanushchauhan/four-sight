@@ -9,22 +9,52 @@ import threading
 import time
 
 REMOTE = r'''
-import json, sys
+import asyncio, json, sys, threading
 from websockets.sync.client import connect
+from websockets.asyncio.server import serve
+from picrawler_control.ble_relay import HeadInput
+HEAD_PORT = 8766
+head = HeadInput()
+ready = threading.Event()
+head_error = []
+async def serve_head():
+    try:
+        async with serve(head.handle, '0.0.0.0', HEAD_PORT, max_size=1024, max_queue=1, compression=None):
+            ready.set()
+            await asyncio.Future()
+    except Exception as exc:
+        head_error.append(str(exc))
+        ready.set()
+threading.Thread(target=lambda: asyncio.run(serve_head()), daemon=True).start()
+if not ready.wait(4) or head_error:
+    raise RuntimeError('Head steering listener unavailable: ' + '; '.join(head_error))
 with open('/etc/picrawler-control.env') as f:
     token = next(line.split('=', 1)[1].strip() for line in f if line.startswith('ROBOT_CONTROL_TOKEN='))
 with connect('ws://127.0.0.1:8765', open_timeout=4, close_timeout=1) as ws:
+    def report(timeout):
+        reply = json.loads(ws.recv(timeout=timeout))
+        reply.update(headset_connected=head.owner is not None, head_turn=head.value(), input_source=source)
+        print(json.dumps(reply), flush=True)
+    source = 'disabled'
     ws.send(json.dumps({'type':'hello', 'token':token}))
-    print(ws.recv(timeout=3), flush=True)
+    report(3)
     seq = 0
     for line in sys.stdin:
         msg = json.loads(line)
+        source = 'disabled'
+        if msg['type'] == 'drive':
+            if msg['forward'] == 0 and msg['turn'] == 0:
+                msg['turn'] = head.value()
+                source = 'headset' if msg['turn'] else 'neutral'
+            else:
+                source = 'keyboard'
         msg['seq'] = seq
         seq += 1
         ws.send(json.dumps(msg))
-        print(ws.recv(timeout=2), flush=True)
+        report(2)
         if msg['type'] == 'release': break
 '''
+
 
 
 class DebugControl:
@@ -32,6 +62,7 @@ class DebugControl:
         self.target = target
         self.lock = threading.RLock()
         self.owner = None
+        self.maintenance = False
         self.revision = 0
         self.seq = -1
         self.received = 0
@@ -48,6 +79,8 @@ class DebugControl:
 
     def acquire(self):
         with self.lock:
+            if self.maintenance:
+                raise ValueError('Servo zero operation is in progress')
             if self.owner is not None:
                 raise ValueError('Another tab owns debug control. Release it first.')
             self.owner = secrets.token_urlsafe(24)
@@ -56,11 +89,14 @@ class DebugControl:
             self.armed = False
             self.closing = threading.Event()
             self.status = {'connection': 'connecting', 'enabled': False, 'reason': 'Taking over from glove'}
-            threading.Thread(target=self.run, daemon=True).start()
+            self.worker = threading.Thread(target=self.run, daemon=True)
+            self.worker.start()
             return self.owner
 
     def update(self, data):
         with self.lock:
+            if self.maintenance:
+                raise ValueError('Servo zero operation is in progress')
             if not self.owner or data.get('owner') != self.owner:
                 raise ValueError('This tab does not own control')
             seq = data.get('seq')
@@ -83,6 +119,51 @@ class DebugControl:
             else:
                 self.axes = (float(f), float(t)) if self.armed else (0., 0.)
             self.seq, self.received = seq, time.monotonic()
+            return self.snapshot()
+
+    def zero_servos(self):
+        with self.lock:
+            if self.maintenance:
+                raise ValueError('Servo zero operation is already running')
+            self.maintenance = True
+            self.disarm()
+            self.closing.set()
+            threading.Thread(target=self.run_zero, daemon=True).start()
+            return {'connection': 'maintenance', 'enabled': False, 'reason': 'Stopping control before moving servos to zero'}
+
+    def run_zero(self):
+        restore = False
+        try:
+            self.close()
+            worker = getattr(self, 'worker', None)
+            if worker is not None and worker.is_alive():
+                raise RuntimeError('Control did not release; no zero command sent')
+            with self.lock:
+                self.status = {'connection':'maintenance', 'enabled':False, 'reason':'Moving 12 servos to calibrated zero'}
+            p = subprocess.run(self.ssh('systemctl is-active prada-joystick'), capture_output=True, text=True, timeout=7)
+            restore = p.stdout.strip() == 'active'
+            subprocess.run(self.ssh('sudo -n systemctl stop prada-joystick prada-server'), check=True, capture_output=True, timeout=30)
+            script = "from picrawler_control.backend import Hardware; h=Hardware(); h.initialize(); h.close(); print('calibrated zero complete')"
+            subprocess.run(self.ssh('/home/liquidiv/hackutd26/robot/.venv/bin/python -c ' + shlex.quote(script)), check=True, capture_output=True, timeout=15)
+            subprocess.run(self.ssh('sudo -n systemctl start prada-server' + (' prada-joystick' if restore else '')), check=True, capture_output=True, timeout=10)
+            status = {'connection':'idle', 'enabled':False, 'reason':'Servos at calibrated zero. Control restarted disabled; take control and press E to resume.'}
+        except Exception as exc:
+            status = {'connection':'error', 'enabled':False, 'reason':'Servo zero failed: ' + str(exc)[:250] + '. Check robot services before resuming.'}
+        finally:
+            with self.lock:
+                self.maintenance = False
+                self.status = status
+
+    def close(self):
+        self.release()
+        worker = getattr(self, 'worker', None)
+        if worker is not None:
+            worker.join(timeout=25)
+
+    def release(self):
+        with self.lock:
+            self.disarm()
+            self.closing.set()
             return self.snapshot()
 
     def disarm(self):
