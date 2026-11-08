@@ -75,13 +75,17 @@ sudo systemctl enable --now bluetooth >/dev/null
 step "Robot HAT speaker"
 # The HAT v4 speaker is an I2S amplifier: it shows up as a sound card with the
 # hifiberry-dac overlay, and its amplifier stays off until GPIO 20 is driven high
-# (what robot_hat.enable_speaker() does). The firmware sets the pin at boot.
+# (what robot_hat.enable_speaker() does). The overlay claims GPIO 20 at boot, so
+# prada-speaker.service sets it after the sound card loads.
 if ! grep -q '^dtoverlay=hifiberry-dac' /boot/firmware/config.txt; then
-  printf '\n[all]\n# prada: Robot HAT v4 speaker (I2S amp) and its enable pin\ndtoverlay=hifiberry-dac\ngpio=20=op,dh\n' \
+  printf '\n[all]\n# prada: Robot HAT v4 speaker (I2S amp)\ndtoverlay=hifiberry-dac\n' \
     | sudo tee -a /boot/firmware/config.txt >/dev/null
   sudo sync
   echo "speaker enabled in config.txt; reboot to load it"
 fi
+put 644 "$PRADA/system/prada-speaker.service" /etc/systemd/system
+sudo systemctl daemon-reload
+sudo systemctl enable --now prada-speaker >/dev/null 2>&1 || true
 
 step "Python environment"
 [[ -d "$VENV" ]] || python3 -m venv --system-site-packages "$VENV"

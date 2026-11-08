@@ -1,0 +1,14 @@
+# Turn on the Robot HAT v4 speaker amplifier (GPIO 20 high), same as
+# robot_hat.enable_speaker(). It runs after the sound card loads, because the
+# hifiberry-dac overlay claims GPIO 20 as an unused I2S input at boot.
+[Unit]
+Description=prada Robot HAT speaker amplifier on
+After=sound.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/pinctrl set 20 op dh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

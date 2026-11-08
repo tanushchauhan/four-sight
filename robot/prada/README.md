@@ -43,6 +43,7 @@ None of these move servos. The robot moves only after the joystick is clicked an
 | `system/prada-server.service` | Bridge server in hardware mode |
 | `system/prada-joystick.service` | Bluetooth relay from the Arduino 101 joystick |
 | `system/prada-camera.service` | Camera MJPEG stream on port 8080 |
+| `system/prada-speaker.service` | Turns on the HAT speaker amplifier at boot |
 | `build-camera.sh` | Builds Raspberry Pi libcamera and rpicam-apps (run by `install.sh`) |
 | `system/60-picrawler-gpiomem.rules` | Gives the `gpio` group the Pi 5 GPIO memory windows that `pinctrl` needs |
 | `system/picrawler-lock.conf` | Recreates `/run/lock/picrawler-control.lock` at boot |
@@ -116,6 +117,11 @@ open http://localhost:18080/stream
 ```
 
 The camera does not need the Robot HAT. If it isn't detected, check that the Pi 5 cable (22-pin end at the Pi) is seated in CAM0 with the latch closed, with the Pi off.
+
+## Audio
+
+- **Speaker:** the Robot HAT v4's I2S amplifier, as ALSA card `sndrpihifiberry` (from `dtoverlay=hifiberry-dac` in `config.txt`). Its amplifier is off until GPIO 20 is high; the overlay claims that pin at boot, so `prada-speaker.service` sets it afterwards. Test: `speaker-test -D plughw:sndrpihifiberry -c 2 -t sine -l 1`.
+- **Microphone:** a USB "PnP Sound Device" (C-Media), mono capture at 48 kHz, ALSA card `Device`.
 
 ## SSH from a laptop
 
