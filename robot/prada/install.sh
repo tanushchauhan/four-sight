@@ -42,7 +42,7 @@ fi
 sudo apt-get update -q
 sudo -E apt-get install -y -q git curl python3-venv python3-pip i2c-tools gpiod \
   python3-lgpio python3-smbus2 python3-gpiozero python3-spidev python3-serial python3-pil \
-  python3-pyaudio python3-pygame cmake build-essential device-tree-compiler bluez
+  python3-pyaudio python3-pygame cmake build-essential device-tree-compiler bluez alsa-utils
 
 step "SunFounder libraries (pinned)"
 mkdir -p "$VENDOR"
@@ -64,13 +64,24 @@ step "I2C, GPIO access and lock"
 grep -q '^dtparam=i2c_arm=on' /boot/firmware/config.txt || echo "WARNING: add dtparam=i2c_arm=on under [all] in /boot/firmware/config.txt"
 put 644 "$PRADA/system/i2c-dev.conf" /etc/modules-load.d
 getent group gpio >/dev/null || sudo groupadd --system gpio
-sudo usermod -aG i2c,dialout,gpio,video,render liquidiv
+sudo usermod -aG i2c,dialout,gpio,video,render,audio liquidiv
 put 644 "$PRADA/system/60-picrawler-gpiomem.rules" /etc/udev/rules.d
 sudo udevadm control --reload
 sudo udevadm trigger --action=add --sysname-match='gpiomem*' || true
 put 644 "$PRADA/system/picrawler-lock.conf" /etc/tmpfiles.d
 sudo systemd-tmpfiles --create /etc/tmpfiles.d/picrawler-lock.conf
 sudo systemctl enable --now bluetooth >/dev/null
+
+step "Robot HAT speaker"
+# The HAT v4 speaker is an I2S amplifier: it shows up as a sound card with the
+# hifiberry-dac overlay, and its amplifier stays off until GPIO 20 is driven high
+# (what robot_hat.enable_speaker() does). The firmware sets the pin at boot.
+if ! grep -q '^dtoverlay=hifiberry-dac' /boot/firmware/config.txt; then
+  printf '\n[all]\n# prada: Robot HAT v4 speaker (I2S amp) and its enable pin\ndtoverlay=hifiberry-dac\ngpio=20=op,dh\n' \
+    | sudo tee -a /boot/firmware/config.txt >/dev/null
+  sudo sync
+  echo "speaker enabled in config.txt; reboot to load it"
+fi
 
 step "Python environment"
 [[ -d "$VENV" ]] || python3 -m venv --system-site-packages "$VENV"
