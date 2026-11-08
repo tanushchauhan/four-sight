@@ -15,6 +15,7 @@ struct VisorView: View {
     @AppStorage("cameraSource") private var sourceName = CameraSource.robot.rawValue
     @State private var phone = PhoneCamera()
     @State private var settings = true
+    @State private var radarTime = Date()
     @State private var layerStatus = "Lens layer: drawing"
     @FocusState private var focused: Control?
     @Environment(\.scenePhase) private var scenePhase
@@ -32,6 +33,8 @@ struct VisorView: View {
 
     private var briefing: VisorBriefing {
         var briefing = VisorBriefing.sample
+        briefing.sightings = survivorDetector.insight.sightings
+        briefing.radarTime = radarTime
         let insight = survivorDetector.insight
         switch survivorDetector.state {
         case .loading:
@@ -103,6 +106,7 @@ struct VisorView: View {
             }
         }
         .statusBarHidden(true)
+        .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { radarTime = $0 }
         .persistentSystemOverlays(.hidden)
         .onAppear {
             UIApplication.shared.isIdleTimerDisabled = true

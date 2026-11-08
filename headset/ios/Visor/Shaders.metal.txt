@@ -105,7 +105,10 @@ fragment float4 warpFragment(
 ) {
     constexpr sampler colorSampler(address::clamp_to_edge, filter::linear);
     // DistortionMesh UVs have (0, 0) at bottom-left; Metal render target texture has (0, 0) at top-left.
-    return eye.sample(colorSampler, float2(in.uv.x, 1.0 - in.uv.y));
+    float4 color = eye.sample(colorSampler, float2(in.uv.x, 1.0 - in.uv.y));
+    float radius = length((in.uv - 0.5) * 2.0);
+    float fade = 1.0 - 0.32 * smoothstep(0.72, 1.12, radius);
+    return float4(color.rgb * fade, color.a);
 }
 
 fragment float4 robotFragment(EyeVarying in [[stage_in]],

@@ -15,7 +15,15 @@ enum TriageMotion: String, Equatable {
     case uncertain = "Uncertain"
 }
 
+struct SurvivorSighting: Equatable, Identifiable {
+    let id: UUID
+    var distance: Double
+    var bearing: Double
+    var seen: Date
+}
+
 struct SurvivorInsight: Equatable {
+    var sightings: [SurvivorSighting] = []
     var distanceMeters: Double?
     var bearingDegrees: Double?
     var motion: TriageMotion = .uncertain
@@ -49,6 +57,7 @@ final class SurvivorDetector: ObservableObject {
     private var stableFrames = 0
     private var lastConfirmedDistance: Double?
     private var lastConfirmedBearing: Double?
+    private var sightings: [SurvivorSighting] = []
 
     /// Inference is deliberately capped below display refresh. Metal remains at 60 FPS and always
     /// uses the latest completed mask instead of waiting for the Neural Engine.
@@ -126,11 +135,27 @@ final class SurvivorDetector: ObservableObject {
     }
 
     private func makeInsight(survivors: [Box], at time: CFTimeInterval) -> SurvivorInsight {
+        let now = Date()
+        sightings.removeAll { now.timeIntervalSince($0.seen) > 45 }
+        for person in survivors {
+            let distance = Double(min(15, max(1, 1.7 / max(person.xywhn.height, 0.12))))
+            let bearing = Double(min(34, max(-34, (person.xywhn.midX - 0.5) * 68)))
+            if let index = sightings.indices.min(by: {
+                abs(sightings[$0].bearing - bearing) < abs(sightings[$1].bearing - bearing)
+            }), abs(sightings[index].bearing - bearing) < 6,
+               abs(sightings[index].distance - distance) < 2 {
+                sightings[index].seen = now
+            } else {
+                sightings.append(SurvivorSighting(id: UUID(), distance: distance, bearing: bearing, seen: now))
+            }
+        }
+        sightings = Array(sightings.suffix(24))
         guard let primary = survivors.max(by: { $0.conf < $1.conf }) else {
             previousCentroid = nil
             previousCentroidTime = nil
             stableFrames = 0
             return SurvivorInsight(
+                sightings: sightings,
                 distanceMeters: nil,
                 bearingDegrees: nil,
                 motion: .uncertain,
@@ -167,6 +192,7 @@ final class SurvivorDetector: ObservableObject {
         lastConfirmedDistance = distance
         lastConfirmedBearing = bearing
         return SurvivorInsight(
+            sightings: sightings,
             distanceMeters: distance,
             bearingDegrees: bearing,
             motion: motion,
