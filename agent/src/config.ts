@@ -24,6 +24,14 @@ export interface Config {
   robotMode: "sim" | "pi";
   robotId: number;
   piWsUrl: string;
+  /** Robot loudspeaker: off, or pi = the Pi speech service. */
+  speakerMode: "off" | "pi";
+  speakerUrl: string;
+  /** Spoken updates for the rescuer: every headset alert also goes to the operator voice feed. */
+  operatorVoice: boolean;
+  operatorFeedHost: string;
+  operatorFeedPort: number;
+  robotControlToken: string;
 
   stateMode: "memory" | "spacetime";
   spacetimeUrl: string;
@@ -88,6 +96,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     robotMode: pick(env.ROBOT_MODE, ["sim", "pi"], "sim", "ROBOT_MODE"),
     robotId: num(env.ROBOT_ID, 1, "ROBOT_ID"),
     piWsUrl: env.PI_WS_URL || "ws://raspberrypi.local:8765",
+    speakerMode: pick(env.SPEAKER_MODE, ["off", "pi"], "off", "SPEAKER_MODE"),
+    speakerUrl: env.SPEAKER_URL || "http://prada.local:8081",
+    operatorVoice: pick(env.OPERATOR_VOICE, ["on", "off"], "on", "OPERATOR_VOICE") === "on",
+    operatorFeedHost: env.OPERATOR_FEED_HOST || "127.0.0.1",
+    operatorFeedPort: num(env.OPERATOR_FEED_PORT, 8788, "OPERATOR_FEED_PORT"),
+    robotControlToken: env.ROBOT_CONTROL_TOKEN ?? "",
 
     stateMode: pick(env.STATE_MODE, ["memory", "spacetime"], "memory", "STATE_MODE"),
     spacetimeUrl: env.SPACETIME_URL || "https://maincloud.spacetimedb.com",
@@ -112,6 +126,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
 
   if (cfg.llmMode === "nvidia" && !cfg.nvidiaApiKey) {
     throw new Error("LLM_MODE=nvidia needs NVIDIA_API_KEY (get one at build.nvidia.com). Use LLM_MODE=mock to run offline.");
+  }
+  if (cfg.speakerMode === "pi" && !cfg.robotControlToken) {
+    throw new Error("SPEAKER_MODE=pi needs ROBOT_CONTROL_TOKEN (the same secret as /etc/picrawler-control.env on prada).");
   }
   if (cfg.notifyMode === "twilio" && (!cfg.twilioAccountSid || !cfg.twilioAuthToken || !cfg.twilioFrom)) {
     throw new Error("NOTIFY_MODE=twilio needs TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN and TWILIO_FROM.");

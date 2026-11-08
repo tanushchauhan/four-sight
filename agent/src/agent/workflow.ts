@@ -19,6 +19,9 @@ import { TRIAGE_DECISION_PROMPT } from "./prompts.js";
 
 export const MAX_WORKFLOW_LOOKS = 3;
 const QUESTIONS = ["This is a rescue robot. Help is coming. Can you hear me?", "Are you hurt? Can you move?"];
+/** Said after triage. Same wording as the Pi speech service's pre-rendered phrases, so they play instantly. */
+const REASSURE = "Help is on the way. Stay still if you can.";
+const NOTIFIED = "Responders have been notified.";
 const SEVERITY: Record<Triage, number> = { unknown: 0, green: 1, yellow: 2, red: 3, black: 1 };
 const PRIORITY: Record<Triage, number> = { red: 95, yellow: 75, green: 40, black: 30, unknown: 55 };
 
@@ -224,6 +227,11 @@ export async function runDetectionWorkflow(event: Extract<AgentEvent, { kind: "d
       const b = await step("drop_beacon", { case_id: c.id });
       if (b.ok && (b.result as { ok?: boolean }).ok) memo.beaconCase = c.id;
     }
+  }
+  // Tell the survivor (responsive or not: they may still hear).
+  if (event.kind === "detection" || worse) {
+    await step("speak", { text: REASSURE });
+    if (memo.notified.get(c.id) === c.triage) await step("speak", { text: NOTIFIED });
   }
   const change = event.kind === "recheck_case" && before !== c.triage ? ` (was ${before.toUpperCase()})` : "";
   await step("push_headset_alert", { text: `Case ${c.id}: ${c.triage.toUpperCase()}${change}. ${c.description}`.slice(0, 160), level: c.triage === "red" ? "critical" : "warning" });

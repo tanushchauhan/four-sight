@@ -250,3 +250,49 @@ Triage from one photo is weak. On the DARPA Triage Challenge, one team went from
 - Camera shake, dust, smoke or the robot moving can make a frame look like the person moved, so `yes` can be a false positive.
 - The robot has to stay still between the frames.
 - The result is evidence for a *provisional* triage card, alongside the photo, the voice replies and heat. It is not a diagnosis, and the agent must never mark someone black from this check alone.
+
+## Operator voice updates
+
+The rescuer wears the phone VR visor and drives the robot, so they can't read a screen. The agent tells them what is happening by voice instead: "Person seen, case 1 at 2.3, 1.1: behind the couch." or "Case 1: red. Responders notified."
+
+**Code.** `agent/src/operator/voice.ts` holds the pure logic (no I/O). `agent/src/operator/feed-server.ts` is a small `node:http` server that streams it. The page that speaks is `agent/web/public/operator.html` (with `operator.js` and the shared `speech.js`). The lead wires `OperatorVoice.push()` next to `pushAlert`.
+
+```ts
+const voice = new OperatorVoice();               // options: now, setTimer, dedupeMs, minGapMs, maxQueue, historySize
+voice.push({ text, level, source?, caseId?, time? }); // Utterance if said now, else null (empty, repeat or queued)
+voice.subscribe((u) => ...);                     // returns unsubscribe; also voice.unsubscribe(fn)
+voice.recent(20);                                // last n said, oldest first (50 kept)
+const feed = await startOperatorFeed(voice, { host: "0.0.0.0", port: 8788 }); // { url, close() }
+```
+
+**What it does to each alert.**
+- **Rewritten for the ear.** At most 22 words and 140 characters, cut at a sentence end, then at a clause, then at a word. No words are added. Markdown, links and emoji are removed. `(x, y)` becomes "at x, y". Other parentheses lose only the brackets. Numbers are rounded to one decimal ("2.0" becomes "2"). `RED` becomes "red", `-1.2` becomes "minus 1.2", `°`/`%`/`m` become "degrees"/"percent"/"meters".
+- **Approval prompts.** An alert starting with `Approve?` becomes "Approval needed: \<summary\>. Answer on the console." at level warning.
+- **Repeats dropped.** The same normalized text within 30 s gives `null`.
+- **Paced.** Non-critical lines are at least 4 s apart. Up to 3 wait in a queue, and when it overflows the oldest *info* line is dropped first (the oldest line if there is no info). A timer releases queued lines to subscribers.
+- **Critical lines.** They always go out at once with `interrupt: true`, meaning "stop talking and say this".
+
+**Feed contract** (default `http://127.0.0.1:8788`; bind `0.0.0.0` so the phone on the LAN can reach it). Every GET sends `Access-Control-Allow-Origin: *`. Only utterance text is served, never keys or config.
+
+| Route | Returns |
+| --- | --- |
+| `GET /api/operator/feed` | Server-sent events. Event `say` with `id: <utterance id>` and the Utterance JSON as data. On connect it replays the last 5, or only those after `Last-Event-ID` / `?since=<id>`. Event `ping` `{"time": ms}` every 15 s. |
+| `GET /api/operator/recent?n=20[&since=<id>]` | JSON array of the last n utterances (1-50), oldest first |
+| `GET /operator` | The earpiece page (also `/operator.js`, `/speech.js`). Nothing else is served from disk. |
+
+```json
+{ "id": 7, "text": "Case 1: red. Unresponsive adult, heavy bleeding from the leg.", "level": "critical",
+  "interrupt": true, "time": 1762600000000, "source": "set_triage", "caseId": 1 }
+```
+
+**Earpiece page (`/operator`).** Open it on the phone. It shows the latest line large, colored by level, with the history below, and it speaks each line through the Web Speech API (an English voice at rate 1.05; critical lines cancel current speech first). It has a "Tap to enable voice" button, because browsers block audio until a gesture, plus mute, volume and rate controls. Settings are saved in localStorage. Lines older than 20 s, such as replays after a reconnect, are shown but not spoken. `?feed=http://<host>:8788` points the page at another server. iOS Safari stops the page and its speech when it goes to the background or the screen locks, so the page asks for a screen wake lock where the browser supports one.
+
+**Scene bench.** Run options now include **Speak updates**, which reads new headset alerts from `state` events with the same rewrite rules, and **Play robot voice**, which plays the robot's `speech` lines in a second, lower-pitched voice. Both are off by default and saved in localStorage. A silent turn says nothing.
+
+**Visor integration (suggested).** The iOS visor app should not depend on the web page:
+1. Open the feed with `URLSession` (SSE: read lines, split on blank lines, keep the last `id:`), or poll `GET /api/operator/recent?since=<lastId>` once a second.
+2. For each Utterance, if `interrupt` is true call `synthesizer.stopSpeaking(at: .immediate)`, then speak `AVSpeechUtterance(string: u.text)` (en-US voice, rate a bit above default).
+3. Set `AVAudioSession` category `.playback` with `.duckOthers` so the voice ducks the video audio and keeps playing with the screen locked.
+4. Optionally play a short tone before `critical` lines. Approvals still need an answer on the console or headset UI (`resolve_confirmation`). The voice only says that one is waiting.
+
+**Not verified.** Real speech output and voice choice on iOS Safari and Android Chrome, and how the page behaves in the background on a phone. The tests cover the rewrite rules, dedupe, pacing, the feed (SSE replay, recent, the page) and the browser port matching the TypeScript rules.

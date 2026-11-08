@@ -40,6 +40,9 @@ Type a line to act as the rescuer's voice ("status", "go to 5, 4", "come back").
 | `ROBOT_MODE` | `sim` | `pi` (+ `PI_WS_URL`) |
 | `STATE_MODE` | `memory` | `spacetime` (+ `SPACETIME_URL`, `SPACETIME_DB`, `SPACETIME_TOKEN`) |
 | `NOTIFY_MODE` | `console` | `twilio` (+ `TWILIO_*`, `RESPONDER_PHONES`) |
+| `SPEAKER_MODE` | `off` | `pi`: the robot says its lines through the HAT speaker (+ `SPEAKER_URL`, `ROBOT_CONTROL_TOKEN`; Pi service `robot/picrawler_control/speech.py`) |
+| `OPERATOR_VOICE` | `on` | spoken updates for the rescuer at `http://<OPERATOR_FEED_HOST>:8788/operator` (set host `0.0.0.0` for a phone on the LAN) |
+| `DETECTION_MODE` | `workflow` | `agent` = coordinator decides every detection step |
 | `AUTO_CONFIRM` | `approve` | in memory mode only; `none` = wait for `/approve N` |
 
 Every combination works: for example, real Nemotron with the simulated robot, or the mock planner with SpacetimeDB.

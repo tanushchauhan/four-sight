@@ -77,6 +77,12 @@ npm run web</pre>
           <label><input type="radio" name="approvals" value="ask"><span>Ask me</span></label>
         </div>
       </div>
+      <div class="opt-group">
+        <span class="opt-label">Voice</span>
+        <div class="seg"><label title="Read new headset alerts aloud, rewritten for the ear like the operator earpiece"><input type="checkbox" id="speakUpdates"><span>🔈 Speak updates</span></label></div>
+        <div class="seg"><label title="Also play the robot's own lines to the survivor, in a different voice"><input type="checkbox" id="robotVoice"><span>🤖 Play robot voice</span></label></div>
+        <span id="voiceHint" class="hint" hidden>No speech synthesis in this browser</span>
+      </div>
       <div class="opt-run">
         <span id="selectedLabel" class="muted">No scene selected</span>
         <button id="runBtn" class="btn btn-primary btn-lg" type="button" disabled>▶ Run</button>
@@ -167,6 +173,7 @@ npm run web</pre>
 
   <footer class="foot muted">HackUTD 2026 · local test bench · runs fully offline with the mock model</footer>
 
+  <script src="speech.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

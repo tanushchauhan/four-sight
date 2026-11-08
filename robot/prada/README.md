@@ -24,26 +24,27 @@ Everything on prada goes through one script. You never edit files on the Pi: cha
 | Command | Does |
 | --- | --- |
 | `update` | `git pull`, rerun `install.sh`, restart the services if they were running |
-| `install` | Set up or repair everything (add `--enable` to start both services at boot) |
-| `start` / `stop` / `restart` | Control the server, joystick relay and camera stream together |
-| `status` | Service state, repo commit, HAT on I2C, battery (when stopped), last joystick events, camera URL |
-| `logs` | Follow both services' logs |
+| `install` | Set up or repair everything (add `--enable` to start the services at boot) |
+| `start` / `stop` / `restart` | Control the server, joystick relay, camera stream and speech together |
+| `status` | Service state, repo commit, HAT on I2C, battery (when stopped), last joystick events, camera URL, speech `/health` |
+| `logs` | Follow all four services' logs |
 | `keyboard` | Stop the joystick relay so a laptop keyboard controller can connect |
 
-None of these move servos. The robot moves only after the joystick is clicked and pushed.
+None of these move servos. The robot moves only after the joystick is clicked and pushed. Starting speech plays nothing; it speaks only when asked.
 
 ## Files
 
 | File | What it is |
 | --- | --- |
 | `prada.sh` | The one entry point above |
-| `install.sh` | Idempotent setup: packages, pinned vendor libraries, `pinctrl`, I2C/GPIO access, venv, calibration restore, token, services |
+| `install.sh` | Idempotent setup: packages, pinned vendor libraries, `pinctrl`, I2C/GPIO access, venv, optional Piper voice, calibration restore, token, services |
 | `prada.toml` | Bridge config: loopback only, every gait at speed 80 |
 | `picrawler.config` | Saved calibration offsets (copied to `~/.config/.picrawler.config` if missing) |
 | `system/prada-server.service` | Bridge server in hardware mode |
 | `system/prada-joystick.service` | Bluetooth relay from the Arduino 101 joystick |
 | `system/prada-camera.service` | Camera MJPEG stream on port 8080 |
 | `system/prada-speaker.service` | Turns on the HAT speaker amplifier at boot |
+| `system/prada-speech.service` | Text to speech for the rescue agent on port 8081 |
 | `build-camera.sh` | Builds Raspberry Pi libcamera and rpicam-apps (run by `install.sh`) |
 | `system/60-picrawler-gpiomem.rules` | Gives the `gpio` group the Pi 5 GPIO memory windows that `pinctrl` needs |
 | `system/picrawler-lock.conf` | Recreates `/run/lock/picrawler-control.lock` at boot |
@@ -122,6 +123,42 @@ The camera does not need the Robot HAT. If it isn't detected, check that the Pi 
 
 - **Speaker:** the Robot HAT v4's I2S amplifier, as ALSA card `sndrpihifiberry` (from `dtoverlay=hifiberry-dac` in `config.txt`). Its amplifier is off until GPIO 20 is high; the overlay claims that pin at boot, so `prada-speaker.service` sets it afterwards. Test: `speaker-test -D plughw:sndrpihifiberry -c 2 -t sine -l 1`.
 - **Microphone:** a USB "PnP Sound Device" (C-Media), mono capture at 48 kHz, ALSA card `Device`.
+
+## Speech
+
+`prada-speech` runs `speech.py`: the rescue agent posts text and prada says it through the HAT speaker. It is offline (nothing leaves the Pi) and listens on port **8081**, on IPv4 and IPv6 (`--host ::`), separate from the control socket. It moves nothing.
+
+```bash
+export ROBOT_CONTROL_TOKEN=...   # ssh prada sudo cat /etc/picrawler-control.env
+curl -X POST -H "Authorization: Bearer $ROBOT_CONTROL_TOKEN" -H 'Content-Type: application/json' \
+  -d '{"text":"Can you hear me?"}' http://prada.local:8081/say
+curl -X POST -H "Authorization: Bearer $ROBOT_CONTROL_TOKEN" -H 'Content-Type: application/json' \
+  -d '{"text":"Responders have been notified.","interrupt":true}' http://prada.local:8081/say
+curl -X POST -H "Authorization: Bearer $ROBOT_CONTROL_TOKEN" http://prada.local:8081/stop
+curl http://prada.local:8081/health
+curl http://prada.local:8081/phrases
+```
+
+| Request | Auth | Answer |
+| --- | --- | --- |
+| `POST /say` `{"text": "...", "interrupt": false}` | token | 202 `{"ok":true,"id":7,"queued":1,"engine":"piper","cached":false}` |
+| `POST /stop` | token | 200 `{"ok":true,"cleared":2}`: stops playback and clears the queue |
+| `GET /health` | none | 200 `{"ok":true,"engine":"piper","device":"plughw:sndrpihifiberry","queue":0,"speaking":false,"last_error":null}` |
+| `GET /phrases` | none | 200 `{"ok":true,"phrases":[{"text":"...","cached":true}, ...]}` |
+
+- **Auth:** `Authorization: Bearer <token>`, the same `ROBOT_CONTROL_TOKEN` as the bridge (the unit reads `/etc/picrawler-control.env`). A missing or wrong token gets 401 and nothing is queued. GET needs no token and shows no secrets. Plain HTTP: anyone on the hotspot can see the token in transit, same as the control socket.
+- **Text:** a JSON string, 1 to 300 characters after control characters are removed. Unknown or duplicate keys, a non-boolean `interrupt`, a body over 4 KB or a non-JSON `Content-Type` are rejected (400, 413 or 415).
+- **Order:** one worker speaks lines in order. At most 5 wait; a sixth drops the oldest waiting line (never an interrupt). `queued` is how many are waiting, this one included. `interrupt: true` kills the current line and clears the queue first; use it for critical lines.
+- **Engines,** picked once at startup and shown in `/health`: Piper with `~/.local/share/piper/en_US-lessac-medium.onnx` (and its `.onnx.json`), else `espeak-ng -v en-us -s 150`, else `dry-run` (silent, log only). Each is test-run on one word first, so a broken Piper falls back to espeak-ng. `install.sh` installs espeak-ng from apt and tries `pip install piper-tts` plus the voice download; offline it warns and keeps espeak-ng. `device` is `null` when nothing is played (dry run, or no `aplay`).
+- **Cache:** WAVs are kept in `~/.cache/prada-speech`, named by sha256 of engine, voice and text, so a repeated line skips synthesis (`cached: true`). The agent's four scripted lines are rendered at startup; `/phrases` shows which are ready. About 200 files are kept, oldest first out.
+- **Logs:** each line logs its id, the first 60 characters, synthesis ms and playback ms (`prada.sh logs`). `last_error` holds the latest failure (synthesis, `aplay`, timeout) until restart.
+- **Limits:** synthesis is killed after 30 s and `aplay` after the WAV's length plus 10 s. `plughw` opens the card exclusively, so `speaker-test` or another player fails with "device busy" while speech is playing, and the other way round.
+
+Test the speaker without the service: `sudo systemctl stop prada-speech`, then `speaker-test -D plughw:sndrpihifiberry -c 2 -t sine -l 1` (a tone) or `espeak-ng -v en-us -w /tmp/t.wav 'Can you hear me?' && aplay -D plughw:sndrpihifiberry /tmp/t.wav`. No sound with no error usually means the amplifier is off: check `systemctl status prada-speaker`.
+
+Turn speech off: `sudo systemctl disable --now prada-speech` stops it and keeps it from starting at boot. `prada.sh start`, `restart` and `update` (when running) start it again, because it is in `SERVICES` in `prada.sh`; take it out of that list in the repo to keep it off for good.
+
+On a laptop, without a speaker: `ROBOT_CONTROL_TOKEN=... robot/.venv/bin/python -m picrawler_control.speech --config robot/config/control.toml --dry-run`.
 
 ## SSH from a laptop
 

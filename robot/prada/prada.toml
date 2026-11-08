@@ -9,3 +9,6 @@ min_speed = 20
 max_speed = 100
 poll_interval = 0.02
 dry_gait_seconds = 0.15
+# Text to speech (speech.py, prada-speech.service) on the Robot HAT v4 speaker.
+speech_port = 8081
+speech_device = "plughw:sndrpihifiberry"

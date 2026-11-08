@@ -39,7 +39,9 @@ test("workflow: unresponsive red survivor → movement check, SMS, dispatch, bea
   const names = r.toolCalls.map((t) => t.name);
   assert.equal((await state.getCases())[0]!.triage, "red");
   for (const n of ["speak", "listen", "check_movement", "notify_responders", "dispatch_responders", "drop_beacon", "request_takeover"]) assert.ok(names.includes(n), `missing ${n}`);
-  assert.equal(names.filter((n) => n === "speak").length, 1, "stop asking after no answer");
+  const questions = r.toolCalls.filter((t) => t.name === "speak" && /[?]$/.test((t.args as { text: string }).text));
+  assert.equal(questions.length, 1, "stop asking after no answer");
+  assert.ok(r.toolCalls.some((t) => t.name === "speak" && /Help is on the way/.test((t.args as { text: string }).text)), "reassures the survivor");
   assert.equal(deps.memo.beaconCase, c!.id);
 });
 
@@ -92,4 +94,29 @@ test("workflow: re-check only escalates when the case got worse", async () => {
   // Still yellow (same survivor, still answering): no second SMS or dispatch.
   assert.equal((await state.getCases())[0]!.triage, "yellow");
   assert.equal(ctx.trace.filter((t) => t.name === "notify_responders").length, smsBefore);
+});
+
+test("speaker: withSpeaker sends speech to the Pi service and reports if the survivor could not hear it", async () => {
+  const { withSpeaker, PiSpeaker } = await import("../src/adapters/speaker.js");
+  const { SimRobot } = await import("../src/adapters/sim-robot.js");
+  const sent: { url: string; body: string; auth: string }[] = [];
+  let up = true;
+  const fake = (async (url: string, init: RequestInit) => {
+    if (!up) throw new Error("connect ECONNREFUSED");
+    sent.push({ url, body: String(init.body), auth: (init.headers as Record<string, string>).Authorization ?? "" });
+    return new Response(JSON.stringify({ ok: true, id: 1, queued: 1, engine: "piper", cached: true }), { status: 202 });
+  }) as unknown as typeof fetch;
+  const robot = withSpeaker(new SimRobot(), new PiSpeaker("http://prada.local:8081/", "tok", 1000, fake));
+  const r = (await robot.speak("Can you hear me?")) as { ok: boolean; speaker?: string };
+  assert.equal(r.ok, true);
+  assert.equal(r.speaker, "piper");
+  assert.equal(sent[0]!.url, "http://prada.local:8081/say");
+  assert.deepEqual(JSON.parse(sent[0]!.body), { text: "Can you hear me?", interrupt: false });
+  assert.equal(sent[0]!.auth, "Bearer tok");
+  // Other robot methods still work through the wrapper.
+  assert.equal((await robot.getState()).name, "PiCrawler");
+  up = false;
+  const r2 = (await robot.speak("Hello?")) as { ok: boolean; speaker?: string };
+  assert.equal(r2.ok, false);
+  assert.match(r2.speaker!, /unreachable/);
 });

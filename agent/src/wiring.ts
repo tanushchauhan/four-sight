@@ -3,10 +3,12 @@ import { MemoryState } from "./adapters/memory-state.js";
 import { PiRobot } from "./adapters/pi-robot.js";
 import type { RobotAdapter } from "./adapters/robot.js";
 import { SimRobot, defaultWorld } from "./adapters/sim-robot.js";
+import { PiSpeaker, withSpeaker } from "./adapters/speaker.js";
 import { SpacetimeState } from "./adapters/spacetime-state.js";
 import type { StateStore } from "./adapters/state.js";
 import { AgentLogger } from "./agent/logger.js";
 import { AgentRunner } from "./agent/runner.js";
+import { OperatorVoice } from "./operator/voice.js";
 import { buildSolo, buildTeam, type Team } from "./agent/team.js";
 import { buildTriageDecision, newMemo } from "./agent/workflow.js";
 import type { Config } from "./config.js";
@@ -26,6 +28,8 @@ export interface App {
   logger: AgentLogger;
   runner: AgentRunner;
   team: Team;
+  /** Spoken updates for the rescuer (null when OPERATOR_VOICE=off). */
+  voice: OperatorVoice | null;
 }
 
 /** Build every piece from config. Swap sim/memory/mock for pi/spacetime/nvidia with env vars only. */
@@ -35,7 +39,7 @@ export function buildApp(config: Config, opts: { print?: (l: string) => void; lo
       ? new SpacetimeState(config.spacetimeUrl, config.spacetimeDb, config.spacetimeToken, config.searchArea)
       : new MemoryState({ area: config.searchArea, autoConfirm: config.autoConfirm });
 
-  const robot: RobotAdapter =
+  const baseRobot: RobotAdapter =
     config.robotMode === "pi"
       ? new PiRobot(config.piWsUrl)
       : new SimRobot({
@@ -43,6 +47,18 @@ export function buildApp(config: Config, opts: { print?: (l: string) => void; lo
           world: defaultWorld(config.searchArea),
           onCheckin: (s, r) => state.robotCheckin(s, r),
         });
+
+  // Every headset alert also becomes a short spoken update for the rescuer.
+  const voice = config.operatorVoice ? new OperatorVoice() : null;
+  if (voice) {
+    const pushAlert = state.pushAlert.bind(state);
+    state.pushAlert = async (text, level) => {
+      await pushAlert(text, level);
+      voice.push({ text, level, source: "alert" });
+    };
+  }
+
+  const robot = config.speakerMode === "pi" ? withSpeaker(baseRobot, new PiSpeaker(config.speakerUrl, config.robotControlToken)) : baseRobot;
 
   const notifier: Notifier =
     config.notifyMode === "twilio"
@@ -101,5 +117,5 @@ export function buildApp(config: Config, opts: { print?: (l: string) => void; lo
     staleCaseMs: config.staleCaseMs,
   });
 
-  return { config, robot, state, notifier, model, logger, runner, team };
+  return { config, robot, state, notifier, model, logger, runner, team, voice };
 }

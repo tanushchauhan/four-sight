@@ -14,6 +14,7 @@ import { NemotronVision, SimVision, type VisionAnalyzer } from "../llm/vision.js
 import { buildRegistry } from "../tools/index.js";
 import type { ToolContext } from "../tools/registry.js";
 import type { Snapshot, Triage } from "../types.js";
+import { PiSpeaker, withSpeaker } from "../adapters/speaker.js";
 import { SceneRobot, type FrameChange } from "./scene-robot.js";
 import type { Scene } from "./types.js";
 
@@ -146,14 +147,16 @@ export async function runScenario(scene: Scene, o: RunOptions): Promise<RunResul
     return origSend(to, body);
   };
 
-  const robot = new SceneRobot({
+  const sceneRobot = new SceneRobot({
     scene,
     scenesDir: o.scenesDir,
     onFrame: (f) => o.emit({ type: "frame", data: f }),
     onSpeech: (who, text) => o.emit({ type: "speech", data: { who, text } }),
   });
+  // SPEAKER_MODE=pi: the robot really says the lines while you test scenes on the bench.
+  const robot = config.speakerMode === "pi" ? withSpeaker(sceneRobot, new PiSpeaker(config.speakerUrl, config.robotControlToken)) : sceneRobot;
   // Keep the coverage grid fed so get_coverage works.
-  const inner = robot.inner;
+  const inner = sceneRobot.inner;
   const s0 = await inner.getState();
   await state.robotCheckin(s0, 1);
 

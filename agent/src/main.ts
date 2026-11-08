@@ -1,6 +1,7 @@
 import { createInterface } from "node:readline";
 import { MemoryState } from "./adapters/memory-state.js";
 import { loadConfig, loadEnvFile } from "./config.js";
+import { startOperatorFeed } from "./operator/feed-server.js";
 import { buildApp } from "./wiring.js";
 
 /**
@@ -46,6 +47,11 @@ rl.on("line", async (raw) => {
     logger.info(`command failed: ${(e as Error).message}`);
   }
 });
+
+if (app.voice) {
+  const feed = await startOperatorFeed(app.voice, { host: config.operatorFeedHost, port: config.operatorFeedPort });
+  logger.info(`Operator voice: open ${feed.url.replace("127.0.0.1", "localhost")}/operator on the rescuer's phone or laptop and tap "enable voice"`);
+}
 
 runner.startMission(process.argv.slice(2).join(" ") || undefined);
 await runner.runForever(config.watchIntervalMs);

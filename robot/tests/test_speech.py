@@ -1,0 +1,382 @@
+import json
+import os
+from pathlib import Path
+import subprocess
+import tempfile
+import threading
+import time
+import unittest
+import urllib.error
+import urllib.request
+from unittest.mock import patch
+
+from picrawler_control import speech
+from picrawler_control.config import Config, load
+from picrawler_control.speech import (AplayPlayer, DryRunEngine, EspeakEngine, PiperEngine, Speaker,
+                                      SpeechServer, choose_engine, clean_text, parse_say, write_silence)
+
+TOKEN = "test-token-0123456789"
+ROBOT = Path(__file__).resolve().parents[1]
+
+
+def wait_for(predicate, timeout=2):
+    end = time.monotonic() + timeout
+    while not predicate():
+        if time.monotonic() > end:
+            raise AssertionError("condition timed out")
+        time.sleep(0.005)
+
+
+class CountingEngine(DryRunEngine):
+    def __init__(self):
+        super().__init__(seconds_per_char=0.001)
+        self.texts = []
+
+    def synth(self, text, path):
+        self.texts.append(text)
+        super().synth(text, path)
+
+
+class GatePlayer:
+    """Blocks each play until released or stopped, and records what played."""
+    device = "test-device"
+
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.started = []
+        self.finished = []
+        self.stops = 0
+        self.gate = None
+
+    def play(self, path, still_wanted):
+        with self.lock:
+            if not still_wanted():
+                return False
+            self.gate = gate = threading.Event()
+            self.stopped = False
+            self.started.append(path)
+        gate.wait(5)
+        with self.lock:
+            stopped = self.stopped
+            if not stopped:
+                self.finished.append(path)
+        return not stopped
+
+    def release(self):
+        with self.lock:
+            if self.gate:
+                self.gate.set()
+
+    def stop(self):
+        with self.lock:
+            self.stops += 1
+            if self.gate and not self.gate.is_set():
+                self.stopped = True
+                self.gate.set()
+
+
+class TextTests(unittest.TestCase):
+    def test_clean_text_strips_control_characters(self):
+        self.assertEqual(clean_text("Can\x00 you\x1b\nhear​ me?\t"), "Can you hear me?")
+
+    def test_parse_say_accepts_valid(self):
+        self.assertEqual(parse_say('{"text":"Hello"}'), ("Hello", False))
+        self.assertEqual(parse_say('{"text":"Hello","interrupt":true}'), ("Hello", True))
+        self.assertEqual(parse_say(json.dumps({"text": "x" * 300})), ("x" * 300, False))
+
+    def test_parse_say_rejections(self):
+        for raw in ('{"text":""}', '{"text":"  \\u0007 "}', json.dumps({"text": "x" * 301}),
+                    '{"text":"hi","volume":3}', '{"interrupt":true}', '{"text":5}', '{"text":null}',
+                    '{"text":["hi"]}', '{"text":"hi","interrupt":1}', '{"text":"hi","interrupt":"yes"}',
+                    '{"text":"a","text":"b"}', '[]', '"hi"', '{'):
+            with self.assertRaises(ValueError, msg=raw):
+                parse_say(raw)
+
+
+class SpeakerTests(unittest.TestCase):
+    def setUp(self):
+        self.dir = tempfile.TemporaryDirectory()
+        self.engine = CountingEngine()
+        self.player = GatePlayer()
+        self.speaker = Speaker(self.engine, self.player, self.dir.name)
+
+    def tearDown(self):
+        self.speaker.close()
+        self.dir.cleanup()
+
+    def test_plays_in_order(self):
+        for text in ("one", "two", "three"):
+            self.speaker.say(text)
+        for count in (1, 2, 3):
+            wait_for(lambda: len(self.player.started) == count)
+            self.player.release()
+        self.assertTrue(self.speaker.wait_idle(2))
+        self.assertEqual(self.engine.texts, ["one", "two", "three"])
+        self.assertEqual(self.player.finished, [self.speaker.cache_path(t) for t in ("one", "two", "three")])
+
+    def test_interrupt_stops_current_and_clears_queue(self):
+        self.speaker.say("first")
+        wait_for(lambda: len(self.player.started) == 1)
+        self.speaker.say("second")
+        self.speaker.say("third")
+        result = self.speaker.say("urgent", interrupt=True)
+        self.assertEqual(result["queued"], 1)
+        wait_for(lambda: len(self.player.started) == 2)
+        self.player.release()
+        self.assertTrue(self.speaker.wait_idle(2))
+        self.assertEqual(self.player.finished, [self.speaker.cache_path("urgent")])
+        self.assertNotIn("second", self.engine.texts)
+
+    def test_stop_clears_and_kills(self):
+        self.speaker.say("first")
+        wait_for(lambda: len(self.player.started) == 1)
+        self.speaker.say("second")
+        self.assertEqual(self.speaker.stop(), 1)
+        self.assertTrue(self.speaker.wait_idle(2))
+        self.assertEqual(self.player.finished, [])
+        self.assertEqual(len(self.player.started), 1)
+
+    def test_queue_limit_drops_oldest_non_interrupt(self):
+        self.speaker.say("playing")
+        wait_for(lambda: len(self.player.started) == 1)
+        self.speaker.say("urgent", interrupt=True)  # replaces "playing", waits until released
+        wait_for(lambda: len(self.player.started) == 2)
+        ids = [self.speaker.say(f"line {n}")["queued"] for n in range(6)]
+        self.assertEqual(ids, [1, 2, 3, 4, 5, 5])
+        for count in range(2, 8):
+            wait_for(lambda: len(self.player.started) == count)
+            self.player.release()
+        self.assertTrue(self.speaker.wait_idle(2))
+        played = [self.speaker.cache_path(t) for t in ["urgent"] + [f"line {n}" for n in range(1, 6)]]
+        self.assertEqual(self.player.finished, played)
+
+    def test_cache_hit_skips_synthesis(self):
+        first = self.speaker.say("Stay calm.")
+        self.assertFalse(first["cached"])
+        wait_for(lambda: self.player.started)
+        self.player.release()
+        self.assertTrue(self.speaker.wait_idle(2))
+        second = self.speaker.say("Stay calm.")
+        self.assertTrue(second["cached"])
+        wait_for(lambda: len(self.player.started) == 2)
+        self.player.release()
+        self.assertTrue(self.speaker.wait_idle(2))
+        self.assertEqual(self.engine.texts, ["Stay calm."])
+
+    def test_prerender_lists_phrases(self):
+        self.assertFalse(any(p["cached"] for p in self.speaker.phrase_list()))
+        self.speaker.prerender()
+        phrases = self.speaker.phrase_list()
+        self.assertEqual([p["text"] for p in phrases], list(speech.PHRASES))
+        self.assertTrue(all(p["cached"] for p in phrases))
+        self.assertTrue(self.speaker.say(speech.PHRASES[1])["cached"])
+
+    def test_engine_failure_is_reported(self):
+        def broken(text, path):
+            raise RuntimeError("synth broke")
+        self.engine.synth = broken
+        self.speaker.say("hello")
+        wait_for(lambda: self.speaker.health()["last_error"])
+        self.assertIn("synth broke", self.speaker.health()["last_error"])
+
+
+class HttpTests(unittest.TestCase):
+    def setUp(self):
+        self.dir = tempfile.TemporaryDirectory()
+        self.player = GatePlayer()
+        self.speaker = Speaker(CountingEngine(), self.player, self.dir.name)
+        self.server = SpeechServer("127.0.0.1", 0, self.speaker, TOKEN)
+        self.base = f"http://127.0.0.1:{self.server.server_address[1]}"
+        threading.Thread(target=self.server.serve_forever, daemon=True).start()
+
+    def tearDown(self):
+        self.server.shutdown()
+        self.server.server_close()
+        self.speaker.close()
+        self.dir.cleanup()
+
+    def request(self, method, path, body=None, token=TOKEN, content_type="application/json"):
+        headers = {}
+        if token is not None:
+            headers["Authorization"] = f"Bearer {token}"
+        data = None
+        if body is not None:
+            data = body if isinstance(body, bytes) else json.dumps(body).encode()
+            headers["Content-Type"] = content_type
+        req = urllib.request.Request(self.base + path, data=data, headers=headers, method=method)
+        try:
+            with urllib.request.urlopen(req, timeout=2) as response:
+                return response.status, json.loads(response.read())
+        except urllib.error.HTTPError as error:
+            with error:
+                return error.code, json.loads(error.read())
+
+    def test_auth_required(self):
+        for token in (None, "wrong-token-0123456789", TOKEN + "x", ""):
+            status, body = self.request("POST", "/say", {"text": "hello"}, token=token)
+            self.assertEqual(status, 401, token)
+            self.assertFalse(body["ok"])
+            self.assertEqual(self.request("POST", "/stop", b"", token=token)[0], 401)
+        self.assertEqual(self.speaker.health()["queue"] + len(self.player.started), 0)
+
+    def test_say_accepted(self):
+        status, body = self.request("POST", "/say", {"text": "Can you hear me?"})
+        self.assertEqual(status, 202)
+        self.assertEqual(body, {"ok": True, "id": 1, "queued": body["queued"], "engine": "dry-run", "cached": False})
+        wait_for(lambda: self.player.started)
+
+    def test_validation(self):
+        for payload in ({"text": ""}, {"text": "x" * 301}, {"text": "hi", "extra": 1}, {"text": 3},
+                        {"text": "hi", "interrupt": "true"}, {"interrupt": True}, [], b"not json"):
+            status, body = self.request("POST", "/say", payload)
+            self.assertEqual(status, 400, payload)
+            self.assertFalse(body["ok"])
+        self.assertEqual(self.request("POST", "/say", {"text": "hi"}, content_type="text/plain")[0], 415)
+        self.assertEqual(self.request("POST", "/say", b"x" * 5000)[0], 413)
+        self.assertEqual(self.request("GET", "/nope", token=None)[0], 404)
+
+    def test_stop_and_health(self):
+        status, health = self.request("GET", "/health", token=None)
+        self.assertEqual(status, 200)
+        self.assertEqual(set(health), {"ok", "engine", "device", "queue", "speaking", "last_error"})
+        self.assertEqual((health["engine"], health["queue"], health["speaking"], health["last_error"]),
+                         ("dry-run", 0, False, None))
+        self.assertNotIn(TOKEN, json.dumps(health))
+        self.request("POST", "/say", {"text": "one"})
+        wait_for(lambda: self.player.started)
+        self.request("POST", "/say", {"text": "two"})
+        health = self.request("GET", "/health", token=None)[1]
+        self.assertEqual((health["queue"], health["speaking"]), (1, True))
+        self.assertEqual(self.request("POST", "/stop", b""), (200, {"ok": True, "cleared": 1}))
+        self.assertTrue(self.speaker.wait_idle(2))
+        self.assertEqual(self.player.finished, [])
+
+    def test_interrupt_over_http(self):
+        self.request("POST", "/say", {"text": "one"})
+        wait_for(lambda: self.player.started)
+        self.request("POST", "/say", {"text": "two"})
+        status, body = self.request("POST", "/say", {"text": "Responders have been notified.", "interrupt": True})
+        self.assertEqual((status, body["queued"]), (202, 1))
+        wait_for(lambda: len(self.player.started) == 2)
+        self.player.release()
+        self.assertTrue(self.speaker.wait_idle(2))
+        self.assertEqual(self.player.finished, [self.speaker.cache_path("Responders have been notified.")])
+
+    def test_phrases(self):
+        self.speaker.prerender()
+        status, body = self.request("GET", "/phrases", token=None)
+        self.assertEqual(status, 200)
+        self.assertEqual(body["phrases"], [{"text": p, "cached": True} for p in speech.PHRASES])
+
+
+def _fake_run(args, **kwargs):
+    """Stand-in for subprocess.run: writes a WAV to the output path argument."""
+    flag = "-f" if "-f" in args else "-w"
+    write_silence(args[args.index(flag) + 1], 0.1)
+    return subprocess.CompletedProcess(args, 0, b"", b"")
+
+
+class SubprocessTests(unittest.TestCase):
+    """Real engines and aplay, with subprocess mocked: argument lists only, text on stdin."""
+
+    def check_call(self, call, text):
+        args, kwargs = call.args[0], call.kwargs
+        self.assertIsInstance(args, list)
+        self.assertTrue(all(isinstance(a, str) for a in args))
+        self.assertNotIn(text, args)
+        self.assertFalse(kwargs.get("shell", False))
+        self.assertEqual(kwargs["input"], (text + "\n").encode())
+        self.assertIn("timeout", kwargs)
+
+    def test_piper_command(self):
+        with tempfile.TemporaryDirectory() as d, patch("subprocess.run", side_effect=_fake_run) as run:
+            path = os.path.join(d, "a.wav")
+            PiperEngine(["piper"], "/voices/v.onnx").synth("-rf; $(reboot)", path)
+            self.check_call(run.call_args, "-rf; $(reboot)")
+            self.assertEqual(run.call_args.args[0], ["piper", "-m", "/voices/v.onnx", "-f", path])
+
+    def test_espeak_command(self):
+        with tempfile.TemporaryDirectory() as d, patch("subprocess.run", side_effect=_fake_run) as run:
+            path = os.path.join(d, "a.wav")
+            EspeakEngine("espeak-ng").synth("Are you hurt?", path)
+            self.check_call(run.call_args, "Are you hurt?")
+            self.assertEqual(run.call_args.args[0], ["espeak-ng", "-v", "en-us", "-s", "150", "-w", path, "--stdin"])
+
+    def test_engine_failure_raises(self):
+        failed = subprocess.CompletedProcess([], 1, b"", b"voice not found\n")
+        with patch("subprocess.run", return_value=failed):
+            with self.assertRaisesRegex(RuntimeError, "voice not found"):
+                EspeakEngine().synth("hi", "out.wav")
+
+    def test_choose_engine_chain(self):
+        with tempfile.TemporaryDirectory() as d:
+            model = os.path.join(d, "v.onnx")
+            for name in (model, model + ".json"):
+                Path(name).write_text("{}")
+            ok = lambda engine: True
+            def which(found):
+                return lambda name: f"/usr/bin/{name}" if name in found else None
+            no_spec = lambda name: None
+            self.assertEqual(choose_engine(model, which=which({"piper", "espeak-ng"}), find_spec=no_spec,
+                                           probe=ok).command, ["/usr/bin/piper"])
+            engine = choose_engine(model, which=which({"espeak-ng"}), find_spec=lambda n: object(), probe=ok)
+            self.assertEqual((engine.name, engine.command[1:]), ("piper", ["-m", "piper"]))
+            missing = os.path.join(d, "missing.onnx")
+            self.assertEqual(choose_engine(missing, which=which({"piper", "espeak-ng"}), find_spec=no_spec,
+                                           probe=ok).name, "espeak-ng")
+            # Piper installed but broken: fall back to espeak-ng.
+            self.assertEqual(choose_engine(model, which=which({"piper", "espeak-ng"}), find_spec=no_spec,
+                                           probe=lambda e: e.name != "piper").name, "espeak-ng")
+            self.assertEqual(choose_engine(model, which=which(set()), find_spec=no_spec, probe=ok).name, "dry-run")
+            self.assertEqual(choose_engine(model, dry_run=True, which=which({"piper"}), probe=ok).name, "dry-run")
+
+    def test_aplay_command_and_stop_kills(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "a.wav")
+            write_silence(path, 0.1)
+            proc = unittest.mock.MagicMock()
+            proc.poll.return_value = None
+            killed = threading.Event()
+            proc.kill.side_effect = killed.set
+            def communicate(timeout=None):
+                killed.wait(timeout)
+                proc.returncode = -9
+                return b"", b""
+            proc.communicate.side_effect = communicate
+            player = AplayPlayer("plughw:sndrpihifiberry")
+            with patch("subprocess.Popen", return_value=proc) as popen:
+                result = []
+                thread = threading.Thread(target=lambda: result.append(player.play(path, lambda: True)))
+                thread.start()
+                wait_for(lambda: popen.called)
+                player.stop()
+                thread.join(2)
+            self.assertEqual(result, [False])
+            self.assertTrue(proc.kill.called)
+            args, kwargs = popen.call_args
+            self.assertEqual(args[0], ["aplay", "-q", "-D", "plughw:sndrpihifiberry", path])
+            self.assertFalse(kwargs.get("shell", False))
+            with patch("subprocess.Popen") as popen:
+                self.assertFalse(player.play(path, lambda: False))
+                self.assertFalse(popen.called)
+
+    def test_source_never_uses_a_shell(self):
+        source = (ROBOT / "picrawler_control" / "speech.py").read_text(encoding="utf-8")
+        self.assertNotIn("shell=", source)
+        self.assertNotIn("os.system", source)
+        self.assertNotIn("os.popen", source)
+
+
+class ConfigTests(unittest.TestCase):
+    def test_speech_defaults_and_prada_config(self):
+        config = Config()
+        self.assertEqual((config.speech_port, config.speech_device), (8081, "plughw:sndrpihifiberry"))
+        for name in ("prada/prada.toml", "config/control.toml"):
+            self.assertEqual(load(ROBOT / name).speech_port, 8081)
+
+    def test_speech_config_rejections(self):
+        for kwargs in ({"speech_port": 8080}, {"speech_port": 8765}, {"speech_port": 0},
+                       {"speech_port": True}, {"speech_device": ""}, {"speech_device": "-Dnull"},
+                       {"speech_voice": 3}):
+            with self.assertRaises(ValueError, msg=kwargs):
+                Config(**kwargs)

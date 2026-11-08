@@ -206,6 +206,71 @@
     pauseScroll: false,
   };
 
+  // ---------------------------------------------------------------- spoken updates
+  // Same rewrite rules as the operator earpiece (speech.js ↔ agent/src/operator/voice.ts).
+
+  const VOICE_KEY = "rescueBench.voice.v1";
+  const voice = {
+    speakUpdates: false,
+    robotVoice: false,
+    speaker: null,
+    /** normalized text -> time spoken, for the 30 s repeat filter */
+    said: new Map(),
+  };
+
+  function voiceInit() {
+    const saved = store.get(VOICE_KEY, {}) || {};
+    voice.speakUpdates = saved.speakUpdates === true;
+    voice.robotVoice = saved.robotVoice === true;
+    const RS = window.RescueSpeech;
+    voice.speaker = RS ? new RS.Speaker({ rate: 1.05 }) : null;
+    const ok = !!(voice.speaker && voice.speaker.supported);
+    for (const [id, keyName] of [["speakUpdates", "speakUpdates"], ["robotVoice", "robotVoice"]]) {
+      const box = $(id);
+      if (!box) continue;
+      box.checked = ok && voice[keyName];
+      box.disabled = !ok;
+      box.addEventListener("change", () => {
+        voice[keyName] = box.checked;
+        store.set(VOICE_KEY, { speakUpdates: voice.speakUpdates, robotVoice: voice.robotVoice });
+        // The click is the user gesture browsers want before speech is allowed.
+        if (box.checked) voice.speaker.unlock(keyName === "robotVoice" ? "Robot voice on." : "Spoken updates on.");
+        else if (!voice.speakUpdates && !voice.robotVoice) voice.speaker.stop();
+      });
+    }
+    if (!ok && $("voiceHint")) $("voiceHint").hidden = false;
+  }
+
+  /** Speak headset alerts that are new in this state event (diffed by text + level, kept across reconnect replays). */
+  function voiceAlerts(d, run) {
+    if (!Array.isArray(d.alerts)) return;
+    for (const a of d.alerts) {
+      if (!a || typeof a.text !== "string") continue;
+      const lvl = ["info", "warning", "critical"].includes(a.level) ? a.level : "info";
+      const key = `${lvl}|${a.text}`;
+      if (run.spokenAlerts.has(key)) continue;
+      run.spokenAlerts.add(key);
+      if (!voice.speakUpdates || !voice.speaker) continue;
+      const r = window.RescueSpeech.rewrite(a.text, lvl);
+      if (!r.text) continue;
+      const now = Date.now();
+      const nk = window.RescueSpeech.normalizeKey(r.text);
+      if (now - (voice.said.get(nk) || 0) < 30_000) continue;
+      voice.said.set(nk, now);
+      voice.speaker.say(r.text, { interrupt: r.level === "critical" });
+    }
+  }
+
+  /** Speak the robot's own lines (the server replays events on reconnect, so count them). Silence says nothing. */
+  function voiceRobot(d, run) {
+    const idx = run.speechIdx++;
+    if (idx < run.speechSpoken) return;
+    run.speechSpoken = idx + 1;
+    if (!voice.robotVoice || !voice.speaker || d.who !== "robot") return;
+    if (typeof d.text !== "string" || !d.text.trim()) return;
+    voice.speaker.say(window.RescueSpeech.clean(d.text), { kind: "robot" });
+  }
+
   // ---------------------------------------------------------------- scenes + picker
 
   async function loadScenes() {
@@ -586,7 +651,12 @@
       timer: null,
       resolvedConfirms: new Set(),
       recorded: false,
+      // spoken-update bookkeeping survives resetRunPanels so replays aren't spoken twice
+      spokenAlerts: new Set(),
+      speechIdx: 0,
+      speechSpoken: 0,
     };
+    if (voice.speaker) voice.speaker.stop();
     app.run = run;
     $("run").hidden = false;
     $("runSceneTitle").textContent = scene.title || scene.id || "Uploaded image";
@@ -614,6 +684,7 @@
     run.toolCalls = 0;
     run.trace = { stack: [] };
     run.lastState = null;
+    run.speechIdx = 0;
     setPill($("phasePill"), "muted", "starting");
     $("runMsg").textContent = "";
     $("statTools").textContent = "0";
@@ -1050,6 +1121,7 @@
   // ---- conversation
 
   function onSpeech(d, run) {
+    voiceRobot(d, run);
     const box = $("conversation");
     const empty = box.querySelector(":scope > .empty");
     if (empty) empty.remove();
@@ -1117,6 +1189,7 @@
 
   function onState(d, run) {
     run.lastState = d;
+    voiceAlerts(d, run);
     const box = clear($("situation"));
     const sec = (title, content) => h("div", { class: "sit-sec" }, h("h4", { text: title }), content);
     const arr = (x) => (Array.isArray(x) ? x : []);
@@ -1429,6 +1502,7 @@
       store.set(HISTORY_KEY, []);
       renderHistory();
     });
+    voiceInit();
     renderHistory();
     loadScenes();
   }

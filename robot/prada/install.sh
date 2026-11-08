@@ -42,7 +42,7 @@ fi
 sudo apt-get update -q
 sudo -E apt-get install -y -q git curl python3-venv python3-pip i2c-tools gpiod \
   python3-lgpio python3-smbus2 python3-gpiozero python3-spidev python3-serial python3-pil \
-  python3-pyaudio python3-pygame cmake build-essential device-tree-compiler bluez alsa-utils
+  python3-pyaudio python3-pygame cmake build-essential device-tree-compiler bluez alsa-utils espeak-ng
 
 step "SunFounder libraries (pinned)"
 mkdir -p "$VENDOR"
@@ -92,6 +92,32 @@ step "Python environment"
 "$VENV/bin/python" -m pip install -q -e "$REPO/robot[ble]" "$VENDOR/robot-hat" "$VENDOR/picrawler"
 "$VENV/bin/python" -m unittest discover -s "$REPO/robot/tests" 2>&1 | tail -1
 
+step "Text to speech (optional Piper voice; espeak-ng is the fallback)"
+# Piper sounds much better than espeak-ng but needs the network once. If pip or
+# the download fails (offline), keep going: prada-speech falls back to espeak-ng.
+PIPER_DIR="$HOME/.local/share/piper"
+PIPER_VOICE=en_US-lessac-medium
+PIPER_URL="https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/en/en_US/lessac/medium"
+if "$VENV/bin/python" -c 'import piper' 2>/dev/null; then
+  echo "piper-tts already installed"
+elif "$VENV/bin/python" -m pip install -q --timeout 20 --retries 1 piper-tts; then
+  echo "installed piper-tts"
+else
+  echo "WARNING: could not install piper-tts (offline?); speech will use espeak-ng"
+fi
+mkdir -p "$PIPER_DIR"
+for f in "$PIPER_VOICE.onnx" "$PIPER_VOICE.onnx.json"; do
+  if [[ -s "$PIPER_DIR/$f" ]]; then continue; fi
+  if curl -fsSL --retry 2 --connect-timeout 10 -o "$PIPER_DIR/$f.tmp" "$PIPER_URL/$f?download=true" \
+      && mv -f "$PIPER_DIR/$f.tmp" "$PIPER_DIR/$f"; then
+    echo "downloaded $PIPER_DIR/$f"
+  else
+    rm -f "$PIPER_DIR/$f.tmp"
+    echo "WARNING: could not download $f (offline?); speech will use espeak-ng"
+  fi
+done
+sync
+
 step "Camera (Raspberry Pi libcamera + rpicam-apps)"
 "$PRADA/build-camera.sh"
 
@@ -120,10 +146,11 @@ step "Services"
 put 644 "$PRADA/system/prada-server.service" /etc/systemd/system
 put 644 "$PRADA/system/prada-joystick.service" /etc/systemd/system
 put 644 "$PRADA/system/prada-camera.service" /etc/systemd/system
-sudo systemctl unmask prada-server prada-joystick prada-camera >/dev/null 2>&1 || true
+put 644 "$PRADA/system/prada-speech.service" /etc/systemd/system
+sudo systemctl unmask prada-server prada-joystick prada-camera prada-speech >/dev/null 2>&1 || true
 sudo systemctl daemon-reload
 if (( ENABLE )); then
-  sudo systemctl enable prada-server prada-joystick prada-camera
+  sudo systemctl enable prada-server prada-joystick prada-camera prada-speech
   echo "enabled at boot"
 fi
 
@@ -135,4 +162,5 @@ Done. Log out and back in (or reboot) if group membership changed.
 Start:   robot/prada/prada.sh start
 Status:  robot/prada/prada.sh status
 Camera:  http://prada.local:8080/stream
+Speech:  http://prada.local:8081/health
 EOF
