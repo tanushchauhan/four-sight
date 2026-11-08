@@ -62,3 +62,15 @@ Flash `controller/joystick_ble` to the Arduino 101 using `arduino-cli`. USB firm
 Click **Use USB glove control**, wait for the robot connection, and click the centered physical stick to enable. Push the stick to move, center it to allow head steering, and click again to stop. Hold the stick click for 1.5 seconds then release to recalibrate; this packet gap disables control, so take USB control again afterwards. Missed clicks cannot enable motion. A controller reset, stale data, excessive serial backlog, or unplug releases USB control; replugging never automatically re-enables it.
 
 USB mode is independent of browser focus because fresh serial packets renew its command lease. The physical click and dashboard **Stop / space** disable movement; keyboard E does not enable USB mode. **Release control / Return to glove** releases the current controller. Select keyboard takeover separately to use WASD again. Only one mode can own the motor server.
+
+### AirTag backward-tilt test
+
+`Test AirTag drop · tilt back` runs one exclusive pose test on Prada. It releases
+USB/keyboard ownership, stops the glove and motor services, acquires the same
+hardware lock, initializes using saved calibration, stands, ramps to a nominal
+17-degree backward pitch, holds three seconds, and returns level. It restarts
+control disabled. Observe the physical tag: completion does not confirm release.
+The installed vendor geometry clips at 18 degrees; 17 is the largest whole-degree
+unclipped pose checked, not a measured chassis angle or proof against tipping.
+Use level ground with the rear clear. The maintenance sequence cannot be instantly
+stopped with dashboard Stop. No autonomous movement is enabled by this test.

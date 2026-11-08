@@ -73,3 +73,16 @@ class ServoZeroTests(unittest.TestCase):
         self.assertEqual(c.status['connection'],'error')
         self.assertFalse(c.maintenance)
         self.assertFalse(any('Hardware' in str(call) for call in run.call_args_list))
+
+class TiltInterlockTests(unittest.TestCase):
+    @patch('control.subprocess.run')
+    def test_tilt_never_runs_if_motor_service_stop_fails(self, run):
+        import subprocess
+        c = DebugControl('prada'); c.maintenance = True
+        run.side_effect = [subprocess.CompletedProcess([], 0, 'active', ''),
+                           subprocess.TimeoutExpired('stop', 30)]
+        c.run_zero('tilt')
+        self.assertEqual(run.call_count, 2)
+        self.assertEqual(c.status['connection'], 'error')
+        self.assertFalse(c.maintenance)
+        self.assertFalse(any('picrawler_control.tilt' in str(call) for call in run.call_args_list))

@@ -142,6 +142,8 @@ class Handler(BaseHTTPRequestHandler):
                 result = self.server.control.stop_motion()
             elif self.path == '/api/control/usb':
                 result = self.server.usb.acquire()
+            elif self.path == '/api/control/tilt':
+                result = self.server.control.tilt_back()
             elif self.path == '/api/control/zero':
                 result = self.server.control.zero_servos()
             elif self.path == '/api/control/release':

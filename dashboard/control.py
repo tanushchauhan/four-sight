@@ -126,6 +126,18 @@ class DebugControl:
             self.seq, self.received = seq, time.monotonic()
             return self.snapshot()
 
+    def tilt_back(self):
+        with self.lock:
+            if self.maintenance:
+                raise ValueError('A robot pose operation is already running')
+            self.maintenance = True
+            self.disarm()
+            self.closing.set()
+            self.status = {'connection': 'maintenance', 'enabled': False,
+                           'reason': 'Preparing backward tilt test; drive paused'}
+            threading.Thread(target=self.run_zero, args=('tilt',), daemon=True).start()
+            return self.snapshot()
+
     def zero_servos(self):
         with self.lock:
             if self.maintenance:
@@ -136,7 +148,7 @@ class DebugControl:
             threading.Thread(target=self.run_zero, daemon=True).start()
             return {'connection': 'maintenance', 'enabled': False, 'reason': 'Stopping control before moving servos to zero'}
 
-    def run_zero(self):
+    def run_zero(self, operation="zero"):
         restore = False
         try:
             self.close()
@@ -144,16 +156,17 @@ class DebugControl:
             if worker is not None and worker.is_alive():
                 raise RuntimeError('Control did not release; no zero command sent')
             with self.lock:
-                self.status = {'connection':'maintenance', 'enabled':False, 'reason':'Moving 12 servos to calibrated zero'}
+                self.status = {'connection':'maintenance', 'enabled':False, 'reason':'Tilting backward, holding 3 seconds, then returning level' if operation == 'tilt' else 'Moving 12 servos to calibrated zero'}
             p = subprocess.run(self.ssh('systemctl is-active prada-joystick'), capture_output=True, text=True, timeout=7)
             restore = p.stdout.strip() == 'active'
             subprocess.run(self.ssh('sudo -n systemctl stop prada-joystick prada-server'), check=True, capture_output=True, timeout=30)
             script = "from picrawler_control.backend import Hardware; h=Hardware(); h.initialize(); h.close(); print('calibrated zero complete')"
-            subprocess.run(self.ssh('/home/liquidiv/hackutd26/robot/.venv/bin/python -c ' + shlex.quote(script)), check=True, capture_output=True, timeout=15)
+            command = ('/home/liquidiv/hackutd26/robot/.venv/bin/python -m picrawler_control.tilt' if operation == 'tilt' else '/home/liquidiv/hackutd26/robot/.venv/bin/python -c ' + shlex.quote(script))
+            subprocess.run(self.ssh(command), check=True, capture_output=True, timeout=60 if operation == 'tilt' else 15)
             subprocess.run(self.ssh('sudo -n systemctl start prada-server' + (' prada-joystick' if restore else '')), check=True, capture_output=True, timeout=10)
-            status = {'connection':'idle', 'enabled':False, 'reason':'Servos at calibrated zero. Control restarted disabled; take control and press E to resume.'}
+            status = {'connection':'idle', 'enabled':False, 'reason':('Tilt completed; check whether the AirTag dropped. ' if operation == 'tilt' else 'Servos at calibrated zero. ') + 'Control restarted disabled; take control to resume.'}
         except Exception as exc:
-            status = {'connection':'error', 'enabled':False, 'reason':'Servo zero failed: ' + str(exc)[:250] + '. Check robot services before resuming.'}
+            status = {'connection':'error', 'enabled':False, 'reason':('Tilt test failed: ' if operation == 'tilt' else 'Servo zero failed: ') + str(exc)[:250] + '. Check robot services before resuming.'}
         finally:
             with self.lock:
                 self.maintenance = False
