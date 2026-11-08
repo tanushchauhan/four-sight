@@ -69,3 +69,9 @@ class CameraSplitTests(unittest.TestCase):
         frames, rest = split_frames(rest + b[10:])
         self.assertEqual(frames, [])
         self.assertEqual(rest, b)
+
+    def test_rpicam_command_rotation(self):
+        from picrawler_control.camera import rpicam_command
+        self.assertIn("180", rpicam_command(640, 480, 20, 70, 180))
+        with self.assertRaises(ValueError):
+            rpicam_command(640, 480, 20, 70, 90)

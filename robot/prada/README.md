@@ -100,7 +100,7 @@ Get the token with `ssh prada sudo cat /etc/picrawler-control.env`.
 
 Camera Module 3 (Sony IMX708, with autofocus) on **CAM0**. Ubuntu's libcamera 0.2 can't drive the Pi 5 camera pipeline, so `build-camera.sh` builds Raspberry Pi's `libcamera` and `rpicam-apps` (pinned tags) into `/usr/local`; it skips itself once `rpicam-hello --list-cameras` sees the sensor.
 
-`prada-camera` runs `stream.py --camera`, which reads `rpicam-vid --codec mjpeg` (640x480, 20 fps, continuous autofocus) and publishes each JPEG to the stream's `FrameBuffer`. It listens on IPv4 (`--host 0.0.0.0`) so the visor on the hotspot can reach `http://<prada-ipv4>:8080/stream`; the control socket stays on loopback. A Mac on the same hotspot often has only IPv6, so view it through a tunnel instead:
+`prada-camera` runs `stream.py --camera`, which reads `rpicam-vid --codec mjpeg` (640x480, 20 fps, continuous autofocus, rotated 180 degrees for prada's mount) and publishes each JPEG to the stream's `FrameBuffer`. It listens on IPv4 (`--host 0.0.0.0`) so the visor on the hotspot can reach `http://<prada-ipv4>:8080/stream`; the control socket stays on loopback. A Mac on the same hotspot often has only IPv6, so view it through a tunnel instead:
 
 ```bash
 ssh -N -L 18080:127.0.0.1:8080 prada &

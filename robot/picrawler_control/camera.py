@@ -29,15 +29,18 @@ def split_frames(buffer):
         start = boundary + 2
 
 
-def rpicam_command(width, height, fps, quality):
+def rpicam_command(width, height, fps, quality, rotation=0):
+    if rotation not in (0, 180):
+        raise ValueError("rotation must be 0 or 180")  # what the IMX708 can do in hardware
     return ["rpicam-vid", "--nopreview", "--timeout", "0", "--codec", "mjpeg",
             "--width", str(width), "--height", str(height), "--framerate", str(fps),
-            "--quality", str(quality), "--autofocus-mode", "continuous", "--output", "-"]
+            "--quality", str(quality), "--rotation", str(rotation),
+            "--autofocus-mode", "continuous", "--output", "-"]
 
 
-def run_camera(frames, width=640, height=480, fps=20, quality=70, stop=None):
+def run_camera(frames, width=640, height=480, fps=20, quality=70, rotation=0, stop=None):
     """Publish camera JPEGs into frames until stop is set."""
-    command = rpicam_command(width, height, fps, quality)
+    command = rpicam_command(width, height, fps, quality, rotation)
     while stop is None or not stop.is_set():
         logging.info("starting camera: %s", " ".join(command))
         try:

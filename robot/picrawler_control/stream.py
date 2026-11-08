@@ -160,6 +160,8 @@ def main():
     parser.add_argument("--width", type=int, default=640)
     parser.add_argument("--height", type=int, default=480)
     parser.add_argument("--fps", type=int, default=20)
+    parser.add_argument("--rotation", type=int, choices=(0, 180), default=0,
+                        help="rotate the camera image (180 for an upside-down mount)")
     args = parser.parse_args()
     from .config import load
     config = load(args.config)
@@ -168,7 +170,8 @@ def main():
     stop = threading.Event()
     if args.camera:
         from . import camera
-        camera.start(frames, stop, width=args.width, height=args.height, fps=args.fps)
+        camera.start(frames, stop, width=args.width, height=args.height, fps=args.fps,
+                     rotation=args.rotation)
     elif not args.no_pattern:
         threading.Thread(target=serve_pattern, args=(frames,), kwargs={"stop": stop}, daemon=True).start()
     host = args.host or config.host
