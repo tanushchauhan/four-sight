@@ -53,5 +53,11 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<false/>
+	<key>UIAppFonts</key>
+	<array>
+		<string>ChakraPetch-SemiBold.ttf</string>
+		<string>IBMPlexSans.ttf</string>
+		<string>IBMPlexMono-Medium.ttf</string>
+	</array>
 </dict>
 </plist>

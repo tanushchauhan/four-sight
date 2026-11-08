@@ -68,7 +68,7 @@ fragment float4 eyeFragment(
     // The camera sees a narrower angle than a Cardboard lens (~68x42 deg vs 80x80 deg),
     // so outside the camera quad stays dark border, matching PassthroughController.cs.
     if (quadUV.x < 0.0 || quadUV.x > 1.0 || quadUV.y < 0.0 || quadUV.y > 1.0) {
-        return float4(0.0, 0.0, 0.0, 1.0);
+        discard_fragment();
     }
 
     // 3. Map uncropped quad UV to raw camera sensor texture UV via the widened display transform.
@@ -78,7 +78,7 @@ fragment float4 eyeFragment(
     );
 
     if (texUV.x < 0.0 || texUV.x > 1.0 || texUV.y < 0.0 || texUV.y > 1.0) {
-        return float4(0.0, 0.0, 0.0, 1.0);
+        discard_fragment();
     }
 
     // 4. Convert ARKit YCbCr (BT.601 full-range, matching ARKitBackground.shader) to sRGB.
@@ -113,6 +113,29 @@ fragment float4 robotFragment(EyeVarying in [[stage_in]],
  constexpr sampler linearSampler(address::clamp_to_edge, filter::linear);
  float2 ray = (in.uv * 2.0 - 1.0 + float2(eye.lensM02, eye.lensM12)) / float2(eye.lensM00, eye.lensM11);
  float2 uv = ray / float2(eye.frustumSizeX, eye.frustumSizeY) + 0.5;
- if (any(uv < 0.0) || any(uv > 1.0)) return float4(0,0,0,1);
+ if (any(uv < 0.0) || any(uv > 1.0)) discard_fragment();
  return image.sample(linearSampler, float2(uv.x, 1.0-uv.y));
+}
+
+struct HudUniforms {
+    float lensM00;
+    float lensM11;
+    float lensM02;
+    float lensM12;
+    // tan of the layer's half angle; the layer spans ray -tanHalf..tanHalf on both axes.
+    float tanHalf;
+};
+
+fragment float4 hudFragment(
+    EyeVarying in [[stage_in]],
+    constant HudUniforms &hud [[buffer(0)]],
+    texture2d<float> layer [[texture(0)]]
+) {
+    constexpr sampler layerSampler(address::clamp_to_zero, filter::linear);
+    float2 ndc = in.uv * 2.0 - 1.0;
+    float2 ray = (ndc + float2(hud.lensM02, hud.lensM12)) / float2(hud.lensM00, hud.lensM11);
+    float2 local = ray / hud.tanHalf;
+    if (any(abs(local) > 1.0)) discard_fragment();
+    float2 uv = float2(local.x * 0.5 + 0.5, 0.5 - local.y * 0.5);
+    return layer.sample(layerSampler, uv);
 }

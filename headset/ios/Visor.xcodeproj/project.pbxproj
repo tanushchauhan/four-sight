@@ -15,6 +15,12 @@
 		B00100000000000000000010 /* ARKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F00100000000000000000010 /* ARKit.framework */; };
 		B00100000000000000000011 /* Metal.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F00100000000000000000011 /* Metal.framework */; };
 		B00100000000000000000012 /* MetalKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F00100000000000000000012 /* MetalKit.framework */; };
+		B00100000000000000000013 /* VisorTokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00100000000000000000013 /* VisorTokens.swift */; };
+		B00100000000000000000018 /* PhoneCamera.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00100000000000000000018 /* PhoneCamera.swift */; };
+		B00100000000000000000014 /* LensHud.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00100000000000000000014 /* LensHud.swift */; };
+		B00100000000000000000015 /* ChakraPetch-SemiBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = F00100000000000000000015 /* ChakraPetch-SemiBold.ttf */; };
+		B00100000000000000000017 /* IBMPlexMono-Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = F00100000000000000000017 /* IBMPlexMono-Medium.ttf */; };
+		B00100000000000000000016 /* IBMPlexSans.ttf in Resources */ = {isa = PBXBuildFile; fileRef = F00100000000000000000016 /* IBMPlexSans.ttf */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -29,6 +35,12 @@
 		F00100000000000000000010 /* ARKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ARKit.framework; path = System/Library/Frameworks/ARKit.framework; sourceTree = SDKROOT; };
 		F00100000000000000000011 /* Metal.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Metal.framework; path = System/Library/Frameworks/Metal.framework; sourceTree = SDKROOT; };
 		F00100000000000000000012 /* MetalKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MetalKit.framework; path = System/Library/Frameworks/MetalKit.framework; sourceTree = SDKROOT; };
+		F00100000000000000000013 /* VisorTokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Visor/VisorTokens.swift; sourceTree = SOURCE_ROOT; };
+		F00100000000000000000018 /* PhoneCamera.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Visor/PhoneCamera.swift; sourceTree = SOURCE_ROOT; };
+		F00100000000000000000014 /* LensHud.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Visor/LensHud.swift; sourceTree = SOURCE_ROOT; };
+		F00100000000000000000015 /* ChakraPetch-SemiBold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = Visor/Fonts/ChakraPetch-SemiBold.ttf; sourceTree = SOURCE_ROOT; };
+		F00100000000000000000017 /* IBMPlexMono-Medium.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = Visor/Fonts/IBMPlexMono-Medium.ttf; sourceTree = SOURCE_ROOT; };
+		F00100000000000000000016 /* IBMPlexSans.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = Visor/Fonts/IBMPlexSans.ttf; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -64,6 +76,12 @@
 				F0010000000000000000005 /* LensDistortion.swift */,
 				F00100000000000000000006 /* Shaders.metal */,
 				F00100000000000000000007 /* Info.plist */,
+				F00100000000000000000013 /* VisorTokens.swift */,
+				F00100000000000000000014 /* LensHud.swift */,
+				F00100000000000000000018 /* PhoneCamera.swift */,
+				F00100000000000000000015 /* ChakraPetch-SemiBold.ttf */,
+				F00100000000000000000016 /* IBMPlexSans.ttf */,
+				F00100000000000000000017 /* IBMPlexMono-Medium.ttf */,
 			);
 			path = Visor;
 			sourceTree = "<group>";
@@ -142,7 +160,12 @@
         C00100000000000000000009 /* Resources */ = {
             isa = PBXResourcesBuildPhase;
             buildActionMask = 2147483647;
-            files = (B00100000000000000000006,);
+            files = (
+				B00100000000000000000006 /* Shaders.metal in Sources */,
+				B00100000000000000000015 /* ChakraPetch-SemiBold.ttf in Resources */,
+				B00100000000000000000016 /* IBMPlexSans.ttf in Resources */,
+				B00100000000000000000017 /* IBMPlexMono-Medium.ttf in Resources */,
+			);
             runOnlyForDeploymentPostprocessing = 0;
         };
 /* End PBXResourcesBuildPhase section */
@@ -156,6 +179,9 @@
 				B00100000000000000000003 /* ARSessionController.swift in Sources */,
 				B00100000000000000000004 /* StereoRenderer.swift in Sources */,
 				B00100000000000000000005 /* LensDistortion.swift in Sources */,
+				B00100000000000000000013 /* VisorTokens.swift in Sources */,
+				B00100000000000000000014 /* LensHud.swift in Sources */,
+				B00100000000000000000018 /* PhoneCamera.swift in Sources */,
 
 			);
 			runOnlyForDeploymentPostprocessing = 0;

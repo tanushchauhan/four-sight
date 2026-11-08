@@ -27,20 +27,39 @@ struct WarpVertex {
     var uv: SIMD2<Float>
 }
 
+struct HudUniforms {
+    var lensM00: Float
+    var lensM11: Float
+    var lensM02: Float
+    var lensM12: Float
+    var tanHalf: Float
+}
+
 /// Renders the AR camera stream into left and right eye textures using Cardboard's asymmetric eye
 /// frustums and PassthroughController's uncropped camera quad math, then warps both eye textures
 /// through the Cardboard v1 lens distortion mesh onto the screen.
 final class StereoRenderer: NSObject, MTKViewDelegate {
     // Matches StereoRig's m_RenderScale = 0.75 (visor default).
     private static let renderScale: Float = 0.75
+    // Leave a small blue margin around each warped eye instead of using the entire phone half.
+    // X and Y are deliberately independent: changing Y must only squash the lens vertically.
+    private static let eyeViewportScaleX: Float = 0.70
+    private static let eyeViewportScaleY: Float = 0.60
+    // Whole-screen NDC: 0.04 moves the eye footprints up by 2% of screen height.
+    private static let eyeViewportOffsetY: Float = 0.04
 
     private let session: ARSessionController
+    private let phone: PhoneCamera
+    var source: CameraSource = .robot
     private let device: MTLDevice
     private let queue: MTLCommandQueue
     private let eyePipeline: MTLRenderPipelineState
+    private let phonePipeline: MTLRenderPipelineState
     private var robotTexture: MTLTexture?
     private var lastFrameTime = Date.distantPast
     private let warpPipeline: MTLRenderPipelineState
+    private let hudPipeline: MTLRenderPipelineState
+    private var hudTexture: MTLTexture?
     private let log = Logger(subsystem: "com.hackutd26.visor", category: "stereo")
 
     private var textureCache: CVMetalTextureCache?
@@ -53,17 +72,20 @@ final class StereoRenderer: NSObject, MTKViewDelegate {
     private var eyeProjections: [EyeProjection] = []
     private var didLogPassthrough = false
 
-    init?(view: MTKView, session: ARSessionController) {
+    init?(view: MTKView, session: ARSessionController, phone: PhoneCamera) {
         guard let device = view.device ?? MTLCreateSystemDefaultDevice(),
               let queue = device.makeCommandQueue() else { return nil }
         self.session = session
+        self.phone = phone
         self.device = device
         self.queue = queue
 
         view.device = device
         view.colorPixelFormat = .bgra8Unorm
         view.depthStencilPixelFormat = .invalid
-        view.clearColor = MTLClearColor(red: 0, green: 0, blue: 0, alpha: 1)
+        let ground = VisorToken.paper3
+        view.clearColor = MTLClearColor(red: ground.r, green: ground.g, blue: ground.b, alpha: 1)
+        view.backgroundColor = ground.uiColor
         view.isPaused = false
         view.enableSetNeedsDisplay = false
         view.preferredFramesPerSecond = 60
@@ -76,6 +98,14 @@ final class StereoRenderer: NSObject, MTKViewDelegate {
             library: library,
             vertex: "eyeVertex",
             fragment: "robotFragment",
+            pixelFormat: .rgba8Unorm,
+            vertexDescriptor: nil
+        )
+        phonePipeline = Self.makePipeline(
+            device: device,
+            library: library,
+            vertex: "eyeVertex",
+            fragment: "eyeFragment",
             pixelFormat: .rgba8Unorm,
             vertexDescriptor: nil
         )
@@ -96,6 +126,15 @@ final class StereoRenderer: NSObject, MTKViewDelegate {
             fragment: "warpFragment",
             pixelFormat: view.colorPixelFormat,
             vertexDescriptor: vertices
+        )
+        hudPipeline = Self.makePipeline(
+            device: device,
+            library: library,
+            vertex: "eyeVertex",
+            fragment: "hudFragment",
+            pixelFormat: .rgba8Unorm,
+            vertexDescriptor: nil,
+            blending: true
         )
 
         super.init()
@@ -126,7 +165,11 @@ final class StereoRenderer: NSObject, MTKViewDelegate {
             robotTexture = try? MTKTextureLoader(device: device).newTexture(data: jpeg, options: [.SRGB: false])
         }
         if Date().timeIntervalSince(lastFrameTime) > 2 { robotTexture = nil }
-        encodeRobot(into: commandBuffer)
+        switch source {
+        case .robot: encodeRobot(into: commandBuffer)
+        case .phone: encodePhone(into: commandBuffer)
+        }
+        encodeHud(into: commandBuffer)
 
         guard let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: pass) else { return }
         encoder.setRenderPipelineState(warpPipeline)
@@ -166,12 +209,16 @@ final class StereoRenderer: NSObject, MTKViewDelegate {
             pass.colorAttachments[0].texture = texture
             pass.colorAttachments[0].loadAction = .clear
             pass.colorAttachments[0].storeAction = .store
-            pass.colorAttachments[0].clearColor = MTLClearColor(red: 0, green: 0, blue: 0, alpha: 1)
+            let ground = VisorToken.paper3
+            pass.colorAttachments[0].clearColor = MTLClearColor(red: ground.r, green: ground.g, blue: ground.b, alpha: 1)
             guard let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: pass) else { continue }
             if let image = robotTexture {
-                // Center the full image on the optical axis, preserving camera aspect ratio.
+                // Centered on the optical axis and scaled to cover the eye's whole lens field,
+                // aspect preserved, so the feed fills the lens and the overlay sits on top of it.
                 let aspect = Float(image.width) / Float(image.height)
-                let width: Float = 2 * tan(35 * Float.pi / 180)
+                let reachX = max(abs((-1 + projection.m02) / projection.m00), abs((1 + projection.m02) / projection.m00))
+                let reachY = max(abs((-1 + projection.m12) / projection.m11), abs((1 + projection.m12) / projection.m11))
+                let width = max(2 * reachX, 2 * reachY * aspect)
                 var u = EyeUniforms(lensM00: projection.m00, lensM11: projection.m11,
                     lensM02: projection.m02, lensM12: projection.m12,
                     frustumCenterX: 0, frustumCenterY: 0, frustumSizeX: width, frustumSizeY: width / aspect,
@@ -181,6 +228,139 @@ final class StereoRenderer: NSObject, MTKViewDelegate {
                 encoder.setFragmentTexture(image, index: 0)
                 encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
             }
+            encoder.endEncoding()
+        }
+    }
+
+    /// The phone camera through PassthroughController's uncropped quad, placed on each lens's axis.
+    private func encodePhone(into commandBuffer: MTLCommandBuffer) {
+        var planes: (luma: MTLTexture, chroma: MTLTexture, holders: [CVMetalTexture])?
+        var params: PassthroughParams?
+        if let frame = phone.currentFrame(), let cache = textureCache {
+            CVMetalTextureCacheFlush(cache, 0)
+            let buffer = frame.capturedImage
+            if let luma = metalTexture(from: buffer, cache: cache, plane: 0, format: .r8Unorm),
+               let chroma = metalTexture(from: buffer, cache: cache, plane: 1, format: .rg8Unorm) {
+                planes = (luma.texture, chroma.texture, [luma.holder, chroma.holder])
+            }
+            let pixels = ScreenMetrics.landscapePixels()
+            params = Self.computePassthroughParams(
+                frame: frame,
+                orientation: Self.currentInterfaceOrientation(),
+                viewport: CGSize(width: pixels.x, height: pixels.y)
+            )
+            if let params, !didLogPassthrough {
+                didLogPassthrough = true
+                log.info("[Passthrough] camera frustum \(params.frustumSize.x, format: .fixed(precision: 3)) x \(params.frustumSize.y, format: .fixed(precision: 3)) at \(params.frustumCenter.x, format: .fixed(precision: 3)), \(params.frustumCenter.y, format: .fixed(precision: 3))")
+            }
+        }
+
+        for (texture, projection) in zip(eyeTextures, eyeProjections) {
+            let pass = MTLRenderPassDescriptor()
+            pass.colorAttachments[0].texture = texture
+            pass.colorAttachments[0].loadAction = .clear
+            pass.colorAttachments[0].storeAction = .store
+            let ground = VisorToken.paper3
+            pass.colorAttachments[0].clearColor = MTLClearColor(red: ground.r, green: ground.g, blue: ground.b, alpha: 1)
+            guard let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: pass) else { continue }
+            if let planes, let params {
+                // ARKit reports the phone camera's real, wide frustum. Showing that frustum at
+                // physical scale inside Cardboard leaves the 16:9 strip seen on the phone. Scale
+                // the quad uniformly until it covers this eye's full lens field. This crops the
+                // sensor at the sides instead of stretching or compressing the image.
+                let eyeMin = SIMD2<Float>(
+                    (-1 + projection.m02) / projection.m00,
+                    (-1 + projection.m12) / projection.m11
+                )
+                let eyeMax = SIMD2<Float>(
+                    (1 + projection.m02) / projection.m00,
+                    (1 + projection.m12) / projection.m11
+                )
+                let cameraHalf = params.frustumSize * 0.5
+                let coverScale = [
+                    Float(1),
+                    abs(eyeMin.x - params.frustumCenter.x) / cameraHalf.x,
+                    abs(eyeMax.x - params.frustumCenter.x) / cameraHalf.x,
+                    abs(eyeMin.y - params.frustumCenter.y) / cameraHalf.y,
+                    abs(eyeMax.y - params.frustumCenter.y) / cameraHalf.y
+                ].max()! * 1.03
+                let coveredSize = params.frustumSize * coverScale
+                var u = EyeUniforms(
+                    lensM00: projection.m00, lensM11: projection.m11,
+                    lensM02: projection.m02, lensM12: projection.m12,
+                    frustumCenterX: params.frustumCenter.x, frustumCenterY: params.frustumCenter.y,
+                    frustumSizeX: coveredSize.x, frustumSizeY: coveredSize.y,
+                    wideM00: params.wideM00, wideM01: params.wideM01,
+                    wideM10: params.wideM10, wideM11: params.wideM11,
+                    wideM20: params.wideM20, wideM21: params.wideM21
+                )
+                encoder.setRenderPipelineState(phonePipeline)
+                encoder.setFragmentBytes(&u, length: MemoryLayout<EyeUniforms>.stride, index: 0)
+                encoder.setFragmentTexture(planes.luma, index: 0)
+                encoder.setFragmentTexture(planes.chroma, index: 1)
+                encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
+            }
+            encoder.endEncoding()
+        }
+        if let holders = planes?.holders {
+            commandBuffer.addCompletedHandler { _ in _ = holders }
+        }
+    }
+
+    /// Uploads the lens layer as 8-bit premultiplied sRGB, whatever format the renderer produced.
+    @discardableResult
+    func setPlate(_ image: CGImage) -> Bool {
+        let width = image.width
+        let height = image.height
+        let bytesPerRow = width * 4
+        var pixels = [UInt8](repeating: 0, count: bytesPerRow * height)
+        let drawn: Bool = pixels.withUnsafeMutableBytes { raw in
+            guard let space = CGColorSpace(name: CGColorSpace.sRGB),
+                  let context = CGContext(
+                      data: raw.baseAddress, width: width, height: height,
+                      bitsPerComponent: 8, bytesPerRow: bytesPerRow, space: space,
+                      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+                  ) else { return false }
+            context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+            return true
+        }
+        let descriptor = MTLTextureDescriptor.texture2DDescriptor(
+            pixelFormat: .rgba8Unorm, width: width, height: height, mipmapped: false
+        )
+        descriptor.usage = [.shaderRead]
+        guard drawn, let texture = device.makeTexture(descriptor: descriptor) else {
+            log.error("[Lens layer] could not upload a \(width)x\(height) image")
+            return false
+        }
+        texture.replace(region: MTLRegionMake2D(0, 0, width, height), mipmapLevel: 0, withBytes: pixels, bytesPerRow: bytesPerRow)
+        hudTexture = texture
+        return true
+    }
+
+    /// Draws the lens layer into each eye through that eye's Cardboard frustum, in view angles around
+    /// the optical axis, before the distortion mesh warps the eye texture. Both eyes see it at the
+    /// same angle, like the camera, so it fuses into one layer through the lenses.
+    private func encodeHud(into commandBuffer: MTLCommandBuffer) {
+        guard let plate = hudTexture else { return }
+        let tanHalf = tan(LensLayer.halfAngleDegrees * Float.pi / 180)
+
+        for (texture, projection) in zip(eyeTextures, eyeProjections) {
+            let pass = MTLRenderPassDescriptor()
+            pass.colorAttachments[0].texture = texture
+            pass.colorAttachments[0].loadAction = .load
+            pass.colorAttachments[0].storeAction = .store
+            guard let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: pass) else { continue }
+            var hud = HudUniforms(
+                lensM00: projection.m00,
+                lensM11: projection.m11,
+                lensM02: projection.m02,
+                lensM12: projection.m12,
+                tanHalf: tanHalf
+            )
+            encoder.setRenderPipelineState(hudPipeline)
+            encoder.setFragmentBytes(&hud, length: MemoryLayout<HudUniforms>.stride, index: 0)
+            encoder.setFragmentTexture(plate, index: 0)
+            encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
             encoder.endEncoding()
         }
     }
@@ -322,8 +502,30 @@ final class StereoRenderer: NSObject, MTKViewDelegate {
             screenHeightMeters: screenMeters.y
         )
         eyeProjections = [lens.eyeProjection(.left), lens.eyeProjection(.right)]
+        // A landscape screen half is wider than it is tall. Applying the same NDC scale on both
+        // axes therefore leaves the physical eye footprint wide through a circular lens. Correct
+        // X by the physical aspect of one screen half so the footprint reads square in the viewer.
+        let halfScreenAspectCorrection = min(1, 2 * screenMeters.y / screenMeters.x)
+        let viewportScale = SIMD2<Float>(
+            Self.eyeViewportScaleX * halfScreenAspectCorrection,
+            Self.eyeViewportScaleY
+        )
         meshes = [Eye.left, Eye.right].compactMap { eye in
-            packMesh(lens.makeDistortionMesh(eye))
+            let projection = lens.eyeProjection(eye)
+            // Ray (0, 0) projects to eye-texture NDC (-m02, -m12). Map that point through the
+            // distortion model to obtain the actual optical center on the phone screen.
+            let opticalTextureUv = SIMD2<Float>(
+                (1 - projection.m02) * 0.5,
+                (1 - projection.m12) * 0.5
+            )
+            let opticalScreenUv = lens.textureUvToScreenUv(opticalTextureUv, eye: eye)
+            let opticalCenterNdc = opticalScreenUv * 2 - 1
+            return packMesh(
+                lens.makeDistortionMesh(eye),
+                viewportScale: viewportScale,
+                anchorNdc: opticalCenterNdc,
+                viewportOffset: SIMD2(0, Self.eyeViewportOffsetY)
+            )
         }
         let pixels = ScreenMetrics.landscapePixels()
         markerMesh = packMesh(AlignmentMarker.makeMesh(screenPixels: pixels, screenMeters: screenMeters))
@@ -333,9 +535,29 @@ final class StereoRenderer: NSObject, MTKViewDelegate {
         log.info("[Stereo] \(lens.viewer.model, privacy: .public): screen \(screenMeters.x, format: .fixed(precision: 4)) x \(screenMeters.y, format: .fixed(precision: 4)) m (\(pixels.x)x\(pixels.y) px), left eye fov L\(fov.x, format: .fixed(precision: 1)) R\(fov.y, format: .fixed(precision: 1)) B\(fov.z, format: .fixed(precision: 1)) T\(fov.w, format: .fixed(precision: 1))")
     }
 
-    private func packMesh(_ mesh: DistortionMesh) -> (buffer: MTLBuffer, indexOffset: Int, indexCount: Int)? {
+    private func packMesh(
+        _ mesh: DistortionMesh,
+        viewportScale: SIMD2<Float> = SIMD2(repeating: 1),
+        anchorNdc: SIMD2<Float>? = nil,
+        viewportOffset: SIMD2<Float> = .zero
+    ) -> (buffer: MTLBuffer, indexOffset: Int, indexCount: Int)? {
+        let center: SIMD2<Float>
+        if let anchorNdc {
+            center = anchorNdc
+        } else if viewportScale.x < 1 || viewportScale.y < 1, let first = mesh.positions.first {
+            var minimum = first
+            var maximum = first
+            for position in mesh.positions.dropFirst() {
+                minimum = simd_min(minimum, position)
+                maximum = simd_max(maximum, position)
+            }
+            center = (minimum + maximum) * 0.5
+        } else {
+            center = .zero
+        }
         let packed = zip(mesh.positions, mesh.uvs).map { position, uv in
-            WarpVertex(ndc: position, uv: uv)
+            let scaledPosition = center + (position - center) * viewportScale + viewportOffset
+            return WarpVertex(ndc: scaledPosition, uv: uv)
         }
         let vertexBytes = packed.count * MemoryLayout<WarpVertex>.stride
         let indexBytes = mesh.indices.count * MemoryLayout<UInt16>.stride
@@ -407,13 +629,21 @@ final class StereoRenderer: NSObject, MTKViewDelegate {
         vertex: String,
         fragment: String,
         pixelFormat: MTLPixelFormat,
-        vertexDescriptor: MTLVertexDescriptor?
+        vertexDescriptor: MTLVertexDescriptor?,
+        blending: Bool = false
     ) -> MTLRenderPipelineState {
         let descriptor = MTLRenderPipelineDescriptor()
         descriptor.vertexFunction = library?.makeFunction(name: vertex)
         descriptor.fragmentFunction = library?.makeFunction(name: fragment)
         descriptor.vertexDescriptor = vertexDescriptor
         descriptor.colorAttachments[0].pixelFormat = pixelFormat
+        if blending {
+            descriptor.colorAttachments[0].isBlendingEnabled = true
+            descriptor.colorAttachments[0].sourceRGBBlendFactor = .one
+            descriptor.colorAttachments[0].destinationRGBBlendFactor = .oneMinusSourceAlpha
+            descriptor.colorAttachments[0].sourceAlphaBlendFactor = .one
+            descriptor.colorAttachments[0].destinationAlphaBlendFactor = .oneMinusSourceAlpha
+        }
         do {
             return try device.makeRenderPipelineState(descriptor: descriptor)
         } catch {
