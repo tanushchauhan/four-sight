@@ -14,6 +14,7 @@ from websockets.sync.client import connect
 from websockets.asyncio.server import serve
 from picrawler_control.ble_relay import HeadInput
 HEAD_PORT = 8766
+INPUT_MODE = 'keyboard'
 head = HeadInput()
 ready = threading.Event()
 head_error = []
@@ -47,7 +48,7 @@ with connect('ws://127.0.0.1:8765', open_timeout=4, close_timeout=1) as ws:
                 msg['turn'] = head.value()
                 source = 'headset' if msg['turn'] else 'neutral'
             else:
-                source = 'keyboard'
+                source = INPUT_MODE
         msg['seq'] = seq
         seq += 1
         ws.send(json.dumps(msg))
@@ -62,6 +63,7 @@ class DebugControl:
         self.target = target
         self.lock = threading.RLock()
         self.owner = None
+        self.mode = 'keyboard'
         self.maintenance = False
         self.revision = 0
         self.seq = -1
@@ -75,14 +77,17 @@ class DebugControl:
     def snapshot(self):
         with self.lock:
             self.revision += 1
-            return dict(self.status, revision=self.revision)
+            return dict(self.status, revision=self.revision, mode=self.mode)
 
-    def acquire(self):
+    def acquire(self, mode="keyboard"):
         with self.lock:
             if self.maintenance:
                 raise ValueError('Servo zero operation is in progress')
             if self.owner is not None:
                 raise ValueError('Another tab owns debug control. Release it first.')
+            if mode not in ('keyboard', 'usb'):
+                raise ValueError('Unknown controller mode')
+            self.mode = mode
             self.owner = secrets.token_urlsafe(24)
             self.seq = -1
             self.received = time.monotonic()
@@ -160,6 +165,11 @@ class DebugControl:
         if worker is not None:
             worker.join(timeout=25)
 
+    def stop_motion(self):
+        with self.lock:
+            self.disarm()
+            return self.snapshot()
+
     def release(self):
         with self.lock:
             self.disarm()
@@ -190,7 +200,7 @@ class DebugControl:
             p = subprocess.run(self.ssh('systemctl is-active prada-joystick'), capture_output=True, text=True, timeout=7)
             restore = p.stdout.strip() == 'active'
             subprocess.run(self.ssh('sudo -n systemctl stop prada-joystick'), check=True, capture_output=True, timeout=8)
-            command = 'sudo -n /home/liquidiv/hackutd26/robot/.venv/bin/python -u -c ' + shlex.quote(REMOTE)
+            command = 'sudo -n /home/liquidiv/hackutd26/robot/.venv/bin/python -u -c ' + shlex.quote(REMOTE.replace("INPUT_MODE = 'keyboard'", 'INPUT_MODE = ' + repr(self.mode)))
             process = subprocess.Popen(self.ssh(command), stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                        stderr=subprocess.DEVNULL, text=True, bufsize=1)
             replies = queue.Queue(maxsize=1)

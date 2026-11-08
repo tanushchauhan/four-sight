@@ -21,6 +21,12 @@ from control import REMOTE
 @unittest.skipUnless(HAS_PROTOCOL, 'Run with robot/.venv and PYTHONPATH=robot:dashboard for protocol integration')
 class CombinedBridgeTests(unittest.IsolatedAsyncioTestCase):
     async def test_keyboard_and_head_share_enable_and_stop(self):
+        await self.combined('keyboard')
+
+    async def test_usb_and_head_share_enable_and_stop(self):
+        await self.combined('usb')
+
+    async def combined(self, mode):
         control=Control(Config())
         bridge=Bridge(control,'test-secret-for-bridge')
         server=await serve(bridge.handle,'127.0.0.1',0)
@@ -29,7 +35,7 @@ class CombinedBridgeTests(unittest.IsolatedAsyncioTestCase):
             sock.bind(('127.0.0.1',0)); head_port=sock.getsockname()[1]
         with tempfile.TemporaryDirectory() as tmp:
             token=Path(tmp)/'token.env';token.write_text('ROBOT_CONTROL_TOKEN=test-secret-for-bridge\n')
-            source=REMOTE.replace("'/etc/picrawler-control.env'",repr(str(token))).replace('HEAD_PORT = 8766',f'HEAD_PORT = {head_port}').replace('127.0.0.1:8765',f'127.0.0.1:{motor_port}')
+            source=REMOTE.replace("INPUT_MODE = 'keyboard'", 'INPUT_MODE = '+repr(mode)).replace("'/etc/picrawler-control.env'",repr(str(token))).replace('HEAD_PORT = 8766',f'HEAD_PORT = {head_port}').replace('127.0.0.1:8765',f'127.0.0.1:{motor_port}')
             process=await asyncio.create_subprocess_exec(sys.executable,'-u','-c',source,stdin=asyncio.subprocess.PIPE,stdout=asyncio.subprocess.PIPE,stderr=asyncio.subprocess.PIPE,env=dict(os.environ,PYTHONPATH=str(Path(__file__).resolve().parents[1]/'robot')))
             async def receive():
                 raw=await asyncio.wait_for(process.stdout.readline(),5)
@@ -47,7 +53,7 @@ class CombinedBridgeTests(unittest.IsolatedAsyncioTestCase):
                     self.assertEqual(reply['turn'],.3);self.assertEqual(reply['input_source'],'headset')
                     reply=await send('drive',forward=.5,turn=0)
                     self.assertEqual((reply['forward'],reply['turn']),(.5,0))
-                    self.assertEqual(reply['input_source'],'keyboard')
+                    self.assertEqual(reply['input_source'],mode)
                     await asyncio.sleep(.32)
                     reply=await send('drive',forward=0,turn=0)
                     self.assertEqual(reply['turn'],0)

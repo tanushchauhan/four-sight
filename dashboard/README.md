@@ -45,3 +45,20 @@ Keyboard takeover now hosts the same head-steering listener as the glove relay o
 **Move servos to zero** commands all 12 servos to the vendor's initial zero angles with the saved calibration offsets applied. Support the robot before pressing it. It releases keyboard control, stops the glove and motor services, and then uses the same advisory hardware lock and lazy initialization code as the motor server. It does not change calibration offsets. After completion the motor server is restarted disabled, and the glove relay is restored if previously running. Take keyboard control and enable again to resume. A stop failure prevents the maintenance command from running; failures are displayed instead of claiming success.
 
 Hardware-free protocol integration: `PYTHONPATH=robot:dashboard robot/.venv/bin/python -m unittest discover -s dashboard -p 'test_*.py' -v`. This tests head steering, keyboard override, stale head input, and stop against the actual WebSocket bridge without a gait worker or hardware. The servo-zero failure paths are mocked; physical zeroing is initiated only by the operator's button press.
+
+## USB glove through the Mac
+
+The Arduino 101 can connect to the dashboard Mac over USB instead of Bluetooth. The Mac still forwards motor commands to Prada over the LAN; the robot does not need a USB connection to the glove.
+
+Install the optional USB dependency and start with the same Python environment:
+
+```sh
+robot/.venv/bin/python -m pip install -r dashboard/requirements-usb.txt
+robot/.venv/bin/python dashboard/server.py
+```
+
+Flash `controller/joystick_ble` to the Arduino 101 using `arduino-cli`. USB firmware emits `J,sequence,turn,forward,clicks` lines at 20 Hz even with no Bluetooth connection. The dashboard recognizes USB VID/PID `8087:0ab6`, opens the port exclusively, and displays its packet age and connection status. Leave the stick centered when the USB serial port opens; firmware calibrates then.
+
+Click **Use USB glove control**, wait for the robot connection, and click the centered physical stick to enable. Push the stick to move, center it to allow head steering, and click again to stop. Hold the stick click for 1.5 seconds then release to recalibrate; this packet gap disables control, so take USB control again afterwards. Missed clicks cannot enable motion. A controller reset, stale data, excessive serial backlog, or unplug releases USB control; replugging never automatically re-enables it.
+
+USB mode is independent of browser focus because fresh serial packets renew its command lease. The physical click and dashboard **Stop / space** disable movement; keyboard E does not enable USB mode. **Release control / Return to glove** releases the current controller. Select keyboard takeover separately to use WASD again. Only one mode can own the motor server.

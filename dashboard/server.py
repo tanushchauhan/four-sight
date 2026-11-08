@@ -5,6 +5,7 @@ import json
 import secrets
 import hmac
 from control import DebugControl
+from usb_glove import USBGlove
 import re
 import subprocess
 import threading
@@ -111,7 +112,7 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         path = self.path.split('?', 1)[0]
         if path == '/api/status':
-            self.send_body(200, 'application/json', json.dumps(dict(self.server.monitor.snapshot(), control=self.server.control.snapshot())).encode())
+            self.send_body(200, 'application/json', json.dumps(dict(self.server.monitor.snapshot(), control=self.server.control.snapshot(), usb=self.server.usb.snapshot())).encode())
         elif path == '/api/frame':
             with self.server.monitor.lock:
                 frame = self.server.monitor.image
@@ -137,6 +138,10 @@ class Handler(BaseHTTPRequestHandler):
             if not isinstance(data, dict): raise ValueError('Expected an object')
             if self.path == '/api/control/acquire':
                 result = {'owner': self.server.control.acquire(), 'control': self.server.control.snapshot()}
+            elif self.path == '/api/control/stop':
+                result = self.server.control.stop_motion()
+            elif self.path == '/api/control/usb':
+                result = self.server.usb.acquire()
             elif self.path == '/api/control/zero':
                 result = self.server.control.zero_servos()
             elif self.path == '/api/control/release':
@@ -181,6 +186,8 @@ def main():
     server = ThreadingHTTPServer((args.host, args.port), Handler)
     server.monitor = monitor
     server.control = DebugControl(args.robot)
+    server.usb = USBGlove(server.control)
+    server.usb.worker.start()
     server.nonce = secrets.token_urlsafe(32)
     threading.Thread(target=monitor.run, daemon=True).start()
     print(f'Prada status: http://localhost:{args.port} (listening on {args.host})', flush=True)
@@ -189,6 +196,7 @@ def main():
     except KeyboardInterrupt:
         pass
     finally:
+        server.usb.close()
         server.control.close()
         monitor.stop.set()
         server.server_close()
