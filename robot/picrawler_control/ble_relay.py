@@ -47,8 +47,29 @@ class Stick:
         return time.monotonic() - self.received < STALE_SECONDS
 
 
+async def release_stale_links():
+    """Disconnect joysticks BlueZ still holds from a relay that was killed.
+
+    A connected peripheral stops advertising, so scanning would never find it again.
+    """
+    async def bluetoothctl(*args):
+        proc = await asyncio.create_subprocess_exec(
+            "bluetoothctl", *args, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
+        out, _ = await proc.communicate()
+        return out.decode(errors="replace")
+
+    with contextlib.suppress(FileNotFoundError):
+        for line in (await bluetoothctl("devices", "Connected")).splitlines():
+            parts = line.split()
+            if len(parts) >= 2 and parts[0] == "Device":
+                if SERVICE in (await bluetoothctl("info", parts[1])).lower():
+                    logging.info("releasing stale joystick link %s", parts[1])
+                    await bluetoothctl("disconnect", parts[1])
+
+
 async def find_device(address):
     from bleak import BleakScanner
+    await release_stale_links()
     if address:
         return address
     while True:
@@ -116,6 +137,10 @@ async def session(device, uri, token, stick):
 
 
 async def run(uri, token, address, invert_forward, invert_turn):
+    # On SIGTERM (systemctl stop/restart), cancel so the BLE link closes cleanly.
+    import signal
+    task = asyncio.current_task()
+    asyncio.get_running_loop().add_signal_handler(signal.SIGTERM, task.cancel)
     stick = Stick(invert_forward, invert_turn)
     while True:
         try:
@@ -138,7 +163,9 @@ def main():
     if len(token) < 16:
         parser.error("set ROBOT_CONTROL_TOKEN (same secret as robot)")
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-    asyncio.run(run(args.uri, token, args.address, args.invert_forward, args.invert_turn))
+    with contextlib.suppress(asyncio.CancelledError):
+        asyncio.run(run(args.uri, token, args.address, args.invert_forward, args.invert_turn))
+    logging.info("relay stopped")
 
 
 if __name__ == "__main__":
