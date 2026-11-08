@@ -199,17 +199,19 @@ export class OperatorVoice {
   push(input: VoiceInput): Utterance | null {
     const now = this.now();
     this.release(now);
-    const r = rewriteForSpeech(input.text, input.level);
+    const r = input.source === 'conversation' ? { text: shorten(cleanForSpeech(input.text), 60, 400), level: input.level, approval: false } : rewriteForSpeech(input.text, input.level);
     if (!r.text) return null;
     const key = normalizeKey(r.text);
     for (const [k, t] of this.seen) if (now - t >= this.dedupeMs) this.seen.delete(k);
-    if (this.seen.has(key)) return null;
+    if (input.source !== 'conversation' && input.source !== 'handoff' && this.seen.has(key)) return null;
     this.seen.set(key, now);
 
     const p: Pending = { text: r.text, level: r.level, time: input.time ?? now };
     if (input.source !== undefined) p.source = input.source;
     if (input.caseId !== undefined) p.caseId = input.caseId;
 
+    if (input.source === "handoff") return this.emit(p, true, now);
+    if (input.source === "conversation") return this.emit(p, false, now);
     if (p.level === "critical") return this.emit(p, true, now);
     if (this.queue.length === 0 && now - this.lastSpokenAt >= this.minGapMs) return this.emit(p, false, now);
 

@@ -146,19 +146,31 @@ PYTHONPATH=dashboard dashboard/.venv-vision/bin/python -m unittest dashboard/tes
 PYTHONPATH=robot:dashboard robot/.venv/bin/python -m unittest discover -s dashboard -p 'test_*.py' -q
 ```
 
-Person detection defaults OFF for an obstacle-only demo. Toggle it while running.
-When ON, the local Prada agent must heartbeat within three seconds, or exploration
-holds motion and retries while retaining ownership. **Visor must be running its person detector on the live robot feed.** The
-agent heartbeat confirms the agent connection, not detector health. Visor already
-confirms detections across frames. A qualifying sighting calls the authenticated
-dashboard stop endpoint before the agent opens its case; Nemotron verifies camera
-images, asks its existing questions, triages, and posts responder alerts. No automatic
-resume follows a person, false alarm, takeover, motor connection failure, or Stop.
-The panel shows count, confidence, age, estimated bearing/range and image motion.
-Fresh structured Visor boxes appear over the feed for at most three seconds and
-are labeled delayed; they are not synchronized to the displayed camera frame. Turning detection off blocks new cases/rechecks and robot AI
-speech, including an already-running workflow's subsequent lines; alerts already
-in progress may still arrive.
+### Person → greeting → responder demo
+
+Use **Arm person demo · stationary** to stop/release the previous controller and
+watch without driving. Or enable **Detect people & request responder** during
+explicitly started autonomous exploration. Local YOLO requires three distinct fresh
+frames with person confidence at least 0.60. Visor can also report sightings; admission
+is serialized and both sources fold into the same encounter.
+
+A sighting stops exploration before opening the agent case. The real Prada path posts
+one immediate responder/phone alert, says one fixed greeting, and waits for takeover.
+It does not infer injuries, interview the person, run simulated dispatches, drop a beacon,
+or narrate periodic status reports. Nemotron handles grounded operator questions using
+fresh dashboard facts; it cannot call action tools in this real-robot demo path.
+
+**Take control & talk** acquires keyboard ownership (initially disarmed) and starts the
+live responder radio. Allow the browser microphone, press E to enable, and use WASD.
+USB glove takeover remains available. Manual takeover/Stop switches speech to manual,
+cancels pending agent speech, and rejects late handoff updates. New sightings cannot
+interrupt the human conversation. Re-arm to repeat the demo; each new session permits
+one new greeting and alert even when an earlier case is still in memory.
+
+The panel shows Watching → Detected → Greeting → Waiting → Responder control. A speaker
+failure remains visible instead of claiming a successful greeting. Rearming clears the
+current sighting and filters old alerts from the dashboard. Visor is optional for the
+local detector, but still useful for headset video, alerts, and steering.
 
 Take keyboard control or USB glove control to cancel exploration and acquire manual
 control, initially disabled. With the USB glove attached, a centered stick click also
@@ -189,6 +201,6 @@ the latest main branch’s token-free LAN intake), `CAMERA_URL` defaults to `htt
 `DASHBOARD_AGENT_URL` to `http://127.0.0.1:8788`. Agent uses `ROBOT_MODE=prada` and
 `DASHBOARD_URL=http://127.0.0.1:8090`. Start dashboard with the robot Python venv and
 agent with `cd agent && npm start`. Secrets are never placed in browser responses.
-Deploy `autonomy.py`, current motor control/backend/gesture modules, `config.py`, and
+Deploy current motor control/backend/gesture modules, `config.py`, `live_audio.py`, and
 `speech.py` to Prada; install/start `prada-speech.service` and camera before testing.
 Service startup is disarmed and does not initialize servos.

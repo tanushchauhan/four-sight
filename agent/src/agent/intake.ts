@@ -30,6 +30,7 @@ export interface IntakeOptions {
 }
 
 export interface Sighting {
+  sessionId?: string;
   visor?: Record<string, unknown>;
   source: string;
   confidence: number;
@@ -39,8 +40,9 @@ export interface Sighting {
 }
 
 export class DetectionIntake {
+  private sightingChain: Promise<void> = Promise.resolve();
   private latestVisor: Record<string, unknown> | null = null;
-  private active: { caseId: number; openedAt: number; lastSeen: number; lastRecheck: number; rechecks: number; maxCount: number } | null = null;
+  private active: { sessionId?: string; caseId: number; openedAt: number; lastSeen: number; lastRecheck: number; rechecks: number; maxCount: number } | null = null;
   private cooldownUntil = 0;
   private seq = 0;
   private timer: NodeJS.Timeout | null = null;
@@ -57,15 +59,25 @@ export class DetectionIntake {
 
   /** Validate and act on one sighting. */
   async sight(s: Sighting): Promise<{ status: number; body: Record<string, unknown> }> {
+    const result = this.sightingChain.then(() => this.applySighting(s));
+    this.sightingChain = result.then(() => {}, () => {});
+    return result;
+  }
+
+  private async applySighting(s: Sighting): Promise<{ status: number; body: Record<string, unknown> }> {
     this.latestVisor = s.visor ?? null;
     const now = this.now();
     await this.expire(now);
     if (s.count < 1 || s.confidence < (this.o.minConfidence ?? 0.5)) return { status: 200, body: { ok: true, ignored: "low_confidence", case_id: this.active?.caseId ?? null } };
     if (this.o.admit && !(await this.o.admit(s))) return { status: 200, body: { ok: true, ignored: "mission_disabled", case_id: null } };
+    if (s.sessionId && this.active?.sessionId !== s.sessionId) {
+      this.active = null;
+      this.cooldownUntil = 0;
+    }
     if (this.active) {
       this.active.lastSeen = now;
       // A second person appearing is worth a fresh look at the open case.
-      if (s.count > this.active.maxCount) {
+      if (!this.o.admit && s.count > this.active.maxCount) {
         this.active.maxCount = s.count;
         this.push({ kind: "recheck_case", caseId: this.active.caseId, reason: `The visor now sees ${s.count} people.` });
       }
@@ -76,8 +88,8 @@ export class DetectionIntake {
     const x = ++this.seq * 3;
     const c = await this.state.reportDetection(this.o.robotId, x, 0, s.confidence, `visor://${s.source}/${s.frameTime ?? now}`);
     if (!c) return { status: 200, body: { ok: true, ignored: "active_case", case_id: null } };
-    this.active = { caseId: c.id, openedAt: now, lastSeen: now, lastRecheck: now, rechecks: 0, maxCount: s.count };
-    this.push({ kind: "detection", caseId: c.id, visor: s.visor });
+    this.active = { sessionId: s.sessionId, caseId: c.id, openedAt: now, lastSeen: now, lastRecheck: now, rechecks: 0, maxCount: s.count };
+    this.push({ kind: "detection", caseId: c.id, sessionId: s.sessionId, visor: s.visor });
     return { status: 202, body: { ok: true, case_id: c.id, new_case: true } };
   }
 

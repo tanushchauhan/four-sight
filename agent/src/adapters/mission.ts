@@ -11,7 +11,12 @@ export class MissionLink {
     return await r.json() as Record<string, unknown>;
   }
   async admit(sighting: unknown): Promise<boolean> {
-    try { return (await this.post('person', sighting)).accepted === true; }
+    try {
+      const result = await this.post('person', sighting);
+      if (result.accepted === true && sighting && typeof sighting === 'object')
+        (sighting as { sessionId?: unknown }).sessionId = result.session_id;
+      return result.accepted === true;
+    }
     catch { return false; }
   }
   start(): void {

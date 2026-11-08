@@ -11,6 +11,7 @@ import type { Team } from "./team.js";
 import { runDetectionWorkflow, type WorkflowDeps } from "./workflow.js";
 
 export interface RunnerDeps {
+  realRobotEvent?: (event: AgentEvent) => Promise<EpisodeResult>;
   /** Coordinator + specialists (or a solo agent). */
   team: Team;
   /** Set to run detection/recheck events through the fixed workflow instead of the coordinator. */
@@ -82,6 +83,7 @@ export class AgentRunner {
 
   /** Look at state and enqueue whatever needs the agent's attention. */
   async tick(): Promise<void> {
+    if (this.d.realRobotEvent) return; // No simulated telemetry, dispatch or periodic narration on Prada.
     const robot = await this.d.robot.getState();
     const cases = await this.d.state.getCases();
     const now = this.now();
@@ -125,7 +127,7 @@ export class AgentRunner {
   }
 
   async runEvent(e: AgentEvent): Promise<EpisodeResult> {
-    const result =
+    const result = this.d.realRobotEvent ? await this.d.realRobotEvent(e) :
       this.d.workflow && (e.kind === "detection" || e.kind === "recheck_case")
         ? await runDetectionWorkflow(e, this.context(e), this.d.workflow)
         : await runEpisode(e, this.d.team.lead, this.context(e), this.d.logger);

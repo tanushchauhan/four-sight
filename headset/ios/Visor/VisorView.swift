@@ -247,6 +247,14 @@ struct VisorView: View {
                     Text("Coordinator").font(VisorToken.label(16))
                     Text(agent.status.text).font(VisorToken.body(16))
                     Text(coordinatorAudio.status).font(VisorToken.body(16))
+                    Button(coordinatorAudio.handsFree ? "End conversation" : "Start hands-free conversation") {
+                        steering.stop()
+                        coordinatorAudio.toggleConversation()
+                    }
+                    .buttonStyle(SheetButtonStyle(primary: true, focused: false))
+                    Text("Pause to send. Listening resumes after Nemotron replies. Use the dashboard live radio to talk to the person.")
+                        .font(VisorToken.body(14))
+                        .foregroundStyle(VisorToken.muted.color)
                     Button(coordinatorAudio.listening ? "Send voice command" : "Speak to coordinator") {
                         if coordinatorAudio.listening { coordinatorAudio.sendCommand() }
                         else { steering.stop(); coordinatorAudio.beginListening() }

@@ -2,6 +2,7 @@
 import json
 import math
 import os
+import secrets
 import threading
 import time
 import urllib.request
@@ -57,6 +58,10 @@ class Mission:
         self.detection = False
         self.reason = 'Ready for manual control'
         self.last_person = None
+        self.session_id = secrets.token_hex(8)
+        self.session_started = time.time()
+        self.handoff = {"stage": "idle"}
+        self.watch_attempt = None
         self.owner = None
         self.seq = 0
         self.control_generation = 0
@@ -70,7 +75,7 @@ class Mission:
             return dict(mode=self.mode, speed=self.speed, person_detection=self.detection,
                         reason=self.reason, person=self.last_person,
                         agent_connected=time.monotonic()-self.agent_seen < 3,
-                        navigation='local')
+                        navigation='local', session_id=self.session_id, session_started=self.session_started, handoff=dict(self.handoff))
 
     def configure(self, data):
         with self.lock:
@@ -80,7 +85,7 @@ class Mission:
                 raise ValueError('Speed must be 20–100%')
             if type(detection) is not bool:
                 raise ValueError('Person detection must be true or false')
-            change_audio = detection != self.detection and self.mode in ('autonomous', 'person_found')
+            change_audio = detection != self.detection and self.mode in ('autonomous', 'watching', 'person_found')
             if detection and change_audio and time.monotonic()-self.agent_seen >= 3:
                 raise ValueError('Person detection agent is unavailable')
         # Never block drive heartbeats on an HTTP request while changing the toggle.
@@ -88,7 +93,7 @@ class Mission:
             self.media.request('/session', {'mode': 'agent' if detection else 'manual'})
         with self.lock:
             self.speed, self.detection = speed, detection
-            manual_won = change_audio and self.mode not in ('autonomous', 'person_found')
+            manual_won = change_audio and self.mode not in ('autonomous', 'watching', 'person_found')
             result = self.snapshot()
         if manual_won:
             self.media.request('/session', {'mode': 'manual'})
@@ -105,6 +110,10 @@ class Mission:
             # Speech mode must be ready before allowing the agent to greet anyone.
             if self.detection:
                 self.media.request('/session', {'mode': 'agent'})
+            self.session_id = secrets.token_hex(8)
+            self.session_started = time.time()
+            self.last_person = None
+            self.handoff = {'stage': 'watching' if self.detection else 'idle'}
             self.guide.reset()
             self.owner = self.control.acquire(mode='auto')
             self.seq = 0
@@ -114,13 +123,54 @@ class Mission:
 
     def stop(self, reason='Stopped by operator', mode='stopped'):
         with self.lock:
+            self.watch_attempt = None
             self.guide.reset()
             self.control.stop_motion()
             if self.owner:
                 self.control.release()
             self.owner = None
             self.mode, self.reason = mode, reason
+            if mode != 'person_found':
+                self.handoff = dict(self.handoff, stage='manual' if mode == 'manual' else 'stopped')
             return self.snapshot()
+
+    def watch(self):
+        if time.monotonic()-self.agent_seen >= 3:
+            raise ValueError('Start the agent before arming the person demo')
+        self.stop('Preparing stationary person demo')
+        with self.lock:
+            attempt = self.watch_attempt = object()
+        self.control.close()
+        with self.lock:
+            if self.watch_attempt is not attempt:
+                raise ValueError('Demo arming cancelled by another control action')
+        self.media.request('/session', {'mode': 'agent'})
+        with self.lock:
+            if self.watch_attempt is attempt:
+                self.session_id = secrets.token_hex(8)
+                self.session_started = time.time()
+                self.last_person = None
+                self.detection = True
+                self.mode = 'watching'
+                self.reason = 'Watching for a person; robot remains stationary'
+                self.handoff = {'stage': 'watching'}
+                return self.snapshot()
+        self.media.request('/session', {'mode': 'manual'})
+        raise ValueError('Demo arming cancelled by another control action')
+
+    def update_handoff(self, data):
+        with self.lock:
+            if data.get('session_id') != self.session_id or self.mode != 'person_found' or not self.detection:
+                return {'accepted': False}
+            stage=data.get('stage')
+            if stage not in ('alerted', 'greeting', 'waiting', 'error'):
+                raise ValueError('Invalid handoff stage')
+            allowed = {'detected': ('alerted',), 'alerted': ('greeting', 'error'), 'greeting': ('waiting', 'error')}
+            current = self.handoff.get('stage')
+            if stage != current and stage not in allowed.get(current, ()):
+                return {'accepted': False}
+            self.handoff = dict(stage=stage, case_id=data.get('case_id'), detail=str(data.get('detail', ''))[:200])
+            return {'accepted': True}
 
     def person(self, data):
         confidence, count = data.get('confidence'), data.get('count')
@@ -131,17 +181,19 @@ class Mission:
         if frame_time is not None and (type(frame_time) not in (int, float) or not math.isfinite(frame_time) or not -5000 <= time.time()*1000-frame_time <= 15000):
             return {'accepted': False, 'reason': 'Stale sighting'}
         with self.lock:
-            if not self.detection or self.mode not in ('autonomous', 'person_found'):
+            if not self.detection or self.mode not in ('autonomous', 'watching', 'person_found'):
                 return {'accepted': False, 'reason': 'detection disabled or manual control'}
             self.last_person = dict(confidence=data.get('confidence'), count=data.get('count'),
-                                    box=data.get('box'), visor=data.get('visor'), time=time.time())
-            self.stop('Person detected — exploration stopped; responder requested', 'person_found')
+                                    box=data.get('box'), visor=data.get('visor'), source=data.get('source', 'visor'), time=time.time())
+            if self.mode != 'person_found':
+                self.stop('Person detected — exploration stopped; responder requested', 'person_found')
+                self.handoff = {'stage': 'detected'}
         # Do not let Nemotron begin until the previous motor connection is gone.
         deadline = time.monotonic() + 1
         while self.control.owner and time.monotonic() < deadline:
             time.sleep(.01)
         with self.lock:
-            return {'accepted': self.mode == 'person_found' and self.control.owner is None}
+            return {'accepted': self.mode == 'person_found' and self.detection and self.control.owner is None, 'session_id': self.session_id}
 
     def run(self):
         enabled_once = False

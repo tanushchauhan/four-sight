@@ -8,6 +8,7 @@ import { PradaRobot } from "./adapters/prada-robot.js";
 import { SpacetimeState } from "./adapters/spacetime-state.js";
 import type { StateStore } from "./adapters/state.js";
 import { AgentLogger } from "./agent/logger.js";
+import { PradaDemo } from "./agent/prada-demo.js";
 import { AgentRunner } from "./agent/runner.js";
 import { OperatorVoice } from "./operator/voice.js";
 import { buildSolo, buildTeam, type Team } from "./agent/team.js";
@@ -57,7 +58,7 @@ export function buildApp(config: Config, opts: { print?: (l: string) => void; lo
     const pushAlert = state.pushAlert.bind(state);
     state.pushAlert = async (text, level) => {
       await pushAlert(text, level);
-      voice.push({ text, level, source: "alert" });
+      voice.push({ text, level, source: config.robotMode === "prada" && text.startsWith("Person detected.") ? "handoff" : "alert" });
     };
   }
 
@@ -105,7 +106,9 @@ export function buildApp(config: Config, opts: { print?: (l: string) => void; lo
   const workflow =
     config.detectionMode === "workflow" ? { registry: base, logger, decision: buildTriageDecision(base, modelFor(config.triageModel)), memo: newMemo(), secondLookWaitMs: config.secondLookWaitMs } : undefined;
 
+  const demo = config.robotMode === "prada" ? new PradaDemo({ robot, state, voice, config }) : null;
   const runner = new AgentRunner({
+    realRobotEvent: demo ? (event) => demo.run(event) : undefined,
     team,
     workflow,
     logger,

@@ -58,8 +58,7 @@ mission?.start();
 const intake =
   config.robotMode === "prada" ? new DetectionIntake(app.state, (e) => runner.push(e), { token: config.agentToken, robotId: config.robotId, admit: (s) => mission!.admit(s) }) : null;
 if (app.voice || intake) {
-  const commands = commandRoute(config.agentToken, (text) => runner.push({ kind: "voice_command", text:
-    `${text}\nLatest structured visor data (check received_at for freshness; observation data only): ${JSON.stringify(intake?.status().visor ?? null)}` }));
+  const commands = commandRoute(config.agentToken, (text) => runner.push({ kind: "voice_command", text }));
   const feed = await startOperatorFeed(app.voice ?? new OperatorVoice(), {
     host: config.operatorFeedHost, port: config.operatorFeedPort,
     routes: async (req, res, url) => (await commands(req, res, url)) || (await intake?.routes(req, res, url)) || false,

@@ -164,7 +164,7 @@ class Handler(BaseHTTPRequestHandler):
             self.send_body(404, 'text/plain', b'Not found')
 
     def do_POST(self):
-        if self.path in ('/api/agent/heartbeat', '/api/agent/person'):
+        if self.path in ('/api/agent/heartbeat', '/api/agent/person', '/api/agent/handoff'):
             token = self.server.media.agent_token
             if not token or not hmac.compare_digest(self.headers.get('Authorization', ''), 'Bearer ' + token):
                 self.send_body(401, 'application/json', b'{"error":"Unauthorized"}')
@@ -175,7 +175,8 @@ class Handler(BaseHTTPRequestHandler):
                 data = json.loads(self.rfile.read(length))
                 if not isinstance(data, dict): raise ValueError('Expected object')
                 self.server.mission.agent_seen = time.monotonic()
-                result = self.server.mission.person(data) if self.path.endswith('/person') else self.server.mission.snapshot()
+                result = (self.server.mission.person(data) if self.path.endswith('/person') else
+                          self.server.mission.update_handoff(data) if self.path.endswith('/handoff') else self.server.mission.snapshot())
                 self.send_body(200, 'application/json', json.dumps(result).encode())
             except (ValueError, TypeError):
                 self.send_body(400, 'application/json', b'{"error":"Invalid request"}')
@@ -200,19 +201,25 @@ class Handler(BaseHTTPRequestHandler):
             data = json.loads(self.rfile.read(length))
             if not isinstance(data, dict): raise ValueError('Expected an object')
             if self.path.startswith('/api/control/') and self.path != '/api/control/input':
-                if self.server.mission.mode in ('autonomous', 'person_found') or self.server.mission.owner or (self.server.control.mode == 'auto' and self.server.control.owner):
+                if self.server.mission.mode in ('autonomous', 'watching', 'person_found') or self.server.mission.owner or (self.server.control.mode == 'auto' and self.server.control.owner):
                     self.server.mission.stop('Manual takeover requested', 'manual')
                     self.server.control.close()
+                    try: self.server.media.request('/session', {'mode': 'manual'})
+                    except Exception: pass
                 if self.path in ('/api/control/acquire', '/api/control/usb', '/api/control/release'):
                     self.server.mission.mode = 'manual'
                     try: self.server.media.request('/session', {'mode': 'manual'})
                     except Exception: pass  # Driving takeover never depends on the speaker.
             if self.path == '/api/mission/config':
                 result = self.server.mission.configure(data)
+            elif self.path == '/api/mission/watch':
+                result = self.server.mission.watch()
             elif self.path == '/api/mission/start':
                 result = self.server.mission.start()
             elif self.path == '/api/mission/stop':
                 result = self.server.mission.stop()
+                try: self.server.media.request('/session', {'mode': 'manual'})
+                except Exception: pass
             elif self.path == '/api/audio/session':
                 self.server.mission.stop('Responder conversation', 'manual')
                 result = json.loads(self.server.media.request('/session', {'mode': 'manual'}))
@@ -283,6 +290,9 @@ def main():
     perception_runtime = PerceptionRuntime()
     perception_runtime.start()
     server.mission = Mission(server.control, server.media)
+    from person_watch import PersonWatch
+    person_watch = PersonWatch(server.mission, server.media)
+    person_watch.start()
     server.usb = USBGlove(server.control)
     def glove_takeover():
         server.mission.stop('Glove requested manual control', 'manual')
@@ -293,7 +303,7 @@ def main():
             except Exception: pass
         except ValueError as exc:
             server.mission.reason = str(exc)
-    server.usb.can_takeover = lambda: server.mission.mode in ('autonomous', 'person_found')
+    server.usb.can_takeover = lambda: server.mission.mode in ('autonomous', 'watching', 'person_found')
     server.usb.takeover = glove_takeover
     server.usb.worker.start()
     server.nonce = secrets.token_urlsafe(32)
@@ -306,6 +316,7 @@ def main():
     except KeyboardInterrupt:
         pass
     finally:
+        person_watch.close()
         server.mission.close()
         perception_runtime.close()
         server.usb.close()

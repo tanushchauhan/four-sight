@@ -81,60 +81,39 @@ head-to-camera latency have not yet been calibrated.
 
 ## Agent trigger
 
-**Unbuilt and untested on device.** This was written on a machine without Xcode; build it and run
-the checks below before relying on it.
+When the on-phone detector stably sees a person on the live robot feed, Visor posts
+to `/api/detections` on the laptop agent. Three of five detections must contain a
+person at confidence >= 0.5; repeated reports are limited to once every five seconds.
+Reports include count, confidence, frame time and structured boxes/observations.
+The phone camera never triggers robot handoff. Network retries do not block video.
 
-When the on-phone detector stably sees a person on the robot feed, the visor tells the Nemotron agent
-to open a case and start triage (`headset/ios/Visor/AgentLink.swift`). It sends:
+The configured `AGENT_URL` is bundled by `configure_agent.py`; the fallback uses the
+camera hostname with port 8788. Phone LAN intake is token-free. `AGENT_TOKEN` remains
+private between the laptop agent and dashboard and is never bundled in the phone.
+Run the agent with `ROBOT_MODE=prada` and `OPERATOR_FEED_HOST=::` for the hotspot.
 
-```
-POST <agent URL>/api/detections
-Content-Type: application/json
-Authorization: Bearer <agent token>
+The dashboard admission gate must be armed: **Arm person demo · stationary**, or
+person detection enabled during autonomous exploration. A valid sighting stops
+exploration, posts one alert, plays one greeting and waits for manual takeover.
+Repeated local/Visor detections merge into the same encounter. Rearming begins a
+new encounter. The status may show `ignored (mission_disabled)` while manual/disarmed;
+this is expected. See `dashboard/README.md` for the demo checklist and live radio.
 
-{"source":"visor","confidence":0.83,"count":1,"box":null,"frame_time":1762600000000}
-```
+## Current Prada demo and hands-free coordinator
 
-`confidence` is the highest person confidence in the result, `count` the number of people, and
-`frame_time` epoch milliseconds when the trigger fired. `box` is always `null` for now: the detector
-does not publish the box yet, and the agent accepts `null`.
+The current build reads `AGENT_URL` from its generated AgentConfiguration plist;
+phone requests do not carry agent secrets. Local dashboard YOLO can trigger the same
+person handoff without Visor. Person alerts interrupt hands-free listening, and a
+backend feed-ID reset is detected after an agent restart.
 
-**When.** Only when Notify agent is on, a token is entered, and the robot feed is the active source
-and live (the phone camera never notifies the agent). A detector result is a hit when it has at least
-one person at confidence 0.5 or more. The visor posts once 3 of the last 5 results are hits, then
-waits 30 s before it can post again. A result with no person clears the run. While someone stays
-in view it re-posts every 30 s; the agent folds these into the open case
-(`ignored: active_case`), which also keeps that case open. Each post has a 3 s timeout and is
-retried at most twice, 1 s apart, only for network errors and HTTP 5xx. Posting never waits on or
-affects detection or video.
+In Coordinator, select **Start hands-free conversation**. Grant microphone and speech
+recognition access. Pause for about 1.2 seconds to submit; the phone speaks Nemotron's
+reply and starts listening again. **End conversation** closes the mic while retaining
+handoff alerts. The single-command button remains available. This is automatic turn-taking, not full-duplex barge-in or streamed model audio. Use the dashboard's live
+radio for the responder-to-person call, not the coordinator conversation.
 
-**Settings** (robot feed section):
-- **Agent URL.** Saved between launches. Leave it blank to use `http://<camera host>:8788`. The agent
-  usually runs on a laptop, so enter `http://<laptop IP>:8788` there.
-- **Agent token.** The agent's `AGENT_TOKEN`. Kept in memory only, never saved: re-enter it after
-  each launch.
-- **Notify agent.** Turns on by itself when a token is entered.
-- The status line shows `Agent: off`, `idle`, `notifying…`, `notified case N`,
-  `ignored (cooldown)` or `ignored (active_case), case N`, `unreachable`, `bad token`, or
-  `error (…)`. The lens HUD's Coordinator readout shows the same state.
-
-**Agent side.** Run it with `ROBOT_MODE=prada`, `AGENT_TOKEN=<long random string>` and
-`OPERATOR_FEED_HOST=0.0.0.0` so the phone on the hotspot can reach port 8788. Allow port 8788
-through the laptop firewall.
-
-**Test the agent without the visor** (from any machine on the hotspot):
-
-```sh
-curl -i -X POST http://<laptop IP>:8788/api/detections \
-  -H "Content-Type: application/json" -H "Authorization: Bearer $AGENT_TOKEN" \
-  -d '{"source":"visor","confidence":0.8,"count":1,"box":null,"frame_time":1762600000000}'
-# 202 {"ok":true,"case_id":1,"new_case":true}; repeat → 200 {"ok":true,"ignored":"active_case",...}
-curl -i -X POST http://<laptop IP>:8788/api/detections -H "Authorization: Bearer wrong" -d '{}'
-# 401
-curl http://<laptop IP>:8788/api/status
-```
-
-**Test from the visor.** Enter the laptop URL and token, connect the robot feed, and point the robot
-camera at a person for about a second. The status should show `notified case N`, and the agent
-console should log a `detection` event. Then stop the agent and repeat: the status should show
-`unreachable` within about 10 s, while the video and survivor highlight keep running.
+Prada's coordinator now uses measured dashboard facts and an explicitly restricted
+capability description. It does not receive simulated coordinates/battery percentages,
+assume a collapsed building, or dispatch responders from voice chat. Missing information
+is represented as unknown. Real-world person handoff uses a short fixed greeting and
+waits for a human; the simulation's medical triage workflow is not run on Prada.

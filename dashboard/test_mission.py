@@ -59,6 +59,22 @@ class MissionTests(unittest.TestCase):
         for data in ({}, {'confidence': float('nan'), 'count': 1}, {'confidence': .2, 'count': 1}):
             self.assertFalse(self.mission.person(data)['accepted'])
 
+    def test_stationary_demo_and_stale_handoff_updates(self):
+        self.mission.agent_seen=time.monotonic()
+        self.mission.watch()
+        first=self.mission.session_id
+        self.assertEqual(self.mission.mode,'watching')
+        self.assertFalse(self.control.armed)
+        self.control.acquire.assert_not_called()
+        self.assertTrue(self.mission.person({'count':1,'confidence':.9})['accepted'])
+        self.assertTrue(self.mission.update_handoff({'session_id':first,'stage':'alerted'})['accepted'])
+        self.assertTrue(self.mission.update_handoff({'session_id':first,'stage':'greeting'})['accepted'])
+        self.mission.stop(mode='manual')
+        self.assertFalse(self.mission.update_handoff({'session_id':first,'stage':'waiting'})['accepted'])
+        self.mission.watch()
+        self.assertNotEqual(first,self.mission.session_id)
+        self.assertFalse(self.mission.update_handoff({'session_id':first,'stage':'waiting'})['accepted'])
+
 class MissionWorkerTests(unittest.TestCase):
     def test_external_stop_never_reenables(self):
         control=DebugControl('not-a-robot')

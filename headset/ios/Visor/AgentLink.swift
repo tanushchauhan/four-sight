@@ -7,6 +7,7 @@ import Speech
 @MainActor
 final class CoordinatorAudio: ObservableObject {
     @Published private(set) var listening = false
+    @Published private(set) var handsFree = false
     @Published private(set) var transcript = ""
     @Published private(set) var status = "Coordinator voice off"
     private let speaker = AVSpeechSynthesizer()
@@ -16,17 +17,25 @@ final class CoordinatorAudio: ObservableObject {
     private var request: SFSpeechAudioBufferRecognitionRequest?
     private var poll: Task<Void, Never>?
     private var timeout: Task<Void, Never>?
+    private var silence: Task<Void, Never>?
+    private var sending: Task<Void, Never>?
     private var lastID = 0
+    private var lastLineTime: Double = 0
     private var base = ""
     private var tapped = false
     private var authorizing = false
     private var active = false
+    private var waitingReply = false
+    private var replyDeadline = Date.distantPast
+    private var nextListen = Date.distantPast
+    private var captureID = UUID()
 
     struct Line: Decodable {
         let id: Int
         let text: String
         let interrupt: Bool
         let time: Double
+        let source: String?
     }
 
     func start(camera: String) {
@@ -38,20 +47,29 @@ final class CoordinatorAudio: ObservableObject {
         poll = Task { [weak self] in
             while !Task.isCancelled {
                 guard let self else { return }
-                if !self.listening {
-                    do {
-                        guard let url = URL(string: self.base + "/api/operator/recent?since=\(self.lastID)&n=20") else {
-                            throw URLError(.badURL)
-                        }
-                        var query = URLRequest(url: url)
-                        query.timeoutInterval = 3
-                        let (data, response) = try await URLSession.shared.data(for: query)
-                        guard !Task.isCancelled else { return }
-                        guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw URLError(.badServerResponse) }
-                        let lines = try JSONDecoder().decode([Line].self, from: data)
+                do {
+                    guard let url = URL(string: self.base + "/api/operator/recent?n=20") else { throw URLError(.badURL) }
+                    var query = URLRequest(url: url)
+                    query.timeoutInterval = 3
+                    let (data, response) = try await URLSession.shared.data(for: query)
+                    guard !Task.isCancelled else { return }
+                    guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw URLError(.badServerResponse) }
+                    let lines = try JSONDecoder().decode([Line].self, from: data)
+                    // Agent restarts reset feed IDs; don't wait for them to exceed an old session's IDs.
+                    if lines.contains(where: { $0.id <= self.lastID && $0.time > self.lastLineTime }) { self.lastID = 0 }
+                    if self.listening && lines.contains(where: { $0.id > self.lastID && $0.source == "handoff" && Date().timeIntervalSince1970 * 1000 - $0.time < 20_000 }) {
+                        self.endCapture()
+                        self.nextListen = Date().addingTimeInterval(0.5)
+                    }
+                    if !self.listening {
                         for line in lines.sorted(by: { $0.id < $1.id }) where line.id > self.lastID {
                             self.lastID = line.id
-                            guard !self.listening, Date().timeIntervalSince1970 * 1000 - line.time < 20_000 else { continue }
+                            self.lastLineTime = max(self.lastLineTime, line.time)
+                            guard Date().timeIntervalSince1970 * 1000 - line.time < 20_000 else { continue }
+                            if line.source == "conversation" {
+                                guard self.waitingReply else { continue }
+                                self.waitingReply = false
+                            }
                             if line.interrupt { self.speaker.stopSpeaking(at: .immediate) }
                             try self.configureAudio()
                             let utterance = AVSpeechUtterance(string: line.text)
@@ -59,13 +77,24 @@ final class CoordinatorAudio: ObservableObject {
                             utterance.rate = AVSpeechUtteranceDefaultSpeechRate
                             utterance.volume = 0.75
                             self.speaker.speak(utterance)
+                            self.nextListen = Date().addingTimeInterval(0.5)
+                            self.status = "Nemotron speaking"
                         }
-                        if !self.listening { self.status = "Coordinator voice connected" }
-                    } catch {
-                        if !Task.isCancelled { self.status = "Coordinator voice reconnecting…" }
                     }
+                    if self.waitingReply && Date() > self.replyDeadline {
+                        self.waitingReply = false
+                        self.status = "No reply received — try again"
+                        self.nextListen = Date().addingTimeInterval(1)
+                    }
+                    if self.handsFree && !self.listening && !self.waitingReply && !self.authorizing && !self.speaker.isSpeaking && Date() > self.nextListen {
+                        self.beginListening()
+                    } else if !self.handsFree && !self.listening && !self.waitingReply && !self.speaker.isSpeaking {
+                        self.status = "Coordinator connected · alerts only"
+                    }
+                } catch {
+                    if !Task.isCancelled && !self.listening { self.status = "Coordinator reconnecting…" }
                 }
-                try? await Task.sleep(nanoseconds: 1_000_000_000)
+                try? await Task.sleep(nanoseconds: 400_000_000)
             }
         }
     }
@@ -76,16 +105,34 @@ final class CoordinatorAudio: ObservableObject {
         try audio.setActive(true)
     }
 
+    func toggleConversation() {
+        if handsFree {
+            handsFree = false
+            waitingReply = false
+            sending?.cancel(); sending = nil
+            endCapture()
+            speaker.stopSpeaking(at: .immediate)
+            status = "Conversation ended · alerts remain on"
+        } else {
+            handsFree = true
+            waitingReply = false
+            beginListening()
+        }
+    }
+
     func beginListening() {
-        guard active, !listening, !authorizing else { return }
+        guard active, !listening, !authorizing, !waitingReply else { return }
         authorizing = true
+        captureID = UUID()
+        let id = captureID
         SFSpeechRecognizer.requestAuthorization { [weak self] authorization in
             AVAudioSession.sharedInstance().requestRecordPermission { granted in
                 Task { @MainActor in
                     guard let self else { return }
                     self.authorizing = false
-                    guard self.active else { return }
+                    guard self.active, self.captureID == id else { return }
                     guard authorization == .authorized, granted else {
+                        self.handsFree = false
                         self.status = "Allow microphone and speech access in Settings"; return
                     }
                     self.capture()
@@ -95,9 +142,12 @@ final class CoordinatorAudio: ObservableObject {
     }
 
     private func capture() {
-        guard let recognizer, recognizer.isAvailable else { status = "Speech recognition unavailable"; return }
+        guard let recognizer, recognizer.isAvailable else {
+            handsFree = false; status = "Speech recognition unavailable"; return
+        }
         speaker.stopSpeaking(at: .immediate)
         transcript = ""
+        let id = captureID
         do {
             try configureAudio()
             let request = SFSpeechAudioBufferRecognitionRequest()
@@ -111,26 +161,42 @@ final class CoordinatorAudio: ObservableObject {
             listening = true
             recognition = recognizer.recognitionTask(with: request) { [weak self] result, error in
                 Task { @MainActor in
-                    guard let self, self.listening else { return }
-                    if let result { self.transcript = result.bestTranscription.formattedString }
+                    guard let self, self.listening, self.captureID == id else { return }
+                    if let result {
+                        let text = result.bestTranscription.formattedString
+                        if text != self.transcript {
+                            self.transcript = text
+                            self.silence?.cancel()
+                            self.silence = Task { [weak self] in
+                                try? await Task.sleep(nanoseconds: 1_200_000_000)
+                                guard !Task.isCancelled, let self, self.captureID == id else { return }
+                                self.sendCommand()
+                            }
+                        }
+                    }
                     if result?.isFinal == true { self.sendCommand() }
-                    else if error != nil { self.endCapture(); self.status = "Speech interrupted — try again" }
+                    else if error != nil {
+                        self.endCapture(); self.status = "Speech interrupted — listening again shortly"
+                        self.nextListen = Date().addingTimeInterval(1)
+                    }
                 }
             }
             engine.prepare()
             try engine.start()
-            status = "Listening — tap Send when finished"
+            status = handsFree ? "Listening · pause to send" : "Listening · pause or tap Send"
             timeout = Task { [weak self] in
                 try? await Task.sleep(nanoseconds: 20_000_000_000)
-                guard !Task.isCancelled else { return }
-                self?.sendCommand()
+                guard !Task.isCancelled, let self, self.captureID == id else { return }
+                self.sendCommand()
             }
-        } catch { endCapture(); status = "Microphone unavailable" }
+        } catch { endCapture(); handsFree = false; status = "Microphone unavailable" }
     }
 
     private func endCapture() {
         listening = false
+        captureID = UUID()
         timeout?.cancel(); timeout = nil
+        silence?.cancel(); silence = nil
         engine.stop()
         if tapped { engine.inputNode.removeTap(onBus: 0); tapped = false }
         request?.endAudio(); request = nil
@@ -141,9 +207,12 @@ final class CoordinatorAudio: ObservableObject {
         guard listening else { return }
         let text = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
         endCapture()
-        guard !text.isEmpty else { status = "No speech heard — try again"; return }
-        status = "Sending command…"
-        Task {
+        nextListen = Date().addingTimeInterval(0.7)
+        guard !text.isEmpty else { status = "No speech heard"; return }
+        waitingReply = true
+        replyDeadline = Date().addingTimeInterval(35)
+        status = "Waiting for Nemotron…"
+        sending = Task {
             do {
                 guard let url = URL(string: base + "/api/operator/command") else { throw URLError(.badURL) }
                 var command = URLRequest(url: url)
@@ -152,14 +221,19 @@ final class CoordinatorAudio: ObservableObject {
                 command.setValue("application/json", forHTTPHeaderField: "Content-Type")
                 command.httpBody = try JSONSerialization.data(withJSONObject: ["text": text])
                 let (_, response) = try await URLSession.shared.data(for: command)
+                guard !Task.isCancelled else { return }
                 guard (response as? HTTPURLResponse)?.statusCode == 202 else { throw URLError(.badServerResponse) }
-                status = "Command sent"
-            } catch { status = "Command could not be sent — check coordinator" }
+            } catch {
+                guard !Task.isCancelled else { return }
+                waitingReply = false
+                status = "Could not reach coordinator — try again"
+            }
         }
     }
 
     func stop() {
-        active = false
+        active = false; handsFree = false; waitingReply = false
+        sending?.cancel(); sending = nil
         poll?.cancel(); poll = nil
         endCapture()
         speaker.stopSpeaking(at: .immediate)

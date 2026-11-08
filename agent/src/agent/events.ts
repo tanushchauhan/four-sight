@@ -2,7 +2,7 @@
 export type AgentEvent =
   | { kind: "mission_start"; instruction?: string }
   | { kind: "search_step" }
-  | { kind: "detection"; caseId: number; visor?: Record<string, unknown> }
+  | { kind: "detection"; caseId: number; sessionId?: string; visor?: Record<string, unknown> }
   | { kind: "voice_command"; text: string }
   | { kind: "operator_released"; robotId: number }
   | { kind: "low_battery"; battery: number }
