@@ -210,9 +210,8 @@ private struct Reticle: Shape {
 /// readable over a bright frame without putting a box behind it.
 private extension View {
     func overFeed() -> some View {
-        colorMultiply(Color(red: 0.10, green: 0.16, blue: 0.23))
-            .padding(8)
-            .background(RoundedRectangle(cornerRadius: 5).fill(Color.white.opacity(0.92)))
+        shadow(color: VisorToken.paper3.opacity(0.95).color, radius: 1.5, x: 0, y: 1)
+            .shadow(color: VisorToken.paper3.opacity(0.5).color, radius: 5, x: 0, y: 2)
     }
 }
 
