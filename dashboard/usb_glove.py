@@ -26,6 +26,9 @@ class USBGlove:
         self.clicks = None
         self.forward = self.turn = 0.
         self.reason = 'Looking for the USB Arduino 101'
+        self.can_takeover = lambda: False
+        self.takeover = None
+        self.takeover_clicks = None
         self.worker = threading.Thread(target=self.run, daemon=True)
 
     def snapshot(self):
@@ -52,6 +55,7 @@ class USBGlove:
                 self.control.release()
             self.owner = None
             self.clicks = None
+            self.takeover_clicks = None
 
     def accept(self, packet):
         seq, turn, forward, clicks = packet
@@ -63,6 +67,16 @@ class USBGlove:
             self.packet_seq = seq
             self.received = time.monotonic()
             self.forward, self.turn = forward, turn
+            if self.takeover and self.can_takeover():
+                previous = self.takeover_clicks
+                self.takeover_clicks = clicks
+                if (previous is not None and (clicks-previous) % 256 == 1
+                        and abs(forward) < .15 and abs(turn) < .15):
+                    # Stop synchronously; connect the replacement controller off the USB reader.
+                    self.control.stop_motion()
+                    threading.Thread(target=self.takeover, daemon=True).start()
+                return
+            self.takeover_clicks = None
             if not self.owner or self.control.owner != self.owner:
                 self.owner = None
                 self.reason = 'USB packets received; take USB control to drive'

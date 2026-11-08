@@ -90,3 +90,60 @@ motor-server start. The explicit **Move servos to zero** button retains its
 intentional calibration-zero behavior. During gestures, dashboard-to-Pi and
 Pi-client-to-motor-server leases must stay fresh; timeout/disconnect disables
 movement and cancels subsequent poses. Resume always requires explicit enable.
+
+## Autonomous demo and responder handoff
+
+The mission panel adds reactive ultrasonic exploration (no SLAM or position estimate).
+Start is explicit; speed is 20–100% normalized command magnitude, default 50%,
+not a measured walking velocity. The Mac owns one control connection through SSH;
+head steering is ignored in autonomous mode. The Pi reads the standard ultrasonic
+trigger D2 / echo D3 at roughly 10 Hz. Readings older than 0.5 seconds or outside
+2–400 cm inhibit motion. Once a valid reading has been seen, losing it latches a stop.
+Below 40 cm it turns left at at most 50%, requiring three distinct readings above
+50 cm before going forward. Below 15 cm or after four seconds without a clear route,
+it stops for manual repositioning. No reverse motion is requested. Front sonar
+cannot see drop-offs, side contacts, or every surface; validate at low speed on
+level ground. A committed vendor gait can finish after Stop.
+
+Person detection defaults OFF for an obstacle-only demo. Toggle it while running.
+When ON, the local Prada agent must heartbeat within three seconds, or exploration
+stops. **Visor must be running its person detector on the live robot feed.** The
+agent heartbeat confirms the agent connection, not detector health. Visor already
+confirms detections across frames. A qualifying sighting calls the authenticated
+dashboard stop endpoint before the agent opens its case; Nemotron verifies camera
+images, asks its existing questions, triages, and posts responder alerts. No automatic
+resume follows a person, false alarm, takeover, communication failure, or Stop.
+The panel shows count, confidence, age, estimated bearing/range and image motion.
+Fresh structured Visor boxes appear over the feed for at most three seconds and
+are labeled delayed; they are not synchronized to the displayed camera frame. Turning detection off blocks new cases/rechecks and robot AI
+speech, including an already-running workflow's subsequent lines; alerts already
+in progress may still arrive.
+
+Take keyboard control or USB glove control to cancel exploration and acquire manual
+control, initially disabled. With the USB glove attached, a centered stick click also
+requests takeover from autonomous/person-found mode. Wait for the connection, then
+click again to enable. A baseline click counter, stale data, or a reconnect never
+arms motion. Bluetooth-only takeover still uses the dashboard Return to glove button.
+
+The **Live feed** option proxies Prada `/stream`, the same camera source Visor uses.
+It requires a direct Mac-to-Pi route. The camera service now listens on both IPv4
+and IPv6, so `CAMERA_URL=http://prada.local:8080` also works over the IPv6 route. The old periodic snapshot remains under device health.
+
+**Take conversation** stops autonomous movement, interrupts queued robot speech,
+and gives audio to the responder. Record up to eight seconds on the Mac, send the
+clip to the robot speaker, then press **Listen · 5 seconds** to play the USB microphone
+reply. This is turn-taking audio, not a full-duplex call. Typed messages are available
+as a fallback. Use `http://localhost:8090` on the dashboard Mac for browser microphone
+access; plain HTTP LAN addresses cannot use browser microphones. A missing microphone,
+busy audio device, or playback error is reported. Keyboard/glove takeover also requests
+manual speech ownership; use Take conversation to confirm the audio connection.
+
+Configuration: dashboard reads ignored `agent/.env` then process environment.
+`ROBOT_CONTROL_TOKEN` is Prada's existing token, `AGENT_TOKEN` is a private dashboard-to-agent shared secret (Visor itself uses
+the latest main branch’s token-free LAN intake), `CAMERA_URL` defaults to `http://prada.local:8080`, `SPEAKER_URL` to port 8081,
+`DASHBOARD_AGENT_URL` to `http://127.0.0.1:8788`. Agent uses `ROBOT_MODE=prada` and
+`DASHBOARD_URL=http://127.0.0.1:8090`. Start dashboard with the robot Python venv and
+agent with `cd agent && npm start`. Secrets are never placed in browser responses.
+Deploy `autonomy.py`, current motor control/backend/gesture modules, `config.py`, and
+`speech.py` to Prada; install/start `prada-speech.service` and camera before testing.
+Service startup is disarmed and does not initialize servos.

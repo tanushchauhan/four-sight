@@ -150,3 +150,19 @@ and the normal command timeout cancel subsequent gesture poses; an already
 committed vendor transition may finish. Cancellation does not automatically
 stand or return level. First-use initialization after server startup still moves
 to calibrated initial angles. The separate explicit zero operation is unchanged.
+
+### Autonomous sonar and responder radio
+
+`picrawler_control.autonomy` supplies the dashboard SSH controller's reactive
+obstacle policy and isolated D2/D3 ultrasonic reader. It never constructs Picrawler;
+all motion stays behind the existing single-owner motor server and drive deadman.
+See `dashboard/README.md` for thresholds, speed controls and takeover behavior.
+
+The authenticated speech service now supports `POST /session {"mode":"manual"|"agent"}`,
+`POST /audio` (mono PCM16 WAV, 8–48 kHz, at most 10 seconds/1 MB), and
+`POST /record {"seconds":1..10}` (WAV response). Manual session interrupts queued AI
+speech and rejects agent `/say` and `/listen` with 409. Dashboard responder `/say`
+uses `X-Speech-Source: operator`. Audio sessions share the speaker/microphone hold,
+so playback and capture are turn-taking. All endpoints require the existing bearer
+token. Restart defaults to agent audio mode; taking responder conversation explicitly
+reasserts manual ownership. No recordings persist after requests finish.

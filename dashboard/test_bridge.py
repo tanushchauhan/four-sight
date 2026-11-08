@@ -26,6 +26,9 @@ class CombinedBridgeTests(unittest.IsolatedAsyncioTestCase):
     async def test_usb_and_head_share_enable_and_stop(self):
         await self.combined('usb')
 
+    async def test_autonomous_ignores_head_turn_and_obeys_speed(self):
+        await self.combined('auto')
+
     async def combined(self, mode):
         control=Control(Config())
         bridge=Bridge(control,'test-secret-for-bridge')
@@ -36,6 +39,9 @@ class CombinedBridgeTests(unittest.IsolatedAsyncioTestCase):
         with tempfile.TemporaryDirectory() as tmp:
             token=Path(tmp)/'token.env';token.write_text('ROBOT_CONTROL_TOKEN=test-secret-for-bridge\n')
             source=REMOTE.replace("INPUT_MODE = 'keyboard'", 'INPUT_MODE = '+repr(mode)).replace("'/etc/picrawler-control.env'",repr(str(token))).replace('HEAD_PORT = 8766',f'HEAD_PORT = {head_port}').replace('127.0.0.1:8765',f'127.0.0.1:{motor_port}')
+            if mode == 'auto':
+                source=source.replace('from picrawler_control.autonomy import Sonar, Avoidance',
+                    'from picrawler_control.autonomy import Avoidance\n    class Sonar:\n        @property\n        def sample(self): return (100, time.monotonic())')
             process=await asyncio.create_subprocess_exec(sys.executable,'-u','-c',source,stdin=asyncio.subprocess.PIPE,stdout=asyncio.subprocess.PIPE,stderr=asyncio.subprocess.PIPE,env=dict(os.environ,PYTHONPATH=str(Path(__file__).resolve().parents[1]/'robot')))
             async def receive():
                 raw=await asyncio.wait_for(process.stdout.readline(),5)
@@ -50,10 +56,11 @@ class CombinedBridgeTests(unittest.IsolatedAsyncioTestCase):
                     await head.send('{"turn":0.3}');await head.recv()
                     await send('enable')
                     reply=await send('drive',forward=0,turn=0)
-                    self.assertEqual(reply['turn'],.3);self.assertEqual(reply['input_source'],'headset')
+                    self.assertEqual(reply['turn'],0 if mode == 'auto' else .3)
+                    self.assertEqual(reply['input_source'],'Exploring' if mode == 'auto' else 'headset')
                     reply=await send('drive',forward=.5,turn=0)
                     self.assertEqual((reply['forward'],reply['turn']),(.5,0))
-                    self.assertEqual(reply['input_source'],mode)
+                    self.assertEqual(reply['input_source'],'Exploring' if mode == 'auto' else mode)
                     await asyncio.sleep(.32)
                     reply=await send('drive',forward=0,turn=0)
                     self.assertEqual(reply['turn'],0)

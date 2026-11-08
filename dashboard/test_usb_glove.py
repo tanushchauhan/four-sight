@@ -36,3 +36,18 @@ class USBGloveTests(unittest.TestCase):
         self.g.received-=.31
         self.g.accept((3,0,0,2));self.assertFalse(self.c.armed)
         self.assertIsNone(self.g.owner)
+
+    def test_centered_click_stops_auto_before_async_takeover(self):
+        import threading
+        called=threading.Event()
+        self.c.mode='auto';self.c.armed=True
+        self.g.owner=None
+        self.g.can_takeover=lambda:True
+        self.g.takeover=called.set
+        self.g.accept((1,0,0,10))
+        self.assertFalse(called.is_set())
+        self.g.accept((2,.7,0,11))
+        self.assertFalse(called.is_set())
+        self.g.accept((3,0,0,12))
+        self.assertFalse(self.c.armed)
+        self.assertTrue(called.wait(1))

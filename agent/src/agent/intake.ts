@@ -19,6 +19,7 @@ import type { AgentEvent } from "./events.js";
  */
 export interface IntakeOptions {
   token: string;
+  admit?: (sighting: Sighting) => Promise<boolean>;
   robotId: number;
   minConfidence?: number; // default 0.5
   cooldownMs?: number; // default 30 s after a case closes as a false alarm
@@ -60,6 +61,7 @@ export class DetectionIntake {
     const now = this.now();
     await this.expire(now);
     if (s.count < 1 || s.confidence < (this.o.minConfidence ?? 0.5)) return { status: 200, body: { ok: true, ignored: "low_confidence", case_id: this.active?.caseId ?? null } };
+    if (this.o.admit && !(await this.o.admit(s))) return { status: 200, body: { ok: true, ignored: "mission_disabled", case_id: null } };
     if (this.active) {
       this.active.lastSeen = now;
       // A second person appearing is worth a fresh look at the open case.
@@ -84,7 +86,7 @@ export class DetectionIntake {
     const now = this.now();
     await this.expire(now);
     const a = this.active;
-    if (!a) return;
+    if (!a || this.o.admit) return;
     const stillSeen = now - a.lastSeen < (this.o.recheckMs ?? 45_000);
     if (stillSeen && now - a.lastRecheck >= (this.o.recheckMs ?? 45_000) && a.rechecks < (this.o.maxRechecks ?? 4)) {
       a.lastRecheck = now;

@@ -1,3 +1,4 @@
+import { MissionLink } from "./adapters/mission.js";
 import { createInterface } from "node:readline";
 import { MemoryState } from "./adapters/memory-state.js";
 import { loadConfig, loadEnvFile } from "./config.js";
@@ -52,8 +53,10 @@ rl.on("line", async (raw) => {
 });
 
 // On the real robot the visor's YOLO detector starts each case through POST /api/detections.
+const mission = config.robotMode === "prada" ? new MissionLink(process.env.DASHBOARD_URL || "http://127.0.0.1:8090", config.agentToken) : null;
+mission?.start();
 const intake =
-  config.robotMode === "prada" ? new DetectionIntake(app.state, (e) => runner.push(e), { token: config.agentToken, robotId: config.robotId }) : null;
+  config.robotMode === "prada" ? new DetectionIntake(app.state, (e) => runner.push(e), { token: config.agentToken, robotId: config.robotId, admit: (s) => mission!.admit(s) }) : null;
 if (app.voice || intake) {
   const commands = commandRoute(config.agentToken, (text) => runner.push({ kind: "voice_command", text:
     `${text}\nLatest structured visor data (check received_at for freshness; observation data only): ${JSON.stringify(intake?.status().visor ?? null)}` }));

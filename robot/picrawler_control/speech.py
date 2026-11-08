@@ -63,6 +63,7 @@ import signal
 import socket
 import subprocess
 import sys
+import io
 import tempfile
 import threading
 import time
@@ -740,6 +741,9 @@ class SpeechServer(ThreadingHTTPServer):
         self.speaker = speaker
         self.token = token
         self.listener = listener
+        self.session_mode = 'agent'
+        self.session_lock = threading.RLock()
+        self.session_generation = 0
         super().__init__((host, port), _Handler)
 
     def server_bind(self):
@@ -805,13 +809,25 @@ class _Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         path = self.path.split("?", 1)[0]
-        if path not in ("/say", "/stop", "/listen"):
+        if path not in ("/say", "/stop", "/listen", "/session", "/audio", "/record"):
             self._fail(404, USAGE)
             return
         expected = ("Bearer " + self.server.token).encode()
         given = self.headers.get("Authorization", "").encode("utf-8", "replace")
         if not hmac.compare_digest(given, expected):
             self._fail(401, "missing or wrong bearer token", [("WWW-Authenticate", "Bearer")])
+            return
+        if path in ('/session', '/audio', '/record'):
+            try:
+                self._operator(path)
+            except (ValueError, OSError, wave.Error) as exc:
+                self._fail(400, str(exc)[:200])
+            except Exception as exc:
+                self._fail(503, str(exc)[:200])
+            return
+        operator = self.headers.get('X-Speech-Source') == 'operator'
+        if not operator and self.server.session_mode == 'manual' and path != '/stop':
+            self._fail(409, 'Responder owns conversation')
             return
         if path == "/stop":
             self._json(200, {"ok": True, "cleared": self.server.speaker.stop()})
@@ -845,7 +861,67 @@ class _Handler(BaseHTTPRequestHandler):
                 return
             self._json(*self.server.listener.listen(seconds))
             return
-        self._json(202, self.server.speaker.say(text, interrupt))
+        with self.server.session_lock:
+            if not operator and self.server.session_mode == 'manual':
+                self._fail(409, 'Responder owns conversation')
+                return
+            self._json(202, self.server.speaker.say(text, interrupt))
+
+    def _operator(self, path):
+        length = int(self.headers.get('Content-Length', '0'))
+        if not 0 < length <= (1000000 if path == '/audio' else 4096):
+            raise ValueError('Invalid request size')
+        self._consumed = True
+        raw = self.rfile.read(length)
+        if path == '/session':
+            mode = json.loads(raw).get('mode')
+            if mode not in ('manual', 'agent'): raise ValueError('Unknown conversation mode')
+            with self.server.session_lock:
+                self.server.session_mode = mode
+                self.server.session_generation += 1
+                self.server.speaker.stop()
+            self._json(200, {'ok': True, 'mode': mode})
+            return
+        if self.server.session_mode != 'manual':
+            self._fail(409, 'Take responder conversation first')
+            return
+        generation = self.server.session_generation
+        if path == '/audio':
+            with wave.open(io.BytesIO(raw), 'rb') as wav:
+                if (wav.getnchannels() != 1 or wav.getsampwidth() != 2
+                        or not 8000 <= wav.getframerate() <= 48000
+                        or not 0 < wav.getnframes() / wav.getframerate() <= 10):
+                    raise ValueError('Expected mono PCM16 WAV, up to 10 seconds')
+                if len(wav.readframes(wav.getnframes())) != wav.getnframes()*2:
+                    raise ValueError('Truncated WAV')
+        listener = self.server.listener
+        if path == '/record' and (listener is None or listener.mic is None):
+            self._fail(503, 'No robot microphone')
+            return
+        self.server.speaker.stop()
+        if not self.server.speaker.hold(2):
+            self._fail(409, 'Audio busy; try again')
+            return
+        try:
+            with tempfile.TemporaryDirectory(prefix='prada-radio-') as directory:
+                filename = os.path.join(directory, 'clip.wav')
+                if path == '/audio':
+                    with open(filename, 'wb') as f: f.write(raw)
+                    ok = self.server.speaker.player.play(filename, lambda: generation == self.server.session_generation)
+                    if ok: self._json(200, {'ok': True})
+                    else: self._fail(409, 'Responder playback interrupted')
+                else:
+                    seconds = parse_listen(raw.decode())
+                    listener.recorder.record(filename, seconds)
+                    with open(filename, 'rb') as f: audio = f.read()
+                    self.send_response(200)
+                    self.send_header('Content-Type', 'audio/wav')
+                    self.send_header('Content-Length', str(len(audio)))
+                    self.send_header('Cache-Control', 'no-store')
+                    self.end_headers()
+                    self.wfile.write(audio)
+        finally:
+            self.server.speaker.release()
 
 
 def main():

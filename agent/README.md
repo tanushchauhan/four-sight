@@ -50,3 +50,29 @@ Every combination works: for example, real Nemotron with the simulated robot, or
 ## Logs
 
 Each tool call is printed, appended to `logs/agent-<date>.jsonl`, and written to the `agent_log` table.
+
+## Current Prada autonomous integration
+
+The dashboard now owns reactive ultrasonic exploration and manual/USB takeover;
+Nemotron does not generate low-level motor commands. `ROBOT_MODE=prada` still
+uses the real camera/speaker/microphone adapter and its no-navigation capability
+flags. `pi` remains the legacy proposed WebSocket adapter, not this deployment.
+
+With `DASHBOARD_URL` pointing at the dashboard and a shared local `AGENT_TOKEN`,
+the agent heartbeats the mission controller. Each qualifying Visor detection must
+be admitted by the dashboard (detection enabled, autonomous/person-found mode,
+and previous controller released) before a case opens. Latest main makes the
+Visor-facing LAN intake token-free; the shared token here is only for the private
+agent-to-dashboard stop/heartbeat calls. No secrets go into dashboard JavaScript.
+
+Teammate components reused: Ultra coordinator, Lightning triage, Bolt search,
+Nemotron VL image analysis, fixed look/talk/triage workflow, structured YOLO Visor
+observations, operator voice/alert feed, and Pi speech/listening. The repository
+also contains SpacetimeDB and Twilio adapters plus offline simulation/scene tests.
+The current local deployment uses `STATE_MODE=memory` and `NOTIFY_MODE=console`:
+no SpacetimeDB persistence or real SMS. SLAM/localization remains out of scope.
+
+Set `OPERATOR_FEED_HOST=::` for both IPv4 and IPv6 LAN clients. Visor's build script
+bundles only `AGENT_URL`, defaulting to this Mac's `.local` hostname. Operator
+radio is on the dashboard: actual voice clips and robot microphone replies,
+with an explicit manual speech session that blocks AI speech during takeover.

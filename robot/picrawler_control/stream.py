@@ -75,7 +75,14 @@ class StreamServer(ThreadingHTTPServer):
 
     def __init__(self, host, port, frames):
         self.frames = frames
+        if ':' in host:
+            self.address_family = socket.AF_INET6
         super().__init__((host, port), _Handler)
+
+    def server_bind(self):
+        if self.address_family == socket.AF_INET6 and hasattr(socket, 'IPV6_V6ONLY'):
+            self.socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
+        super().server_bind()
 
 
 class _Handler(BaseHTTPRequestHandler):

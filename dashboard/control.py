@@ -9,13 +9,17 @@ import threading
 import time
 
 REMOTE = r'''
-import asyncio, json, sys, threading
+import asyncio, json, sys, threading, time
 from websockets.sync.client import connect
 from websockets.asyncio.server import serve
 from picrawler_control.ble_relay import HeadInput
 HEAD_PORT = 8766
 INPUT_MODE = 'keyboard'
 head = HeadInput()
+sonar = avoidance = None
+if INPUT_MODE == 'auto':
+    from picrawler_control.autonomy import Sonar, Avoidance
+    sonar, avoidance = Sonar(), Avoidance()
 ready = threading.Event()
 head_error = []
 async def serve_head():
@@ -34,6 +38,8 @@ with open('/etc/picrawler-control.env') as f:
 with connect('ws://127.0.0.1:8765', open_timeout=4, close_timeout=1) as ws:
     def report(timeout):
         reply = json.loads(ws.recv(timeout=timeout))
+        if sonar:
+            reply.update(range_cm=sonar.sample[0] if sonar.sample[1] and time.monotonic()-sonar.sample[1] < .5 else None, avoidance=source, avoidance_fault=avoidance.fault)
         reply.update(headset_connected=head.owner is not None, head_turn=head.value(), input_source=source)
         print(json.dumps(reply), flush=True)
     source = 'disabled'
@@ -44,7 +50,9 @@ with connect('ws://127.0.0.1:8765', open_timeout=4, close_timeout=1) as ws:
         msg = json.loads(line)
         source = 'disabled'
         if msg['type'] == 'drive':
-            if msg['forward'] == 0 and msg['turn'] == 0:
+            if INPUT_MODE == 'auto':
+                msg['forward'], msg['turn'], source = avoidance.choose(*sonar.sample, msg['forward'])
+            elif msg['forward'] == 0 and msg['turn'] == 0:
                 msg['turn'] = head.value()
                 source = 'headset' if msg['turn'] else 'neutral'
             else:
@@ -130,7 +138,7 @@ class DebugControl:
                 raise ValueError('Servo zero operation is in progress')
             if self.owner is not None:
                 raise ValueError('Another tab owns debug control. Release it first.')
-            if mode not in ('keyboard', 'usb'):
+            if mode not in ('keyboard', 'usb', 'auto'):
                 raise ValueError('Unknown controller mode')
             self.mode = mode
             self.owner = secrets.token_urlsafe(24)
