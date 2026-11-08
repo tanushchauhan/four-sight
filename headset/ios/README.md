@@ -1,14 +1,16 @@
 # Native Prada visor
 
-Coordinator settings are loaded at build time from `agent/.env`: `AGENT_URL` and `AGENT_TOKEN`.
-Build environment variables override the file. Rebuild/install after changing them. With no URL,
-the app uses the camera host on port 8788. With no token, reporting stays off. Only these two values
-are bundled; the token is extractable from the app, so use a dedicated agent token for this deployment.
+No agent token is required. At build time, the visor automatically uses the build Mac's Bonjour
+address (`http://<Mac-name>.local:8788`). Run the agent on that Mac and put the phone on the same LAN.
+An optional `AGENT_URL` in `agent/.env` or the build environment overrides this for another server.
+Rebuild/install after changing it. The agent defaults to listening on `0.0.0.0`; existing environments
+that explicitly set `OPERATOR_FEED_HOST=127.0.0.1` must change that to `0.0.0.0`.
+Commands and detections are unauthenticated LAN endpoints; keep port 8788 on a trusted network.
 The native visor polls `/api/operator/recent` and speaks recent coordinator updates through the phone
 or connected headset. Tap Speak to coordinator, grant microphone and speech recognition access,
 then tap Send voice command. Recognition also finishes automatically after 20 seconds. Speech is
 transcribed using Apple's speech recognizer (network availability may be required), and only the
-transcript is posted to the authenticated `/api/operator/command` endpoint. Coordinator speech pauses
+transcript is posted to the `/api/operator/command` endpoint. Coordinator speech pauses
 while listening. Backgrounding stops recording and playback. Run the updated agent with `npm start`,
 `OPERATOR_VOICE=on`, and `OPERATOR_FEED_HOST=0.0.0.0` for LAN access.
 

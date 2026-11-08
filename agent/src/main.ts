@@ -64,7 +64,7 @@ if (app.voice || intake) {
   if (app.voice) logger.info(`Operator voice: open ${url}/operator on the rescuer's phone or laptop and tap "enable voice"`);
   if (intake) {
     intake.start();
-    logger.info(`Detections: the visor posts to ${url}/api/detections${config.agentToken ? "" : "  (set AGENT_TOKEN first!)"}${config.operatorFeedHost === "127.0.0.1" ? "  (set OPERATOR_FEED_HOST=0.0.0.0 so the phone can reach it)" : ""}`);
+    logger.info(`Detections: the visor posts to ${url}/api/detections${config.operatorFeedHost === "127.0.0.1" ? "  (set OPERATOR_FEED_HOST=0.0.0.0 so the phone can reach it)" : ""}`);
   }
 }
 

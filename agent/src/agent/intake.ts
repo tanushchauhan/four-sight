@@ -1,4 +1,3 @@
-import { timingSafeEqual } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { StateStore } from "../adapters/state.js";
 import type { AgentEvent } from "./events.js";
@@ -130,16 +129,6 @@ export class DetectionIntake {
     if (url.pathname !== "/api/detections") return false;
     if (req.method !== "POST") {
       json(405, { ok: false, error: "use POST" });
-      return true;
-    }
-    if (!this.o.token) {
-      json(503, { ok: false, error: "AGENT_TOKEN is not set on the agent" });
-      return true;
-    }
-    const given = Buffer.from((req.headers.authorization ?? "").replace(/^Bearer\s+/i, ""));
-    const want = Buffer.from(this.o.token);
-    if (given.length !== want.length || !timingSafeEqual(given, want)) {
-      json(401, { ok: false, error: "bad token" });
       return true;
     }
     let body: Record<string, unknown>;

@@ -145,7 +145,7 @@ test("intake: stable detection opens one case; repeats fold in; low confidence i
   assert.equal((await state.getCases()).length, 2);
 });
 
-test("intake HTTP: token required, body validated, status endpoint", async () => {
+test("intake HTTP: LAN access, body validated, status endpoint", async () => {
   const { startOperatorFeed } = await import("../src/operator/feed-server.js");
   const { OperatorVoice } = await import("../src/operator/voice.js");
   const state = new MemoryState();
@@ -155,7 +155,6 @@ test("intake HTTP: token required, body validated, status endpoint", async () =>
   try {
     const post = (body: unknown, token = "s3cret-token") =>
       fetch(`${feed.url}/api/detections`, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify(body) });
-    assert.equal((await post({ confidence: 0.9, count: 1 }, "wrong")).status, 401);
     assert.equal((await post({ confidence: 7, count: 1 })).status, 400);
     const ok = await post({ source: "visor", confidence: 0.9, count: 1, box: [0.1, 0.2, 0.3, 0.4], frame_time: Date.now() });
     assert.equal(ok.status, 202);

@@ -142,9 +142,6 @@ final class CoordinatorAudio: ObservableObject {
         let text = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
         endCapture()
         guard !text.isEmpty else { status = "No speech heard — try again"; return }
-        guard let token = AgentLink.configuration["AGENT_TOKEN"], !token.isEmpty else {
-            status = "Coordinator token missing from build configuration"; return
-        }
         status = "Sending command…"
         Task {
             do {
@@ -153,7 +150,6 @@ final class CoordinatorAudio: ObservableObject {
                 command.httpMethod = "POST"
                 command.timeoutInterval = 5
                 command.setValue("application/json", forHTTPHeaderField: "Content-Type")
-                command.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
                 command.httpBody = try JSONSerialization.data(withJSONObject: ["text": text])
                 let (_, response) = try await URLSession.shared.data(for: command)
                 guard (response as? HTTPURLResponse)?.statusCode == 202 else { throw URLError(.badServerResponse) }
@@ -262,20 +258,11 @@ enum AgentLinkStatus: Equatable {
 /// on the robot feed. Networking never touches the detector or the renderer; failures only change `status`.
 @MainActor
 final class AgentLink: ObservableObject {
-    /// Held in memory only, never persisted, like other control secrets.
-    @Published var token = "" {
-        didSet {
-            let had = !oldValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            let has = !trimmedToken.isEmpty
-            if has, !had { enabled = true }
-            if !has { enabled = false }
-        }
-    }
     @Published var enabled = false {
         didSet {
             guard enabled != oldValue else { return }
             debouncer.reset()
-            if task == nil { status = enabled && !trimmedToken.isEmpty ? .idle : .off }
+            if task == nil { status = enabled ? .idle : .off }
         }
     }
     @Published private(set) var status = AgentLinkStatus.off
@@ -291,9 +278,8 @@ final class AgentLink: ObservableObject {
         config.timeoutIntervalForResource = 3
         config.waitsForConnectivity = false
         session = URLSession(configuration: config)
-        token = Self.configuration["AGENT_TOKEN"] ?? ""
-        enabled = !token.isEmpty
-        status = enabled ? .idle : .off
+        enabled = true
+        status = .idle
     }
 
     static var configuration: [String: String] {
@@ -303,7 +289,7 @@ final class AgentLink: ObservableObject {
            let decoded = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: String] {
             values = decoded
         }
-        for key in ["AGENT_URL", "AGENT_TOKEN"] {
+        for key in ["AGENT_URL"] {
             if let value = ProcessInfo.processInfo.environment[key] { values[key] = value }
         }
         return values
@@ -311,7 +297,6 @@ final class AgentLink: ObservableObject {
 
     var coordinatorFeed: FeedState { status.feed }
 
-    private var trimmedToken: String { token.trimmingCharacters(in: .whitespacesAndNewlines) }
 
     /// `http://<camera host>:8788`, the agent address used while the agent URL field is blank.
     static func defaultAddress(camera: String) -> String {
@@ -327,7 +312,7 @@ final class AgentLink: ObservableObject {
     /// Feed every detector result. `robotLive` is true only while the robot feed is the active,
     /// live source; the phone camera never notifies the agent.
     func observe(_ state: SurvivorDetectionState, address: String, camera: String, robotLive: Bool) {
-        guard enabled, !trimmedToken.isEmpty, robotLive else {
+        guard enabled, robotLive else {
             debouncer.reset()
             return
         }
@@ -364,7 +349,6 @@ final class AgentLink: ObservableObject {
         request.httpMethod = "POST"
         request.timeoutInterval = 3
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(trimmedToken)", forHTTPHeaderField: "Authorization")
         request.httpBody = payload
 
         status = .notifying
@@ -438,20 +422,10 @@ struct AgentSettings: View {
                 .submitLabel(.done)
                 .modifier(AgentFieldStyle(focused: focus.wrappedValue == .address))
                 .focused(focus, equals: .address)
-            Text("Agent token")
-                .font(VisorToken.label(14))
-                .foregroundStyle(VisorToken.muted.color)
-            SecureField("Not saved", text: $link.token)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-                .submitLabel(.done)
-                .modifier(AgentFieldStyle(focused: focus.wrappedValue == .token))
-                .focused(focus, equals: .token)
             Toggle("Notify agent", isOn: $link.enabled)
                 .font(VisorToken.label(16))
                 .foregroundStyle(VisorToken.ink.color)
                 .tint(VisorToken.ink.color)
-                .disabled(link.token.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             Text(link.status.text)
                 .font(VisorToken.body(16))
                 .foregroundStyle(VisorToken.ink2.color)

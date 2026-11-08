@@ -1,8 +1,7 @@
-import { timingSafeEqual } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 
 /** Authenticated text input from the visor's speech recognizer. */
-export function commandRoute(token: string, push: (text: string) => void) {
+export function commandRoute(_token: string, push: (text: string) => void) {
   return async (req: IncomingMessage, res: ServerResponse, url: URL): Promise<boolean> => {
     if (url.pathname !== "/api/operator/command") return false;
     const reply = (status: number, body: unknown) => {
@@ -10,12 +9,6 @@ export function commandRoute(token: string, push: (text: string) => void) {
       res.end(JSON.stringify(body));
     };
     if (req.method !== "POST") { reply(405, { error: "use POST" }); return true; }
-    if (!token) { reply(503, { error: "AGENT_TOKEN is not configured" }); return true; }
-    const given = Buffer.from((req.headers.authorization ?? "").replace(/^Bearer\s+/i, ""));
-    const expected = Buffer.from(token);
-    if (given.length !== expected.length || !timingSafeEqual(given, expected)) {
-      reply(401, { error: "bad token" }); return true;
-    }
     try {
       const chunks: Buffer[] = [];
       let size = 0;

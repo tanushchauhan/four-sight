@@ -107,7 +107,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     speakerMode: pick(env.SPEAKER_MODE, ["off", "pi"], "off", "SPEAKER_MODE"),
     speakerUrl: env.SPEAKER_URL || "http://prada.local:8081",
     operatorVoice: pick(env.OPERATOR_VOICE, ["on", "off"], "on", "OPERATOR_VOICE") === "on",
-    operatorFeedHost: env.OPERATOR_FEED_HOST || "127.0.0.1",
+    operatorFeedHost: env.OPERATOR_FEED_HOST || "0.0.0.0",
     operatorFeedPort: num(env.OPERATOR_FEED_PORT, 8788, "OPERATOR_FEED_PORT"),
     robotControlToken: env.ROBOT_CONTROL_TOKEN ?? "",
 
