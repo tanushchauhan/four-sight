@@ -1,5 +1,6 @@
 # prada camera: Camera Module 3 (IMX708, CAM0) as MJPEG on http://<prada>:8080/stream.
-# Rotated 180 degrees for how the camera is mounted on prada.
+# Rotated 180 degrees for how the camera is mounted on prada. 120 fps uses the IMX708
+# 1536x864 sensor mode, scaled to 768x432; about 20 KB per frame, roughly 20 Mbit/s.
 # Listens on IPv4 (the hotspot) so the visor can reach it; the control socket stays on loopback.
 [Unit]
 Description=prada camera MJPEG stream
@@ -11,7 +12,7 @@ Type=simple
 User=liquidiv
 WorkingDirectory=/home/liquidiv/hackutd26
 Environment=PYTHONUNBUFFERED=1
-ExecStart=/home/liquidiv/hackutd26/robot/.venv/bin/python -m picrawler_control.stream --config /home/liquidiv/hackutd26/robot/prada/prada.toml --camera --host 0.0.0.0 --rotation 180
+ExecStart=/home/liquidiv/hackutd26/robot/.venv/bin/python -m picrawler_control.stream --config /home/liquidiv/hackutd26/robot/prada/prada.toml --camera --host 0.0.0.0 --rotation 180 --sensor-mode 1536:864:10 --width 768 --height 432 --fps 120 --quality 60
 Restart=on-failure
 RestartSec=2
 

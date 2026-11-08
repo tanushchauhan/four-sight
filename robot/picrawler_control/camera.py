@@ -29,18 +29,20 @@ def split_frames(buffer):
         start = boundary + 2
 
 
-def rpicam_command(width, height, fps, quality, rotation=0):
+def rpicam_command(width, height, fps, quality, rotation=0, sensor_mode=None):
     if rotation not in (0, 180):
         raise ValueError("rotation must be 0 or 180")  # what the IMX708 can do in hardware
     return ["rpicam-vid", "--nopreview", "--timeout", "0", "--codec", "mjpeg",
             "--width", str(width), "--height", str(height), "--framerate", str(fps),
             "--quality", str(quality), "--rotation", str(rotation),
-            "--autofocus-mode", "continuous", "--output", "-"]
+            "--autofocus-mode", "continuous", "--output", "-"] + (
+            ["--mode", sensor_mode] if sensor_mode else [])
 
 
-def run_camera(frames, width=640, height=480, fps=20, quality=70, rotation=0, stop=None):
+def run_camera(frames, width=640, height=480, fps=20, quality=70, rotation=0, sensor_mode=None,
+               stop=None):
     """Publish camera JPEGs into frames until stop is set."""
-    command = rpicam_command(width, height, fps, quality, rotation)
+    command = rpicam_command(width, height, fps, quality, rotation, sensor_mode)
     while stop is None or not stop.is_set():
         logging.info("starting camera: %s", " ".join(command))
         try:
@@ -50,6 +52,7 @@ def run_camera(frames, width=640, height=480, fps=20, quality=70, rotation=0, st
             return
         pending = b""
         published = 0
+        window_start, window_frames = time.monotonic(), 0
         try:
             while stop is None or not stop.is_set():
                 chunk = process.stdout.read1(65536)
@@ -59,6 +62,11 @@ def run_camera(frames, width=640, height=480, fps=20, quality=70, rotation=0, st
                 for jpeg in complete:
                     frames.publish(jpeg)
                     published += 1
+                    window_frames += 1
+                    now = time.monotonic()
+                    if now - window_start >= 10:
+                        logging.info("camera %.1f fps", window_frames / (now - window_start))
+                        window_start, window_frames = now, 0
                     if published == 1:
                         logging.info("camera streaming (%d bytes first frame)", len(jpeg))
         finally:
