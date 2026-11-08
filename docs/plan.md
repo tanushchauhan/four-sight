@@ -210,7 +210,7 @@ Status lives in the [tracker doc](https://claude.ai/artifact/V7XnDqn5QrkXmuyj76c
 | Pi Camera Module 3 | Main camera on the pan-tilt mount | Have |
 | 2 small servos + pan-tilt bracket | Camera mount | **Need** |
 | ESP32-S3 dev kits | Mount driver, sensors, beacon, controller | Have |
-| Robot batteries + charger | Robot HAT can't charge them; bring spares | **Check** |
+| Robot batteries + charging supply | Robot HAT v4 charges the compatible kit battery pack through its USB-C port using a 5V/2A supply; bring spares | **Check** |
 | iPhone 16 Pro / Pro Max | Headset display, motion sensors, person mask | Have |
 | 3D-printed Flow VR viewers | Headsets | Have |
 | Bluetooth gamepad | Joystick driving | **Check** |
@@ -222,6 +222,7 @@ Status lives in the [tracker doc](https://claude.ai/artifact/V7XnDqn5QrkXmuyj76c
 | Meta Quest (hardware lab, request on Harp) | Backup headset | **Check** |
 | Cardboard, blanket, doll + hand warmer | Demo set (hand warmer gives heat sensors something to find) | **Need** |
 
+Robot HAT v4 charging: connect the supply to the **HAT USB-C port**, not the Pi's USB-C port. The red CHG indicator lights while charging and turns off when full; the HAT power switch need not be on. See [HAT v4 indicators](https://docs.sunfounder.com/projects/robot-hat-v4/en/stable/hardware_introduction.html) and the [PiCrawler charging FAQ](https://docs.sunfounder.com/projects/pi-crawler/en/latest/faq.html). Battery and charging-supply availability still need checking.
 
 ## Timeline
 
