@@ -268,7 +268,7 @@ final class AgentLink: ObservableObject {
     @Published private(set) var status = AgentLinkStatus.off
 
     static let port = 8788
-    private var debouncer = DetectionDebouncer()
+    private var debouncer = DetectionDebouncer(cooldown: 5)
     private var task: Task<Void, Never>?
     private let session: URLSession
 
@@ -311,7 +311,8 @@ final class AgentLink: ObservableObject {
 
     /// Feed every detector result. `robotLive` is true only while the robot feed is the active,
     /// live source; the phone camera never notifies the agent.
-    func observe(_ state: SurvivorDetectionState, address: String, camera: String, robotLive: Bool) {
+    func observe(_ state: SurvivorDetectionState, address: String, camera: String, robotLive: Bool,
+                 insight: SurvivorInsight = .empty) {
         guard enabled, robotLive else {
             debouncer.reset()
             return
@@ -327,16 +328,16 @@ final class AgentLink: ObservableObject {
         }
         let base = Self.configuration["AGENT_URL"] ?? ""
         notify(base: base.isEmpty ? Self.defaultAddress(camera: camera) : base,
-               count: count, confidence: confidence)
+               count: count, confidence: confidence, insight: insight)
     }
 
-    private func notify(base: String, count: Int, confidence: Float) {
+    private func notify(base: String, count: Int, confidence: Float, insight: SurvivorInsight) {
         guard task == nil else { return }
         guard let root = URL(string: base), ["http", "https"].contains(root.scheme ?? ""), root.host != nil else {
             status = .invalidAddress
             return
         }
-        let body: [String: Any] = [
+        var body: [String: Any] = [
             "source": "visor",
             "confidence": Double(min(max(confidence, 0), 1)),
             "count": count,
@@ -344,6 +345,14 @@ final class AgentLink: ObservableObject {
             "box": NSNull(),
             "frame_time": Int64(Date().timeIntervalSince1970 * 1000),
         ]
+        if let encoded = try? JSONEncoder().encode(insight.observations),
+           let observations = try? JSONSerialization.jsonObject(with: encoded) {
+            body["survivors"] = observations
+        }
+        body["motion"] = insight.motion.rawValue.lowercased()
+        body["distance_estimate_m"] = insight.distanceMeters
+        body["bearing_estimate_deg"] = insight.bearingDegrees
+        body["model"] = "yolo26n-seg"
         guard let payload = try? JSONSerialization.data(withJSONObject: body) else { return }
         var request = URLRequest(url: root.appendingPathComponent("api/detections"))
         request.httpMethod = "POST"

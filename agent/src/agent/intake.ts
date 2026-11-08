@@ -29,6 +29,7 @@ export interface IntakeOptions {
 }
 
 export interface Sighting {
+  visor?: Record<string, unknown>;
   source: string;
   confidence: number;
   count: number;
@@ -37,6 +38,7 @@ export interface Sighting {
 }
 
 export class DetectionIntake {
+  private latestVisor: Record<string, unknown> | null = null;
   private active: { caseId: number; openedAt: number; lastSeen: number; lastRecheck: number; rechecks: number; maxCount: number } | null = null;
   private cooldownUntil = 0;
   private seq = 0;
@@ -54,6 +56,7 @@ export class DetectionIntake {
 
   /** Validate and act on one sighting. */
   async sight(s: Sighting): Promise<{ status: number; body: Record<string, unknown> }> {
+    this.latestVisor = s.visor ?? null;
     const now = this.now();
     await this.expire(now);
     if (s.count < 1 || s.confidence < (this.o.minConfidence ?? 0.5)) return { status: 200, body: { ok: true, ignored: "low_confidence", case_id: this.active?.caseId ?? null } };
@@ -72,7 +75,7 @@ export class DetectionIntake {
     const c = await this.state.reportDetection(this.o.robotId, x, 0, s.confidence, `visor://${s.source}/${s.frameTime ?? now}`);
     if (!c) return { status: 200, body: { ok: true, ignored: "active_case", case_id: null } };
     this.active = { caseId: c.id, openedAt: now, lastSeen: now, lastRecheck: now, rechecks: 0, maxCount: s.count };
-    this.push({ kind: "detection", caseId: c.id });
+    this.push({ kind: "detection", caseId: c.id, visor: s.visor });
     return { status: 202, body: { ok: true, case_id: c.id, new_case: true } };
   }
 
@@ -103,7 +106,7 @@ export class DetectionIntake {
   }
 
   status(): Record<string, unknown> {
-    return { ok: true, active_case: this.active?.caseId ?? null, last_sighting_ms_ago: this.active ? this.now() - this.active.lastSeen : null };
+    return { ok: true, active_case: this.active?.caseId ?? null, last_sighting_ms_ago: this.active ? this.now() - this.active.lastSeen : null, visor: this.latestVisor };
   }
 
   start(intervalMs = 5000): void {
@@ -137,7 +140,7 @@ export class DetectionIntake {
       let size = 0;
       for await (const c of req) {
         size += (c as Buffer).length;
-        if (size > 4096) throw new Error("body too large");
+        if (size > 16384) throw new Error("body too large");
         chunks.push(c as Buffer);
       }
       body = JSON.parse(Buffer.concat(chunks).toString("utf8")) as Record<string, unknown>;
@@ -152,7 +155,18 @@ export class DetectionIntake {
       return true;
     }
     const box = Array.isArray(body.box) && body.box.length === 4 && body.box.every((v) => typeof v === "number") ? (body.box as number[]) : null;
-    const r = await this.sight({ source: String(body.source ?? "visor").slice(0, 20), confidence: conf, count, box, frameTime: Number.isFinite(Number(body.frame_time)) ? Number(body.frame_time) : null });
+    const survivors = Array.isArray(body.survivors) ? body.survivors.slice(0, 12).filter((s: any) =>
+      s && typeof s.confidence === "number" && s.confidence >= 0 && s.confidence <= 1 &&
+      Array.isArray(s.box) && s.box.length === 4 && s.box.every((v: unknown) => typeof v === "number" && Number.isFinite(v) && v >= 0 && v <= 1) &&
+      typeof s.maskCoverage === "number" && s.maskCoverage >= 0 && s.maskCoverage <= 1
+    ).map((s: any) => ({ confidence: s.confidence, box: s.box, mask_coverage: s.maskCoverage })) : [];
+    const finite = (value: unknown, min: number, max: number) => typeof value === "number" && Number.isFinite(value) && value >= min && value <= max ? value : null;
+    const visor = { survivors, count, confidence: conf, received_at: this.now(),
+      motion: ["moving", "stationary", "uncertain"].includes(String(body.motion)) ? body.motion : "uncertain",
+      distance_estimate_m: finite(body.distance_estimate_m, 0, 100),
+      bearing_estimate_deg: finite(body.bearing_estimate_deg, -180, 180),
+      limitations: "Monocular range and image motion; camera movement can mimic survivor movement. Not medical triage." };
+    const r = await this.sight({ source: String(body.source ?? "visor").slice(0, 20), confidence: conf, count, box, visor, frameTime: Number.isFinite(Number(body.frame_time)) ? Number(body.frame_time) : null });
     json(r.status, r.body);
     return true;
   };

@@ -161,7 +161,8 @@ struct VisorView: View {
         }
         .onReceive(survivorDetector.$state) { state in
             agent.observe(state, address: agentAddress, camera: address,
-                          robotLive: source == .robot && controller.status == "Live")
+                          robotLive: source == .robot && controller.status == "Live",
+                          insight: survivorDetector.insight)
         }
     }
 

@@ -219,6 +219,7 @@ export async function runDetectionWorkflow(event: Extract<AgentEvent, { kind: "d
   const evidence = {
     case_id: c0.id,
     detector_confidence: c0.confidence,
+    visor_observations: event.kind === "detection" ? event.visor ?? null : null,
     previous_triage: before,
     vision_looks: looks.map((l) => ({ person_visible: l.personVisible, confidence: l.confidence, description: l.description, injuries: l.injuries, hazards: l.hazards, suggested_triage: l.suggestedTriage })),
     survivor_answers_UNTRUSTED: heard.map((h, i) => ({ question: QUESTIONS[i], answer: h ?? "(no answer)" })),

@@ -22,7 +22,14 @@ struct SurvivorSighting: Equatable, Identifiable {
     var seen: Date
 }
 
+struct SurvivorObservation: Codable, Equatable {
+    let confidence: Float
+    let box: [Double]
+    let maskCoverage: Double
+}
+
 struct SurvivorInsight: Equatable {
+    var observations: [SurvivorObservation] = []
     var sightings: [SurvivorSighting] = []
     var distanceMeters: Double?
     var bearingDegrees: Double?
@@ -102,7 +109,15 @@ final class SurvivorDetector: ObservableObject {
             }
             let mask = self.makeSurvivorMask(result: result, survivorIndices: survivors.map(\.offset))
             let confidence = survivors.map(\.element.conf).max() ?? 0
-            let insight = self.makeInsight(survivors: survivors.map(\.element), at: now)
+            var insight = self.makeInsight(survivors: survivors.map(\.element), at: now)
+            insight.observations = survivors.map { item in
+                let box = item.element.xywhn
+                let mask = result.masks?.masks
+                let pixels = (mask != nil && item.offset < mask!.count) ? mask![item.offset].flatMap { $0 } : []
+                return SurvivorObservation(confidence: item.element.conf,
+                    box: [Double(box.minX), Double(box.minY), Double(box.width), Double(box.height)],
+                    maskCoverage: pixels.isEmpty ? 0 : Double(pixels.filter { $0 > 0.5 }.count) / Double(pixels.count))
+            }
 
             self.lock.lock()
             self.busy = false
@@ -115,8 +130,8 @@ final class SurvivorDetector: ObservableObject {
                 let current = self.generation == generation
                 self.lock.unlock()
                 guard current else { return }
-                self.state = .ready(count: survivors.count, confidence: confidence)
                 self.insight = insight
+                self.state = .ready(count: survivors.count, confidence: confidence)
             }
         }
     }

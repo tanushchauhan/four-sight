@@ -1,5 +1,11 @@
 # Native Prada visor
 
+The visor reports structured person observations (normalized boxes, confidence, mask coverage,
+estimated range/bearing and image-motion category) with stable robot-feed detections, at most every
+five seconds. Raw mask pixels are not uploaded. The coordinator receives these as provisional evidence,
+including for voice questions. Noncritical spoken updates are spaced 12 seconds apart with one pending
+update; critical alerts interrupt immediately.
+
 No agent token is required. At build time, the visor automatically uses the build Mac's Bonjour
 address (`http://<Mac-name>.local:8788`). Run the agent on that Mac and put the phone on the same LAN.
 An optional `AGENT_URL` in `agent/.env` or the build environment overrides this for another server.

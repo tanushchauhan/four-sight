@@ -156,12 +156,18 @@ test("intake HTTP: LAN access, body validated, status endpoint", async () => {
     const post = (body: unknown, token = "s3cret-token") =>
       fetch(`${feed.url}/api/detections`, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify(body) });
     assert.equal((await post({ confidence: 7, count: 1 })).status, 400);
-    const ok = await post({ source: "visor", confidence: 0.9, count: 1, box: [0.1, 0.2, 0.3, 0.4], frame_time: Date.now() });
+    const ok = await post({ source: "visor", confidence: 0.9, count: 1, box: [0.1, 0.2, 0.3, 0.4], frame_time: Date.now(),
+      survivors: [{ confidence: 0.9, box: [0.1, 0.2, 0.3, 0.4], maskCoverage: 0.12 }],
+      motion: "uncertain", distance_estimate_m: 4, bearing_estimate_deg: -15 });
     assert.equal(ok.status, 202);
     assert.deepEqual(await ok.json(), { ok: true, case_id: 1, new_case: true });
     const st = (await (await fetch(`${feed.url}/api/status`)).json()) as { active_case: number };
     assert.equal(st.active_case, 1);
     assert.equal(events[0]!.kind, "detection");
+    const data = intake.status().visor as { survivors: { mask_coverage: number }[]; distance_estimate_m: number };
+    assert.equal(data.survivors[0]!.mask_coverage, 0.12);
+    assert.equal(data.distance_estimate_m, 4);
+    assert.equal(events[0]!.kind === "detection" && events[0]!.visor?.distance_estimate_m, 4);
   } finally {
     await feed.close();
   }

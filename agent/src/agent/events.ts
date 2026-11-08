@@ -2,7 +2,7 @@
 export type AgentEvent =
   | { kind: "mission_start"; instruction?: string }
   | { kind: "search_step" }
-  | { kind: "detection"; caseId: number }
+  | { kind: "detection"; caseId: number; visor?: Record<string, unknown> }
   | { kind: "voice_command"; text: string }
   | { kind: "operator_released"; robotId: number }
   | { kind: "low_battery"; battery: number }
@@ -32,7 +32,7 @@ export function describeEvent(e: AgentEvent): string {
     case "search_step":
       return "SEARCH STEP. Nothing urgent is pending. Continue the search: pick the next unsearched spot, go there, and sweep.";
     case "detection":
-      return `DETECTION. The robot's on-board detector flagged a possible person: case ${e.caseId}. Confirm and triage it.`;
+      return `DETECTION. The robot's on-board detector flagged a possible person: case ${e.caseId}. Confirm and triage it. Structured visor observations (estimates, not medical findings): ${JSON.stringify(e.visor ?? {})}`;
     case "voice_command":
       return `VOICE COMMAND from the rescuer: "${e.text}"`;
     case "operator_released":

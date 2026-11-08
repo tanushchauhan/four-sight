@@ -52,7 +52,7 @@ export function buildApp(config: Config, opts: { print?: (l: string) => void; lo
         });
 
   // Every headset alert also becomes a short spoken update for the rescuer.
-  const voice = config.operatorVoice ? new OperatorVoice() : null;
+  const voice = config.operatorVoice ? new OperatorVoice({ minGapMs: 12_000, maxQueue: 1, dedupeMs: 60_000 }) : null;
   if (voice) {
     const pushAlert = state.pushAlert.bind(state);
     state.pushAlert = async (text, level) => {
