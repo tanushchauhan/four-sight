@@ -57,6 +57,50 @@ with connect('ws://127.0.0.1:8765', open_timeout=4, close_timeout=1) as ws:
 '''
 
 
+POSE_REMOTE = r"""
+import json, time, sys, threading
+last_host = time.monotonic()
+def host_watch():
+    global last_host
+    for line in sys.stdin:
+        if line.strip() == 'alive': last_host = time.monotonic()
+    last_host = 0
+threading.Thread(target=host_watch, daemon=True).start()
+from websockets.sync.client import connect
+with open('/etc/picrawler-control.env') as f:
+    token = next(line.split('=', 1)[1].strip() for line in f if line.startswith('ROBOT_CONTROL_TOKEN='))
+with connect('ws://127.0.0.1:8765', open_timeout=4, close_timeout=1) as ws:
+    ws.send(json.dumps({'type':'hello', 'token':token}))
+    ws.recv(timeout=3)
+    seq = 0
+    def send(kind, **data):
+        global seq
+        if kind not in ('stop', 'release') and time.monotonic() - last_host > .5:
+            ws.send(json.dumps(dict(type='stop', seq=seq)))
+            raise RuntimeError('Dashboard lease expired')
+        ws.send(json.dumps(dict(type=kind, seq=seq, **data)))
+        seq += 1
+        result = json.loads(ws.recv(timeout=2))
+        if result.get('type') != 'status' or result.get('fault'):
+            raise RuntimeError('Robot rejected pose operation')
+        return result
+    state = send('stop')
+    deadline = time.monotonic() + 45
+    while state['busy']:
+        if time.monotonic() > deadline: raise RuntimeError('Previous motion did not finish')
+        time.sleep(.1)
+        state = send('keepalive')
+    state = send('gesture', name=GESTURE_NAME)
+    while state.get('gesture') or state['busy']:
+        if time.monotonic() > deadline: raise RuntimeError('Gesture timed out')
+        time.sleep(.1)
+        state = send('keepalive')
+    if state.get('reason') != 'gesture complete; enable required':
+        raise RuntimeError('Gesture interrupted')
+    send('release')
+"""
+
+
 
 class DebugControl:
     def __init__(self, target):
@@ -65,6 +109,7 @@ class DebugControl:
         self.owner = None
         self.mode = 'keyboard'
         self.maintenance = False
+        self.pose_cancelled = False
         self.revision = 0
         self.seq = -1
         self.received = 0
@@ -131,6 +176,7 @@ class DebugControl:
             if self.maintenance:
                 raise ValueError('A robot pose operation is already running')
             self.maintenance = True
+            self.pose_cancelled = False
             self.disarm()
             self.closing.set()
             self.status = {'connection': 'maintenance', 'enabled': False,
@@ -145,6 +191,7 @@ class DebugControl:
             if self.maintenance:
                 raise ValueError('A robot pose operation is already running')
             self.maintenance = True
+            self.pose_cancelled = False
             self.disarm()
             self.closing.set()
             self.status = {'connection': 'maintenance', 'enabled': False,
@@ -157,13 +204,16 @@ class DebugControl:
             if self.maintenance:
                 raise ValueError('Servo zero operation is already running')
             self.maintenance = True
+            self.pose_cancelled = False
             self.disarm()
             self.closing.set()
             threading.Thread(target=self.run_zero, daemon=True).start()
             return {'connection': 'maintenance', 'enabled': False, 'reason': 'Stopping control before moving servos to zero'}
 
     def run_zero(self, operation="zero"):
-        if operation not in ('zero', 'tilt', 'hello', 'dance'):
+        if operation in ('tilt', 'hello', 'dance'):
+            return self.run_pose(operation)
+        if operation != 'zero':
             raise ValueError('Unknown pose operation')
         restore = False
         try:
@@ -172,24 +222,63 @@ class DebugControl:
             if worker is not None and worker.is_alive():
                 raise RuntimeError('Control did not release; no zero command sent')
             with self.lock:
-                self.status = {'connection':'maintenance', 'enabled':False, 'reason':'Tilting backward, rocking three times between 8° and 17°, then returning level' if operation == 'tilt' else 'Moving 12 servos to calibrated zero'}
-            if operation in ('hello', 'dance'):
-                with self.lock:
-                    self.status = {'connection':'maintenance', 'enabled':False, 'reason': 'Waving hello' if operation == 'hello' else 'Performing short dance'}
+                self.status = {'connection':'maintenance', 'enabled':False, 'reason':'Moving 12 servos to calibrated zero'}
             p = subprocess.run(self.ssh('systemctl is-active prada-joystick'), capture_output=True, text=True, timeout=7)
             restore = p.stdout.strip() == 'active'
             subprocess.run(self.ssh('sudo -n systemctl stop prada-joystick prada-server'), check=True, capture_output=True, timeout=30)
             script = "from picrawler_control.backend import Hardware; h=Hardware(); h.initialize(); h.close(); print('calibrated zero complete')"
-            command = ('/home/liquidiv/hackutd26/robot/.venv/bin/python -m picrawler_control.tilt' if operation == 'tilt' else '/home/liquidiv/hackutd26/robot/.venv/bin/python -c ' + shlex.quote(script))
-            if operation in ('hello', 'dance'):
-                command = '/home/liquidiv/hackutd26/robot/.venv/bin/python -m picrawler_control.gestures ' + operation
-            subprocess.run(self.ssh(command), check=True, capture_output=True, timeout=60 if operation != 'zero' else 15)
+            subprocess.run(self.ssh('/home/liquidiv/hackutd26/robot/.venv/bin/python -c ' + shlex.quote(script)), check=True, capture_output=True, timeout=15)
             subprocess.run(self.ssh('sudo -n systemctl start prada-server' + (' prada-joystick' if restore else '')), check=True, capture_output=True, timeout=10)
             status = {'connection':'idle', 'enabled':False, 'reason':('Tilt completed; check whether the AirTag dropped. ' if operation == 'tilt' else operation.capitalize() + ' completed. ' if operation in ('hello', 'dance') else 'Servos at calibrated zero. ') + 'Control restarted disabled; take control to resume.'}
         except Exception as exc:
             status = {'connection':'error', 'enabled':False, 'reason':('Tilt test failed: ' if operation == 'tilt' else operation.capitalize() + ' failed: ') + str(exc)[:250] + '. Check robot services before resuming.'}
         finally:
             with self.lock:
+                self.maintenance = False
+                self.status = status
+
+    def run_pose(self, operation):
+        restore = False
+        process = None
+        try:
+            self.close()
+            worker = getattr(self, 'worker', None)
+            if worker is not None and worker.is_alive():
+                raise RuntimeError('Previous controller did not release')
+            p = subprocess.run(self.ssh('systemctl is-active prada-joystick'), capture_output=True, text=True, timeout=7)
+            restore = p.stdout.strip() == 'active'
+            subprocess.run(self.ssh('sudo -n systemctl stop prada-joystick'), check=True, capture_output=True, timeout=30)
+            with self.lock:
+                if self.pose_cancelled:
+                    raise RuntimeError('Pose cancelled before starting')
+                self.status = {'connection':'maintenance', 'enabled':False, 'reason': 'Running ' + operation + ' with existing motor controller'}
+                script = 'GESTURE_NAME = ' + repr(operation) + '\n' + POSE_REMOTE
+                process = subprocess.Popen(self.ssh('sudo -n /home/liquidiv/hackutd26/robot/.venv/bin/python -u -c ' + shlex.quote(script)), stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, text=True)
+                self.pose_process = process
+            deadline = time.monotonic() + 55
+            while process.poll() is None:
+                if time.monotonic() > deadline:
+                    raise RuntimeError('Pose operation timed out')
+                process.stdin.write('alive\n')
+                process.stdin.flush()
+                time.sleep(.1)
+            if process.returncode:
+                raise RuntimeError('Pose interrupted or rejected; robot remains disabled')
+            status = {'connection':'idle', 'enabled':False, 'reason':operation.capitalize() + ' complete; take control to resume'}
+        except Exception as exc:
+            status = {'connection':'error', 'enabled':False, 'reason':str(exc)[:250]}
+        finally:
+            if process and process.poll() is None:
+                process.terminate()
+                try: process.wait(timeout=3)
+                except subprocess.TimeoutExpired: process.kill()
+            if restore:
+                try:
+                    subprocess.run(self.ssh('sudo -n systemctl start prada-joystick'), check=True, capture_output=True, timeout=8)
+                except Exception:
+                    status = {'connection':'error', 'enabled':False, 'reason':'Could not restore glove relay'}
+            with self.lock:
+                self.pose_process = None
                 self.maintenance = False
                 self.status = status
 
@@ -201,6 +290,10 @@ class DebugControl:
 
     def stop_motion(self):
         with self.lock:
+            self.pose_cancelled = True
+            process = getattr(self, "pose_process", None)
+            if process and process.poll() is None:
+                process.terminate()
             self.disarm()
             return self.snapshot()
 

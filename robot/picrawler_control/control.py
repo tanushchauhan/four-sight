@@ -4,6 +4,8 @@ import math
 import threading
 import time
 
+GESTURES = frozenset({'hello', 'dance', 'tilt'})
+
 ACTIONS = frozenset({"forward", "backward", "turn left", "turn right"})
 
 
@@ -28,11 +30,14 @@ def validate(message):
     kind = message.get("type")
     expected = {"drive": {"type", "seq", "forward", "turn"},
                 "enable": {"type", "seq"}, "stop": {"type", "seq"},
-                "release": {"type", "seq"}}
+                "release": {"type", "seq"}, "keepalive": {"type", "seq"},
+                "gesture": {"type", "seq", "name"}}
     if not isinstance(kind, str) or kind not in expected or message.keys() != expected[kind]:
         raise ValueError("unsupported message or fields")
     if type(message["seq"]) is not int or not 0 <= message["seq"] <= 2**53 - 1:
         raise ValueError("seq must be a nonnegative safe integer")
+    if kind == "gesture" and (not isinstance(message["name"], str) or message["name"] not in GESTURES):
+        raise ValueError("unknown gesture")
     if kind == "drive":
         for axis in ("forward", "turn"):
             value = message[axis]
@@ -56,9 +61,13 @@ class Control:
         self.busy = False
         self.action = None
         self.generation = 0
+        self.gesture = None
+        self.gesture_pending = False
 
     def stop(self, reason):
         with self.lock:
+            self.gesture = None
+            self.gesture_pending = False
             self.enabled = False
             self.forward = self.turn = 0.0
             self.last_drive = None
@@ -78,7 +87,7 @@ class Control:
 
     def expire(self):
         with self.lock:
-            if self.enabled and self.clock() - self.last_drive >= self.config.timeout:
+            if (self.enabled or self.gesture) and self.clock() - self.last_drive >= self.config.timeout:
                 self.stop("command timeout; enable required")
 
     def accept(self, message):
@@ -90,8 +99,18 @@ class Control:
                     raise ValueError("no session or non-increasing seq")
                 self.seq = message["seq"]
                 kind = message["type"]
-                if kind == "enable":
-                    if self.fault or self.busy:
+                if kind == "gesture":
+                    if self.fault or self.busy or self.gesture:
+                        raise ValueError("fault or motion in progress")
+                    self.stop("gesture requested")
+                    self.gesture = message["name"]
+                    self.gesture_pending = True
+                    self.last_drive = self.clock()
+                elif kind == "keepalive":
+                    if self.gesture:
+                        self.last_drive = self.clock()
+                elif kind == "enable":
+                    if self.fault or self.busy or self.gesture:
                         raise ValueError("fault or motion/initialization in progress")
                     self.stop("enabled; waiting for drive")
                     self.enabled = True
@@ -112,6 +131,8 @@ class Control:
     def choice(self):
         with self.lock:
             self.expire()
+            if self.gesture_pending and not self.fault:
+                return self.gesture, 0
             if not self.enabled or self.fault:
                 return None
             f = self.forward if abs(self.forward) > self.config.deadzone else 0.0
@@ -132,4 +153,4 @@ class Control:
             return {"type": "status", "connected": self.connected, "enabled": self.enabled,
                     "forward": self.forward, "turn": self.turn, "seq": self.seq,
                     "reason": self.reason, "fault": self.fault, "busy": self.busy,
-                    "action": self.action}
+                    "action": self.action, "gesture": self.gesture}

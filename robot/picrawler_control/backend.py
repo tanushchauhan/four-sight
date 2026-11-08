@@ -4,12 +4,43 @@ from pathlib import Path
 import threading
 import time
 
-from .control import ACTIONS
+from .control import ACTIONS, GESTURES
+
+
+class GestureCancelled(Exception):
+    pass
+
+
+class CheckedRobot:
+    """Check cancellation between vendor pose calls, including recovery poses."""
+    def __init__(self, robot, cancelled):
+        self.robot, self.cancelled = robot, cancelled
+
+    def __getattr__(self, name):
+        return getattr(self.robot, name)
+
+    def do_step(self, *args, **kwargs):
+        if self.cancelled():
+            raise GestureCancelled()
+        return self.robot.do_step(*args, **kwargs)
+
+    def do_action(self, name, step=1, speed=50):
+        if name not in ('stand', 'wave'):
+            raise ValueError('unsupported gesture action')
+        for _ in range(step):
+            self.robot.move_list.stand_position = self.robot.stand_position
+            for pose in self.robot.move_list[name]:
+                self.do_step(pose, speed=speed)
 
 
 class DryRun:
     def __init__(self, duration):
         self.duration = duration
+
+    def gesture(self, name, cancelled):
+        if cancelled():
+            raise GestureCancelled()
+        time.sleep(self.duration)
 
     def initialize(self):
         pass
@@ -50,6 +81,15 @@ class Hardware:
             raise ValueError("invalid hardware action/speed")
         self.robot.do_action(action, step=1, speed=speed)
 
+    def gesture(self, name, cancelled):
+        robot = CheckedRobot(self.robot, cancelled)
+        if name == 'tilt':
+            from .tilt import release_test
+            release_test(robot)
+        else:
+            from .gestures import perform
+            perform(robot, name)
+
     def close(self):
         self.lock_file.close()
 
@@ -87,9 +127,24 @@ class Worker:
                     if self.halt.is_set() or c.generation != generation or choice is None:
                         continue
                     c.action = choice[0]
+                    is_gesture = choice[0] in GESTURES
+                    if is_gesture:
+                        c.gesture_pending = False
                 # A committed synchronous call is non-interruptible. Never hold the
                 # state lock over vendor I/O: stop/timeout reception must stay responsive.
-                self.backend.execute(*choice)
+                if is_gesture:
+                    def cancelled():
+                        with c.lock:
+                            c.expire()
+                            return self.halt.is_set() or c.generation != generation
+                    self.backend.gesture(choice[0], cancelled)
+                    with c.lock:
+                        if c.generation == generation:
+                            c.stop('gesture complete; enable required')
+                else:
+                    self.backend.execute(*choice)
+            except GestureCancelled:
+                pass
             except Exception as exc:
                 logging.exception("gait backend failed; restart required")
                 with c.lock:

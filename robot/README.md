@@ -136,3 +136,17 @@ robot/.venv/bin/python -m compileall -q robot/picrawler_control
 ```
 
 The 22 tests cover validation, axis mapping, replay rejection, deadman expiry, explicit re-enable, single ownership, lazy initialization, backend faults, latest-command replacement and simulated WebSocket auth/disconnect/stop under a blocked gait. They also check actual dry-run process startup/shutdown and the ROS adapter contract using fake ROS modules. They require loopback sockets and never import the actual vendor library or actuate servos. `test_speech.py` covers the speech service with a dry-run engine and mocked subprocesses; it never plays audio. ROS runtime, Ubuntu Python 3.12 and physical hardware still require on-Pi validation; local checks ran on macOS Python 3.14.
+
+
+### One-shot gestures
+
+Authenticated controller sessions can send `{"type":"gesture","seq":0,"name":"hello"}`
+(`hello`, `dance`, or `tilt` only). The single hardware worker runs it once, using
+its existing initialized controller. Driving must wait for completion; control
+ends disabled. Send `{"type":"keepalive","seq":1}` at 10 Hz throughout the gesture
+(increment seq each time). Status includes `gesture` while pending/running.
+Keepalive does not refresh driving or re-enable motion. Stop, release, disconnect,
+and the normal command timeout cancel subsequent gesture poses; an already
+committed vendor transition may finish. Cancellation does not automatically
+stand or return level. First-use initialization after server startup still moves
+to calibrated initial angles. The separate explicit zero operation is unchanged.

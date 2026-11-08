@@ -66,20 +66,27 @@ USB mode is independent of browser focus because fresh serial packets renew its 
 ### AirTag backward-tilt test
 
 `Test AirTag drop · tilt back` runs one exclusive pose test on Prada. It releases
-USB/keyboard ownership, stops the glove and motor services, acquires the same
-hardware lock, initializes using saved calibration, stands, ramps to a nominal
-17-degree backward pitch, rocks three times between 8 and 17 degrees at vendor speed 85, and returns level. It restarts
-control disabled. Observe the physical tag: completion does not confirm release.
+USB/keyboard ownership, pauses the glove relay, and sends a one-shot request to the running motor server.
+The existing hardware owner stands and ramps to a nominal
+17-degree backward pitch, rocks three times between 8 and 17 degrees at vendor speed 85, and returns level. It finishes with driving disabled. Observe the physical tag: completion does not confirm release.
 The installed vendor geometry clips at 18 degrees; 17 is the largest whole-degree
 unclipped pose checked, not a measured chassis angle or proof against tipping.
-Use level ground with the rear clear. The maintenance sequence cannot be instantly
-stopped with dashboard Stop. No autonomous movement is enabled by this test.
+Use level ground with the rear clear. Dashboard Stop cancels the remaining poses after the current vendor pose transition. No autonomous movement is enabled by this test.
 
 ### Hello and dance
 
 **Hello / wave** runs the vendor wave once at speed 55. **Dance** runs two short
 side-to-side sway and body-bob cycles at speed 60, validating the dance poses
 against vendor joint limits first. Both use the same exclusive maintenance path
-as the tilt test, return to standing, and restart driving disabled. Hello is a
-physical greeting, without speech playback. These sequences cannot be instantly
-stopped from the dashboard; leave space around the legs before triggering them.
+as the tilt test, return to standing, and leave driving disabled. Hello is a
+physical greeting, without speech playback. Stop or loss of the dashboard heartbeat cancels remaining poses; a committed pose
+transition may finish. Leave space around the legs before triggering them.
+
+
+Gestures reuse the motor server's existing Picrawler instance across requests and
+controller connections. They no longer restart `prada-server` or construct a second
+hardware owner. Initialization still occurs on the first motion after a fresh
+motor-server start. The explicit **Move servos to zero** button retains its
+intentional calibration-zero behavior. During gestures, dashboard-to-Pi and
+Pi-client-to-motor-server leases must stay fresh; timeout/disconnect disables
+movement and cancels subsequent poses. Resume always requires explicit enable.
