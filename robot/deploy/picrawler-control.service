@@ -1,0 +1,19 @@
+# Edit account/paths first. Deliberately dry-run; no automatic restart.
+[Unit]
+Description=PiCrawler joystick bridge (dry run)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/hackutd26
+EnvironmentFile=/etc/picrawler-control.env
+Environment=PYTHONUNBUFFERED=1
+Environment=ROS_LOCALHOST_ONLY=1
+ExecStart=/bin/bash -c 'source /opt/ros/jazzy/setup.bash && exec /home/ubuntu/hackutd26/robot/.venv/bin/python -m picrawler_control.server --ros --config /home/ubuntu/hackutd26/robot/config/local.toml'
+Restart=no
+TimeoutStopSec=infinity
+
+[Install]
+WantedBy=multi-user.target

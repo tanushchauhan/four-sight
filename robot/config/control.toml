@@ -1,0 +1,9 @@
+# Loopback until explicitly configured for a private Wi-Fi interface.
+host = "127.0.0.1"
+port = 8765
+timeout = 0.5
+deadzone = 0.15
+min_speed = 20
+max_speed = 50
+poll_interval = 0.02
+dry_gait_seconds = 0.15
