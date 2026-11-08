@@ -14,12 +14,14 @@ The Pi serves HTTP. Video does not go through the control WebSocket or Spacetime
         the latest JPEG, once
 
 Bind to the Pi's private Wi-Fi address (the same host as the control server).
-The port is stream_port in the control config, 8080 unless changed. There is
-no camera yet: with --pattern the server sends a moving test picture. The
-camera, when it exists, calls FrameBuffer.publish with each JPEG and the HTTP
-shape stays the same.
+The port is stream_port in the control config, 8080 unless changed. Without
+--camera the server sends a moving test picture. With --camera, camera.py runs
+rpicam-vid and calls FrameBuffer.publish with each JPEG; the HTTP shape is the
+same either way. --host overrides the config host for the stream only, so the
+control socket can stay on loopback while the visor reaches the video.
 
     python -m picrawler_control.stream --config robot/config/control.toml
+    python -m picrawler_control.stream --config robot/prada/prada.toml --camera --host 0.0.0.0
 """
 
 import argparse
@@ -153,16 +155,25 @@ def main():
     parser = argparse.ArgumentParser(description="PiCrawler MJPEG stream (test pattern until a camera publishes)")
     parser.add_argument("--config")
     parser.add_argument("--no-pattern", action="store_true", help="serve only frames published by a camera")
+    parser.add_argument("--camera", action="store_true", help="publish frames from rpicam-vid (implies --no-pattern)")
+    parser.add_argument("--host", help="bind address for the stream (default: config host)")
+    parser.add_argument("--width", type=int, default=640)
+    parser.add_argument("--height", type=int, default=480)
+    parser.add_argument("--fps", type=int, default=20)
     args = parser.parse_args()
     from .config import load
     config = load(args.config)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     frames = FrameBuffer()
     stop = threading.Event()
-    if not args.no_pattern:
+    if args.camera:
+        from . import camera
+        camera.start(frames, stop, width=args.width, height=args.height, fps=args.fps)
+    elif not args.no_pattern:
         threading.Thread(target=serve_pattern, args=(frames,), kwargs={"stop": stop}, daemon=True).start()
-    server = StreamServer(config.host, config.stream_port, frames)
-    logging.info("mjpeg listening on http://%s:%d/stream", config.host, config.stream_port)
+    host = args.host or config.host
+    server = StreamServer(host, config.stream_port, frames)
+    logging.info("mjpeg listening on http://%s:%d/stream", host, config.stream_port)
     try:
         server.serve_forever()
     except KeyboardInterrupt:

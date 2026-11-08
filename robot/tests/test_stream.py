@@ -57,3 +57,15 @@ class StreamTests(unittest.TestCase):
         finally:
             server.shutdown()
             server.server_close()
+
+
+class CameraSplitTests(unittest.TestCase):
+    def test_split_frames_keeps_whole_jpegs_and_leftover(self):
+        from picrawler_control.camera import split_frames
+        a, b = pattern(16, 16, 0), pattern(16, 16, 4)
+        frames, rest = split_frames(b"junk" + a + b + b[:10])
+        self.assertEqual(frames, [a, b])
+        self.assertEqual(rest, b[:10])
+        frames, rest = split_frames(rest + b[10:])
+        self.assertEqual(frames, [])
+        self.assertEqual(rest, b)

@@ -34,6 +34,11 @@ put() {  # put <mode> <src> <dest-dir>
 
 step "Packages"
 export DEBIAN_FRONTEND=noninteractive
+# The Imager image ships without noble-updates, so -dev packages lag their
+# installed libraries (libgnutls, libzstd) and apt refuses them. Add it back.
+if ! grep -qE '^Suites:.*noble-updates' /etc/apt/sources.list.d/ubuntu.sources; then
+  sudo sed -i '0,/^Suites: noble$/s//Suites: noble noble-updates/' /etc/apt/sources.list.d/ubuntu.sources
+fi
 sudo apt-get update -q
 sudo -E apt-get install -y -q git curl python3-venv python3-pip i2c-tools gpiod \
   python3-lgpio python3-smbus2 python3-gpiozero python3-spidev python3-serial python3-pil \
@@ -59,7 +64,7 @@ step "I2C, GPIO access and lock"
 grep -q '^dtparam=i2c_arm=on' /boot/firmware/config.txt || echo "WARNING: add dtparam=i2c_arm=on under [all] in /boot/firmware/config.txt"
 put 644 "$PRADA/system/i2c-dev.conf" /etc/modules-load.d
 getent group gpio >/dev/null || sudo groupadd --system gpio
-sudo usermod -aG i2c,dialout,gpio liquidiv
+sudo usermod -aG i2c,dialout,gpio,video,render liquidiv
 put 644 "$PRADA/system/60-picrawler-gpiomem.rules" /etc/udev/rules.d
 sudo udevadm control --reload
 sudo udevadm trigger --action=add --sysname-match='gpiomem*' || true
@@ -71,6 +76,9 @@ step "Python environment"
 [[ -d "$VENV" ]] || python3 -m venv --system-site-packages "$VENV"
 "$VENV/bin/python" -m pip install -q -e "$REPO/robot[ble]" "$VENDOR/robot-hat" "$VENDOR/picrawler"
 "$VENV/bin/python" -m unittest discover -s "$REPO/robot/tests" 2>&1 | tail -1
+
+step "Camera (Raspberry Pi libcamera + rpicam-apps)"
+"$PRADA/build-camera.sh"
 
 step "Calibration"
 if [[ -f "$HOME/.config/.picrawler.config" ]]; then
@@ -96,10 +104,11 @@ fi
 step "Services"
 put 644 "$PRADA/system/prada-server.service" /etc/systemd/system
 put 644 "$PRADA/system/prada-joystick.service" /etc/systemd/system
-sudo systemctl unmask prada-server prada-joystick >/dev/null 2>&1 || true
+put 644 "$PRADA/system/prada-camera.service" /etc/systemd/system
+sudo systemctl unmask prada-server prada-joystick prada-camera >/dev/null 2>&1 || true
 sudo systemctl daemon-reload
 if (( ENABLE )); then
-  sudo systemctl enable prada-server prada-joystick
+  sudo systemctl enable prada-server prada-joystick prada-camera
   echo "enabled at boot"
 fi
 
@@ -108,7 +117,7 @@ sync
 cat <<'EOF'
 
 Done. Log out and back in (or reboot) if group membership changed.
-Start:   sudo systemctl start prada-server prada-joystick
-Logs:    journalctl -fu prada-server -u prada-joystick
-Stop:    sudo systemctl stop prada-joystick prada-server
+Start:   robot/prada/prada.sh start
+Status:  robot/prada/prada.sh status
+Camera:  http://prada.local:8080/stream
 EOF

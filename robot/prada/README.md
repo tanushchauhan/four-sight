@@ -25,8 +25,8 @@ Everything on prada goes through one script. You never edit files on the Pi: cha
 | --- | --- |
 | `update` | `git pull`, rerun `install.sh`, restart the services if they were running |
 | `install` | Set up or repair everything (add `--enable` to start both services at boot) |
-| `start` / `stop` / `restart` | Control the server and the joystick relay together |
-| `status` | Service state, repo commit, HAT on I2C, battery (when stopped), last joystick events |
+| `start` / `stop` / `restart` | Control the server, joystick relay and camera stream together |
+| `status` | Service state, repo commit, HAT on I2C, battery (when stopped), last joystick events, camera URL |
 | `logs` | Follow both services' logs |
 | `keyboard` | Stop the joystick relay so a laptop keyboard controller can connect |
 
@@ -42,6 +42,8 @@ None of these move servos. The robot moves only after the joystick is clicked an
 | `picrawler.config` | Saved calibration offsets (copied to `~/.config/.picrawler.config` if missing) |
 | `system/prada-server.service` | Bridge server in hardware mode |
 | `system/prada-joystick.service` | Bluetooth relay from the Arduino 101 joystick |
+| `system/prada-camera.service` | Camera MJPEG stream on port 8080 |
+| `build-camera.sh` | Builds Raspberry Pi libcamera and rpicam-apps (run by `install.sh`) |
 | `system/60-picrawler-gpiomem.rules` | Gives the `gpio` group the Pi 5 GPIO memory windows that `pinctrl` needs |
 | `system/picrawler-lock.conf` | Recreates `/run/lock/picrawler-control.lock` at boot |
 | `system/i2c-dev.conf` | Loads the I2C device driver at boot |
@@ -93,6 +95,19 @@ ROBOT_CONTROL_TOKEN=... robot/.venv/bin/python -m picrawler_control.controller '
 ```
 
 Get the token with `ssh prada sudo cat /etc/picrawler-control.env`.
+
+## Camera
+
+Camera Module 3 (Sony IMX708, with autofocus) on **CAM0**. Ubuntu's libcamera 0.2 can't drive the Pi 5 camera pipeline, so `build-camera.sh` builds Raspberry Pi's `libcamera` and `rpicam-apps` (pinned tags) into `/usr/local`; it skips itself once `rpicam-hello --list-cameras` sees the sensor.
+
+`prada-camera` runs `stream.py --camera`, which reads `rpicam-vid --codec mjpeg` (640x480, 20 fps, continuous autofocus) and publishes each JPEG to the stream's `FrameBuffer`. It listens on IPv4 (`--host 0.0.0.0`) so the visor on the hotspot can reach `http://<prada-ipv4>:8080/stream`; the control socket stays on loopback. A Mac on the same hotspot often has only IPv6, so view it through a tunnel instead:
+
+```bash
+ssh -N -L 18080:127.0.0.1:8080 prada &
+open http://localhost:18080/stream
+```
+
+The camera does not need the Robot HAT. If it isn't detected, check that the Pi 5 cable (22-pin end at the Pi) is seated in CAM0 with the latch closed, with the Pi off.
 
 ## SSH from a laptop
 

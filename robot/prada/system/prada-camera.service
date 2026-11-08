@@ -1,0 +1,18 @@
+# prada camera: Camera Module 3 (IMX708, CAM0) as MJPEG on http://<prada>:8080/stream.
+# Listens on IPv4 (the hotspot) so the visor can reach it; the control socket stays on loopback.
+[Unit]
+Description=prada camera MJPEG stream
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=liquidiv
+WorkingDirectory=/home/liquidiv/hackutd26
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/home/liquidiv/hackutd26/robot/.venv/bin/python -m picrawler_control.stream --config /home/liquidiv/hackutd26/robot/prada/prada.toml --camera --host 0.0.0.0
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

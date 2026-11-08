@@ -16,8 +16,8 @@ fi
 
 export DEBIAN_FRONTEND=noninteractive
 sudo apt-get update -q
-# No libdw-dev: its libzstd-dev lags the installed libzstd1 on this mirror, and
-# libcamera only uses it for backtraces.
+# No libdw-dev: libcamera only uses it for backtraces, so skip the extra
+# dependency.
 sudo apt-get install -y -q git meson ninja-build pkg-config cmake python3-yaml python3-ply \
   python3-jinja2 libyaml-dev libssl-dev libudev-dev libevent-dev libdrm-dev \
   libjpeg-dev libtiff-dev libpng-dev libexif-dev libboost-program-options-dev nlohmann-json3-dev
