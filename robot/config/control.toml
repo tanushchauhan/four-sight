@@ -1,6 +1,8 @@
 # Loopback until explicitly configured for a private Wi-Fi interface.
 host = "127.0.0.1"
 port = 8765
+# MJPEG camera stream. Separate from the control socket.
+stream_port = 8080
 timeout = 0.5
 deadzone = 0.15
 min_speed = 20

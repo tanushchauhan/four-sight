@@ -77,7 +77,7 @@ Everything below is a **proposal**; change it, but change it here so everyone bu
 
 ### Robot ↔ headset (direct, local Wi-Fi)
 
-- **Video:** Pi serves the Camera Module 3 stream. Start with MJPEG over HTTP; move to WebRTC only if latency is bad. Target: under ~200 ms (wave a hand, it should feel live).
+- **Video:** Pi serves MJPEG over HTTP on `stream_port` (8080). `GET /stream` is `multipart/x-mixed-replace; boundary=frame`, one JPEG per part (`Content-Type: image/jpeg` and `Content-Length`). `GET /frame` is the latest JPEG once. The visor opens it with `CARDBOARDXR_stream=http://<pi>:8080/stream` and shows that picture in both eyes. Until the camera is connected, `python -m picrawler_control.stream` sends a test picture; the camera later calls `FrameBuffer.publish` with JPEG bytes and the HTTP shape stays the same. Target: under ~200 ms. Move to WebRTC only if MJPEG is too late.
 - **Control:** WebSocket server on the Pi, JSON messages.
 
 Phone → Pi:

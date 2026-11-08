@@ -27,6 +27,16 @@ robot/.venv/bin/python -m picrawler_control.controller ws://127.0.0.1:8765
 
 For Wi-Fi, copy `robot/config/control.toml` to a local file and set `host` to the Pi's private Wi-Fi IP (or `0.0.0.0` to listen on all interfaces). Use the Pi IP in the laptop URI. No cloud service or SpacetimeDB is on this path. The secret authenticates control but `ws://` is unencrypted: use a trusted private router/hotspot, restrict port 8765 to the controller, and never expose it to the internet. A client receives status after authentication and after each accepted packet; unsolicited periodic status is available through ROS only.
 
+## Camera stream
+
+Separate from the control socket, on `stream_port` (8080 unless `control.toml` says otherwise). Same `host`. The visor asks for `http://<pi>:8080/stream`.
+
+```bash
+robot/.venv/bin/python -m picrawler_control.stream --config robot/config/control.toml
+```
+
+`GET /stream` is `multipart/x-mixed-replace; boundary=frame`. Each part is one JPEG with `Content-Type: image/jpeg` and `Content-Length`. `GET /frame` returns the latest JPEG once. With no camera connected, the process publishes a moving test picture. The camera, once it exists, calls `FrameBuffer.publish` with each JPEG; clients do not change.
+
 ## Protocol v1
 
 One authenticated controlling connection at a time. First packet, within 5 s:

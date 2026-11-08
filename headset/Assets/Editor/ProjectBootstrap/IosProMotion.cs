@@ -37,6 +37,13 @@ namespace ProjectBootstrap
             // so videos can be copied into Documents/Videos for the video demo.
             plist.root.SetBoolean("UIFileSharingEnabled", true);
             plist.root.SetBoolean("LSSupportsOpeningDocumentsInPlace", true);
+            // The robot camera is MJPEG at an http:// address on the local hotspot.
+            var transport = plist.root.values.ContainsKey("NSAppTransportSecurity")
+                ? plist.root["NSAppTransportSecurity"].AsDict()
+                : plist.root.CreateDict("NSAppTransportSecurity");
+            transport.SetBoolean("NSAllowsArbitraryLoads", true);
+            plist.root.SetString("NSLocalNetworkUsageDescription",
+                "CardboardXR connects to the robot on the local network to show its camera.");
             plist.WriteToFile(path);
             Debug.Log("[ProjectSetup] ProMotion allowed: the display can run above 60 fps. Documents shared with Finder and Files.");
         }

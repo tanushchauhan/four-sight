@@ -119,6 +119,7 @@ phone's home screen. The app logs the options it received at startup (`[Stereo] 
 | `uiScale N` | Size of the Material UI in percent of Android XR's dp sizes (default 160, for phone viewers' lower resolution) |
 | `brightness N` | Screen brightness while the app is in front, in percent (default 70; 0 leaves it alone) |
 | `libraryRows N` | Rows of apps on each page of the app library, 1 to 4 (default 2). `1` shows paging with only a few demos |
+| `stream URL` | Show the robot MJPEG stream in both eyes. A string, so on Android it is `--es stream http://192.168.1.20:8080/stream` and on iOS `CARDBOARDXR_stream` set to that URL. Off when the launch has no URL |
 
 ## Using the app
 

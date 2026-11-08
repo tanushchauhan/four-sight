@@ -52,6 +52,8 @@ namespace ProjectBootstrap
 
             // Viewer QR codes often hold short links that have to be followed over the network.
             PlayerSettings.Android.forceInternetPermission = true;
+            // The robot camera is MJPEG over plain HTTP on the local hotspot.
+            PlayerSettings.insecureHttpOption = InsecureHttpOption.AlwaysAllowed;
 
             // Per-thread CPU and GPU frame times for FrameTimingLog's hitch reports.
             PlayerSettings.enableFrameTimingStats = true;
