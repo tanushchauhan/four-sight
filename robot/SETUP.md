@@ -113,7 +113,16 @@ The import does not construct a robot. No MCU scan, reset or servo example is in
 
 ## 5. Calibrate and perform the first physical run
 
-Follow [SunFounder's PiCrawler assembly/calibration documentation](https://docs.sunfounder.com/projects/pi-crawler/en/latest/) with the actual assembled robot supported off the floor and a reachable servo-power switch. Calibration itself moves servos; do it separately, with the bridge stopped. Match the twelve leg servo connections to the kit instructions. Save offsets as the same non-root account that runs the bridge: `~/.config/.picrawler.config`. The adapter requires this file, but existence alone does not prove correct calibration.
+Servo zeroing comes **before mechanical assembly**, so the servo horns are attached at the intended starting angles. This step is confirmed complete for this build; it is distinct from assembled-robot calibration. Match the twelve leg servo connections to the kit instructions.
+
+For [SunFounder's paper calibration](https://docs.sunfounder.com/projects/pi-crawler/en/latest/python/calibrate.html), lay the supplied calibration sheet flat on a table and place the assembled robot on it, aligning the underside with the outline as shown in the vendor diagram. **Do not suspend the robot for this calibration.** Keep the bridge stopped and a physical power cutoff reachable; the calibration helper moves servos. Once assembly and the Pi setup are ready, run the helper as the same non-root account and home directory used by the bridge:
+
+```bash
+cd ~/vendor/picrawler/examples
+~/hackutd26/robot/.venv/bin/python 0_calibration.py
+```
+
+Follow the vendor diagram and helper prompts to adjust each leg. Press space to save, confirm with `Y`, then exit with Ctrl+C. Offsets must be saved to that account's `~/.config/.picrawler.config`; avoid running the helper under a different `sudo` home. Resolve device permissions using the earlier setup steps if needed. The adapter requires this file, but existence alone does not prove correct calibration. The later first walking checks can use a supported robot off the floor; those physical checks remain deferred until assembly is complete.
 
 Use one process only; don't run vendor examples in parallel. Prepare the advisory lock once for your chosen account:
 
