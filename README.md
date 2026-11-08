@@ -26,7 +26,7 @@ After an earthquake, the people most likely to survive are the ones found in the
 
 We built a semi-autonomous robot paired with a custom 3D-printed AR visor to help rescuers and aid workers find people trapped under the rubble.
 
-A rescuer straps on the visor, puts on a glove controller, and taps in to a direct feed from the robot. **Tilting their head moves the camera. The joystick drives the robot** forward, backward, up, and down. The robot uses image segmentation to pick out features of survivors, and infrared, light, and other sensors to watch for dangerous conditions while it works.
+A rescuer straps on the visor, puts on a glove controller, and taps in to a direct feed from the robot. **Tilting their head moves the camera. The joystick drives the robot** forward, backward, up, and down. YOLO26n-seg image segmentation picks out survivors in the camera feed, YOLO26n and SegFormer find open floor so the robot can explore on its own, and a Nemotron vision model describes survivors and hazards in each frame.
 
 When the robot finds a survivor, the rescuer can **comfort them through a speaker and microphone on the robot** and **drop a beacon** at that location. Looking through the visor's front camera, the rescuer can see where they need to go.
 
@@ -88,7 +88,9 @@ The dashboard runs on a laptop on the same network. It shows every robot, mirror
 | **Direct robot feed** | Strap on the visor and see the robot's camera, then switch to the front camera to see the path ahead. |
 | **Head-tracked camera** | Tilt and turn your head to aim the robot's view. |
 | **Glove controller** | Joystick input drives the robot forward, backward, up, and down. |
-| **SLAM and sensing** | The robot maps its surroundings, picks out survivor features, and uses infrared, light, and other sensors to flag dangerous conditions. |
+| **Survivor segmentation** | The visor runs YOLO26n-seg through Core ML on the iPhone to mask people in the robot's view, with a fading radar showing where they are. |
+| **Navigation vision** | The console runs YOLO26n and SegFormer on the camera feed to mark open floor and obstacles, so the robot can explore on its own. |
+| **Nemotron scene reading** | Nemotron 3.5 Super VL reads camera frames to describe survivors and hazards for the agent. |
 | **Survivor contact** | Speak through the robot to comfort someone and tell them help is on the way. |
 | **Location beacon** | Drop a beacon where a survivor was found so responders can get there. |
 | **Swarm search** | Send multiple robots across an impacted site instead of searching it by hand. |
@@ -150,7 +152,7 @@ graph LR
 ![SpacetimeDB](https://img.shields.io/badge/SpacetimeDB-111111?style=for-the-badge&logoColor=white)
 
 - **Agent**: Node.js 22 and TypeScript. Coordinator, triage, and search agents call tools against the robot and shared state.
-- **Models**: Nemotron 3 Ultra plans. Lightning triages. Bolt searches. A vision model reads each camera frame.
+- **Models**: Nemotron 3 Ultra plans. Lightning triages. Bolt searches. Nemotron 3.5 Super VL reads each camera frame.
 - **State**: SpacetimeDB holds the shared record. Video, drive commands, and emergency stop stay on the local network and never go through the database.
 
 ## Project structure
