@@ -83,17 +83,17 @@ The dashboard runs on a laptop on the same network. It shows every robot, mirror
 
 ## ✨ Features
 
-| | Feature | What it does |
-| --- | --- | --- |
-| 🥽 | **Direct robot feed** | Strap on the visor and see the robot's camera, then switch to the front camera to see the path ahead. |
-| 🧭 | **Head-tracked camera** | Tilt and turn your head to aim the robot's view. |
-| 🕹️ | **Glove controller** | Joystick input drives the robot forward, backward, up, and down. |
-| 🗺️ | **SLAM and sensing** | The robot maps its surroundings, picks out survivor features, and uses infrared, light, and other sensors to flag dangerous conditions. |
-| 🗣️ | **Survivor contact** | Speak through the robot to comfort someone and tell them help is on the way. |
-| 📍 | **Location beacon** | Drop a beacon where a survivor was found so responders can get there. |
-| 🐜 | **Swarm search** | Send multiple robots across an impacted site instead of searching it by hand. |
-| 🎙️ | **Voice-directed Nemotron agent** | Give fleet commands out loud and keep working with the visor on. |
-| 🚑 | **Critical-first queue** | The agent ranks survivors in critical condition and holds the rest in a queue. |
+| Feature | What it does |
+| --- | --- |
+| **Direct robot feed** | Strap on the visor and see the robot's camera, then switch to the front camera to see the path ahead. |
+| **Head-tracked camera** | Tilt and turn your head to aim the robot's view. |
+| **Glove controller** | Joystick input drives the robot forward, backward, up, and down. |
+| **SLAM and sensing** | The robot maps its surroundings, picks out survivor features, and uses infrared, light, and other sensors to flag dangerous conditions. |
+| **Survivor contact** | Speak through the robot to comfort someone and tell them help is on the way. |
+| **Location beacon** | Drop a beacon where a survivor was found so responders can get there. |
+| **Swarm search** | Send multiple robots across an impacted site instead of searching it by hand. |
+| **Voice-directed Nemotron agent** | Give fleet commands out loud and keep working with the visor on. |
+| **Critical-first queue** | The agent ranks survivors in critical condition and holds the rest in a queue. |
 
 ## 🔄 How it works
 
