@@ -16,10 +16,6 @@ from picrawler_control.ble_relay import HeadInput
 HEAD_PORT = 8766
 INPUT_MODE = 'keyboard'
 head = HeadInput()
-sonar = avoidance = None
-if INPUT_MODE == 'auto':
-    from picrawler_control.autonomy import Sonar, Avoidance
-    sonar, avoidance = Sonar(), Avoidance()
 ready = threading.Event()
 head_error = []
 async def serve_head():
@@ -38,8 +34,6 @@ with open('/etc/picrawler-control.env') as f:
 with connect('ws://127.0.0.1:8765', open_timeout=4, close_timeout=1) as ws:
     def report(timeout):
         reply = json.loads(ws.recv(timeout=timeout))
-        if sonar:
-            reply.update(range_cm=sonar.sample[0] if sonar.sample[1] and time.monotonic()-sonar.sample[1] < .5 else None, avoidance=source, avoidance_fault=avoidance.fault)
         reply.update(headset_connected=head.owner is not None, head_turn=head.value(), input_source=source)
         print(json.dumps(reply), flush=True)
     source = 'disabled'
@@ -51,7 +45,9 @@ with connect('ws://127.0.0.1:8765', open_timeout=4, close_timeout=1) as ws:
         source = 'disabled'
         if msg['type'] == 'drive':
             if INPUT_MODE == 'auto':
-                msg['forward'], msg['turn'], source = avoidance.choose(*sonar.sample, msg['forward'])
+                msg['forward'] = max(0, min(.3, msg['forward']))
+                msg['turn'] = max(-.3, min(.3, msg['turn']))
+                source = 'camera'
             elif msg['forward'] == 0 and msg['turn'] == 0:
                 msg['turn'] = head.value()
                 source = 'headset' if msg['turn'] else 'neutral'

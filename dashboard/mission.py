@@ -7,6 +7,7 @@ import time
 import urllib.request
 import urllib.error
 from pathlib import Path
+from vision_navigation import CameraGuide
 
 
 def settings():
@@ -49,6 +50,7 @@ class Media:
 class Mission:
     def __init__(self, control, media):
         self.control, self.media = control, media
+        self.guide = CameraGuide(settings())
         self.lock = threading.RLock()
         self.mode = 'manual'
         self.speed = .5
@@ -68,7 +70,7 @@ class Mission:
             return dict(mode=self.mode, speed=self.speed, person_detection=self.detection,
                         reason=self.reason, person=self.last_person,
                         agent_connected=time.monotonic()-self.agent_seen < 3,
-                        range_cm=self.control.snapshot().get('range_cm'))
+                        navigation='camera')
 
     def configure(self, data):
         with self.lock:
@@ -103,14 +105,16 @@ class Mission:
             # Speech mode must be ready before allowing the agent to greet anyone.
             if self.detection:
                 self.media.request('/session', {'mode': 'agent'})
+            self.guide.reset()
             self.owner = self.control.acquire(mode='auto')
             self.seq = 0
             self.control_generation = self.control.generation
-            self.mode, self.reason = 'autonomous', 'Connecting; waiting for ultrasonic sensor'
+            self.mode, self.reason = 'autonomous', 'Connecting; waiting for camera guidance'
             return self.snapshot()
 
     def stop(self, reason='Stopped by operator', mode='stopped'):
         with self.lock:
+            self.guide.reset()
             self.control.stop_motion()
             if self.owner:
                 self.control.release()
@@ -157,12 +161,6 @@ class Mission:
                 if c.get('connection') == 'error' or self.control.owner != owner:
                     self.stop(c.get('reason', 'Control connection lost'))
                     continue
-                if self.detection and time.monotonic()-self.agent_seen >= 3:
-                    self.stop('Person detection agent disconnected; restart explicitly')
-                    continue
-                if c.get('avoidance_fault'):
-                    self.stop(c['avoidance_fault'])
-                    continue
                 if c.get('connection') != 'connected':
                     # Keep connection setup lease fresh, without enabling.
                     with self.control.lock:
@@ -175,10 +173,15 @@ class Mission:
                     action = 'heartbeat'
                     if not enabled_once and not c.get('busy'):
                         action, enabled_once = 'enable', True
+                    if self.detection and time.monotonic()-self.agent_seen >= 3:
+                        self.guide.reset()
+                        forward, turn, reason = 0, 0, 'Waiting for person detection agent; retaining control'
+                    else:
+                        forward, turn, reason = self.guide.command(self.speed, c.get('busy', False))
                     self.control.update(dict(owner=owner, seq=self.seq, action=action,
-                                             forward=self.speed, turn=0))
+                                             forward=forward, turn=turn))
                     self.seq += 1
-                    self.reason = c.get('avoidance', 'Waiting for sensor')
+                    self.reason = reason
                 except ValueError as exc:
                     self.stop(str(exc))
 

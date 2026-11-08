@@ -151,12 +151,16 @@ committed vendor transition may finish. Cancellation does not automatically
 stand or return level. First-use initialization after server startup still moves
 to calibrated initial angles. The separate explicit zero operation is unchanged.
 
-### Autonomous sonar and responder radio
+### Camera autonomy and responder radio
 
-`picrawler_control.autonomy` supplies the dashboard SSH controller's reactive
-obstacle policy and isolated D2/D3 ultrasonic reader. It never constructs Picrawler;
-all motion stays behind the existing single-owner motor server and drive deadman.
-See `dashboard/README.md` for thresholds, speed controls and takeover behavior.
+The dashboard uses camera-only guidance. The legacy `picrawler_control.autonomy`
+sonar module is unused by active control. Motion remains behind the single-owner
+motor server and its deadman. Camera `/frame` includes `X-Frame-Age` so the dashboard
+can reject stale images. See `dashboard/README.md` for speed controls and behavior.
+
+The speech service also starts an authenticated live PCM WebSocket on speech port + 1
+(default 8082), sharing microphone and speaker ownership with the HTTP endpoints.
+It requires manual conversation ownership and closes when that session changes.
 
 The authenticated speech service now supports `POST /session {"mode":"manual"|"agent"}`,
 `POST /audio` (mono PCM16 WAV, 8–48 kHz, at most 10 seconds/1 MB), and

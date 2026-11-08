@@ -1,4 +1,6 @@
 import logging
+import json
+import math
 import shutil
 from pathlib import Path
 import threading
@@ -90,6 +92,18 @@ class Hardware:
             from .gestures import perform
             perform(robot, name)
 
+    def sample_battery(self):
+        # Called only by the hardware worker, serialized with every servo operation.
+        from robot_hat.device import get_battery_voltage
+        voltage = get_battery_voltage()
+        if not math.isfinite(voltage) or not 0 < voltage < 20:
+            raise ValueError('Invalid battery voltage')
+        path = Path('/tmp/prada-battery.json')
+        temporary = path.with_suffix('.tmp')
+        temporary.write_text(json.dumps(dict(voltage=round(voltage, 2), sampled=time.monotonic(),
+            boot=Path('/proc/sys/kernel/random/boot_id').read_text().strip())))
+        temporary.replace(path)
+
     def close(self):
         self.lock_file.close()
 
@@ -106,7 +120,14 @@ class Worker:
         self.thread.start()
 
     def run(self):
+        next_battery = 0
         while not self.halt.is_set():
+            if time.monotonic() >= next_battery:
+                next_battery = time.monotonic() + 5
+                sample = getattr(self.backend, 'sample_battery', None)
+                if sample:
+                    try: sample()
+                    except Exception: logging.debug('Battery reading unavailable', exc_info=True)
             c = self.control
             with c.lock:
                 choice = c.choice()

@@ -48,6 +48,7 @@ class FrameBuffer:
         self._lock = threading.Lock()
         self._jpeg = None
         self._seq = 0
+        self._published = 0
         self._ready = threading.Condition(self._lock)
 
     def publish(self, jpeg):
@@ -56,11 +57,16 @@ class FrameBuffer:
         with self._ready:
             self._jpeg = bytes(jpeg)
             self._seq += 1
+            self._published = time.monotonic()
             self._ready.notify_all()
 
     def latest(self):
         with self._lock:
             return self._seq, self._jpeg
+
+    def current_frame(self):
+        with self._lock:
+            return self._jpeg, time.monotonic() - self._published
 
     def wait_newer(self, seq, timeout):
         with self._ready:
@@ -106,7 +112,7 @@ class _Handler(BaseHTTPRequestHandler):
             self.wfile.write(body)
 
     def _frame(self):
-        _, jpeg = self.server.frames.latest()
+        jpeg, age = self.server.frames.current_frame()
         if jpeg is None:
             body = b"no frame yet\n"
             self.send_response(503)
@@ -116,6 +122,7 @@ class _Handler(BaseHTTPRequestHandler):
             self.wfile.write(body)
             return
         self.send_response(200)
+        self.send_header("X-Frame-Age", str(age))
         self.send_header("Content-Type", "image/jpeg")
         self.send_header("Content-Length", str(len(jpeg)))
         self.send_header("Cache-Control", "no-store")

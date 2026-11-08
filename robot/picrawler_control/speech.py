@@ -967,6 +967,9 @@ def main():
     logging.info("speech listening on http://%s:%d (engine %s %s, device %s, mic %s, stt %s)", host,
                  config.speech_port, engine.name, engine.voice, player.device or "none", mic or "none", stt.name)
 
+    from .live_audio import start as start_live_audio
+    start_live_audio(server, host, config.speech_port + 1)
+
     def terminate(signum, frame):
         raise KeyboardInterrupt
     signal.signal(signal.SIGTERM, terminate)

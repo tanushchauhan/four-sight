@@ -93,26 +93,27 @@ movement and cancels subsequent poses. Resume always requires explicit enable.
 
 ## Autonomous demo and responder handoff
 
-The mission panel adds reactive ultrasonic exploration (no SLAM or position estimate).
-Start is explicit; speed is 20–100% normalized command magnitude, default 50%,
-not a measured walking velocity. The Mac owns one control connection through SSH;
-head steering is ignored in autonomous mode. The Pi reads the standard ultrasonic
-trigger D2 / echo D3 at roughly 10 Hz. Readings older than 0.5 seconds or outside
-2–400 cm inhibit motion. Once a valid reading has been seen, losing it latches a stop.
-Below 40 cm it turns left at at most 50%, requiring three distinct readings above
-50 cm before going forward. Below 15 cm or after four seconds without a clear route,
-it stops for manual repositioning. No reverse motion is requested. Front sonar
-cannot see drop-offs, side contacts, or every surface; validate at low speed on
-level ground. A committed vendor gait can finish after Stop.
+The mission panel uses camera-only Nemotron vision guidance (no SLAM or position estimate).
+Ultrasonic sensing is not initialized or required. Start is explicit. The speed slider
+scales conservative command magnitudes of 0.22–0.30, not measured walking velocity.
+The Mac owns one SSH control connection and ignores headset steering in autonomous mode.
+While stationary, it requests a fresh camera image and a constrained forward/left/right/wait
+assessment. Confidence below 0.85, malformed output, camera/API failure, and responses
+older than eight seconds hold motion and retry without releasing autonomous ownership.
+A movement command lasts at most 150 ms, followed by neutral and a new stationary view;
+a committed vendor gait can finish after neutral or Stop. This is experimental visual
+guidance, not reliable obstacle ranging or drop-off detection. Test on clear, level ground.
+The NVIDIA key and vision model come from ignored agent/.env. No model output can directly
+execute a tool or arbitrary robot action.
 
 Person detection defaults OFF for an obstacle-only demo. Toggle it while running.
 When ON, the local Prada agent must heartbeat within three seconds, or exploration
-stops. **Visor must be running its person detector on the live robot feed.** The
+holds motion and retries while retaining ownership. **Visor must be running its person detector on the live robot feed.** The
 agent heartbeat confirms the agent connection, not detector health. Visor already
 confirms detections across frames. A qualifying sighting calls the authenticated
 dashboard stop endpoint before the agent opens its case; Nemotron verifies camera
 images, asks its existing questions, triages, and posts responder alerts. No automatic
-resume follows a person, false alarm, takeover, communication failure, or Stop.
+resume follows a person, false alarm, takeover, motor connection failure, or Stop.
 The panel shows count, confidence, age, estimated bearing/range and image motion.
 Fresh structured Visor boxes appear over the feed for at most three seconds and
 are labeled delayed; they are not synchronized to the displayed camera frame. Turning detection off blocks new cases/rechecks and robot AI
@@ -129,14 +130,18 @@ The **Live feed** option proxies Prada `/stream`, the same camera source Visor u
 It requires a direct Mac-to-Pi route. The camera service now listens on both IPv4
 and IPv6, so `CAMERA_URL=http://prada.local:8080` also works over the IPv6 route. The old periodic snapshot remains under device health.
 
-**Take conversation** stops autonomous movement, interrupts queued robot speech,
-and gives audio to the responder. Record up to eight seconds on the Mac, send the
-clip to the robot speaker, then press **Listen · 5 seconds** to play the USB microphone
-reply. This is turn-taking audio, not a full-duplex call. Typed messages are available
-as a fallback. Use `http://localhost:8090` on the dashboard Mac for browser microphone
-access; plain HTTP LAN addresses cannot use browser microphones. A missing microphone,
-busy audio device, or playback error is reported. Keyboard/glove takeover also requests
-manual speech ownership; use Take conversation to confirm the audio connection.
+**Start live conversation** stops exploration, pauses Nemotron speech, and streams
+16 kHz mono PCM audio both ways between this Mac and Prada. Use `http://localhost:8090`,
+allow microphone access, and use headphones to reduce echo. End live conversation closes
+the mic and robot audio devices. Browser audio uses a nonce-protected loopback WebSocket
+on 8091; the proxy authenticates to the robot speech service's WebSocket on 8082 without
+exposing the robot token. Small bounded queues avoid accumulating old audio. This is live
+responder radio, not streaming Nemotron conversation. Speech-session changes and disconnects
+end the stream. Record/send/listen and typed-message controls remain as fallbacks.
+
+Robot health shows measured battery voltage, not an invented charge percentage.
+The motor worker samples the HAT ADC between servo calls and writes a timestamped cache.
+Readings older than 15 seconds or from another boot are unavailable.
 
 Configuration: dashboard reads ignored `agent/.env` then process environment.
 `ROBOT_CONTROL_TOKEN` is Prada's existing token, `AGENT_TOKEN` is a private dashboard-to-agent shared secret (Visor itself uses

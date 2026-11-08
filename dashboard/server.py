@@ -33,6 +33,12 @@ try: uptime = float(pathlib.Path('/proc/uptime').read_text().split()[0])
 except (OSError, ValueError): uptime = None
 try: temperature = int(pathlib.Path('/sys/class/thermal/thermal_zone0/temp').read_text()) / 1000
 except (OSError, ValueError): temperature = None
+battery = None
+try:
+    reading = json.loads(pathlib.Path('/tmp/prada-battery.json').read_text())
+    if reading['boot'] == pathlib.Path('/proc/sys/kernel/random/boot_id').read_text().strip() and 0 <= time.monotonic()-reading['sampled'] < 15:
+        battery = reading['voltage']
+except (OSError, ValueError, KeyError, TypeError): pass
 camera = {'ok': False, 'bytes': 0, 'image': None}
 try:
     with urllib.request.urlopen('http://127.0.0.1:8080/frame', timeout=2) as response:
@@ -41,7 +47,7 @@ try:
             camera = {'ok': True, 'bytes': len(frame), 'image': base64.b64encode(frame).decode()}
 except Exception: pass
 print(json.dumps({'services': services, 'joystick': None if stick is None else 'Connected: yes' in stick,
-    'headset': None if sockets is None else bool(sockets), 'uptime': uptime, 'temperature': temperature,
+    'battery_voltage': battery, 'headset': None if sockets is None else bool(sockets), 'uptime': uptime, 'temperature': temperature,
     'throttled': command(['vcgencmd', 'get_throttled']),
     'revision': command(['git', '-C', '/home/liquidiv/hackutd26', 'rev-parse', '--short', 'HEAD']),
     'camera': camera}))
@@ -281,6 +287,8 @@ def main():
     server.usb.takeover = glove_takeover
     server.usb.worker.start()
     server.nonce = secrets.token_urlsafe(32)
+    from live_audio import start as start_live_audio
+    start_live_audio(server)
     threading.Thread(target=monitor.run, daemon=True).start()
     print(f'Prada status: http://localhost:{args.port} (listening on {args.host})', flush=True)
     try:
