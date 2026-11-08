@@ -4,6 +4,7 @@ import { loadConfig, loadEnvFile } from "./config.js";
 import { DetectionIntake } from "./agent/intake.js";
 import { startOperatorFeed } from "./operator/feed-server.js";
 import { OperatorVoice } from "./operator/voice.js";
+import { commandRoute } from "./operator/commands.js";
 import { buildApp } from "./wiring.js";
 
 /**
@@ -54,7 +55,11 @@ rl.on("line", async (raw) => {
 const intake =
   config.robotMode === "prada" ? new DetectionIntake(app.state, (e) => runner.push(e), { token: config.agentToken, robotId: config.robotId }) : null;
 if (app.voice || intake) {
-  const feed = await startOperatorFeed(app.voice ?? new OperatorVoice(), { host: config.operatorFeedHost, port: config.operatorFeedPort, routes: intake?.routes });
+  const commands = commandRoute(config.agentToken, (text) => runner.push({ kind: "voice_command", text }));
+  const feed = await startOperatorFeed(app.voice ?? new OperatorVoice(), {
+    host: config.operatorFeedHost, port: config.operatorFeedPort,
+    routes: async (req, res, url) => (await commands(req, res, url)) || (await intake?.routes(req, res, url)) || false,
+  });
   const url = feed.url.replace("127.0.0.1", "localhost");
   if (app.voice) logger.info(`Operator voice: open ${url}/operator on the rescuer's phone or laptop and tap "enable voice"`);
   if (intake) {

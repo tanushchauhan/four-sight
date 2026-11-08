@@ -14,6 +14,7 @@ struct VisorView: View {
     @StateObject private var radarHeading = RadarHeading()
     @State private var sightingHeadings: [UUID: Double] = [:]
     @StateObject private var agent = AgentLink()
+    @StateObject private var coordinatorAudio = CoordinatorAudio()
     @AppStorage("cameraURL") private var address = "http://prada.local:8080/stream"
     @AppStorage("agentURL") private var agentAddress = ""
     @AppStorage("cameraSource") private var sourceName = CameraSource.robot.rawValue
@@ -117,11 +118,13 @@ struct VisorView: View {
         .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { radarTime = $0 }
         .persistentSystemOverlays(.hidden)
         .onAppear {
+            coordinatorAudio.start(camera: address)
             radarHeading.start()
             UIApplication.shared.isIdleTimerDisabled = true
             apply(source)
         }
         .onDisappear {
+            coordinatorAudio.stop()
             radarHeading.stop()
             steering.stop()
             controller.pause()
@@ -129,6 +132,8 @@ struct VisorView: View {
             UIApplication.shared.isIdleTimerDisabled = false
         }
         .onChange(of: scenePhase) { _, phase in
+            if phase == .active { coordinatorAudio.start(camera: address) }
+            else { coordinatorAudio.stop() }
             if phase == .active { radarHeading.start() } else { radarHeading.stop() }
             if phase != .active {
                 steering.stop()
@@ -237,7 +242,19 @@ struct VisorView: View {
                         .tint(VisorToken.ink.color)
                 }
                 rule
-                cell { AgentSettings(link: agent, address: $agentAddress, cameraAddress: address, focus: $agentField) }
+                cell {
+                    Text("Coordinator").font(VisorToken.label(16))
+                    Text(agent.status.text).font(VisorToken.body(16))
+                    Text(coordinatorAudio.status).font(VisorToken.body(16))
+                    Button(coordinatorAudio.listening ? "Send voice command" : "Speak to coordinator") {
+                        if coordinatorAudio.listening { coordinatorAudio.sendCommand() }
+                        else { steering.stop(); coordinatorAudio.beginListening() }
+                    }
+                    .buttonStyle(SheetButtonStyle(primary: true, focused: false))
+                    if !coordinatorAudio.transcript.isEmpty {
+                        Text(coordinatorAudio.transcript).font(VisorToken.body(18))
+                    }
+                }
             }
             rule
             VStack(spacing: VisorToken.spaceSm) {

@@ -1,5 +1,17 @@
 # Native Prada visor
 
+Coordinator settings are loaded at build time from `agent/.env`: `AGENT_URL` and `AGENT_TOKEN`.
+Build environment variables override the file. Rebuild/install after changing them. With no URL,
+the app uses the camera host on port 8788. With no token, reporting stays off. Only these two values
+are bundled; the token is extractable from the app, so use a dedicated agent token for this deployment.
+The native visor polls `/api/operator/recent` and speaks recent coordinator updates through the phone
+or connected headset. Tap Speak to coordinator, grant microphone and speech recognition access,
+then tap Send voice command. Recognition also finishes automatically after 20 seconds. Speech is
+transcribed using Apple's speech recognizer (network availability may be required), and only the
+transcript is posted to the authenticated `/api/operator/command` endpoint. Coordinator speech pauses
+while listening. Backgrounding stops recording and playback. Run the updated agent with `npm start`,
+`OPERATOR_VOICE=on`, and `OPERATOR_FEED_HOST=0.0.0.0` for LAN access.
+
 Open Visor.xcodeproj, choose your signing team and iPhone, and run Visor.
 Connect the phone to the same network as Prada and allow Local Network access.
 The default camera URL is http://prada.local:8080/stream. If name resolution fails,

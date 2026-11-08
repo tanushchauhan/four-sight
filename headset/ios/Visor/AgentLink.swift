@@ -1,6 +1,175 @@
 import Combine
 import Foundation
 import SwiftUI
+import AVFoundation
+import Speech
+
+@MainActor
+final class CoordinatorAudio: ObservableObject {
+    @Published private(set) var listening = false
+    @Published private(set) var transcript = ""
+    @Published private(set) var status = "Coordinator voice off"
+    private let speaker = AVSpeechSynthesizer()
+    private let engine = AVAudioEngine()
+    private let recognizer = SFSpeechRecognizer(locale: Locale(identifier: "en-US"))
+    private var recognition: SFSpeechRecognitionTask?
+    private var request: SFSpeechAudioBufferRecognitionRequest?
+    private var poll: Task<Void, Never>?
+    private var timeout: Task<Void, Never>?
+    private var lastID = 0
+    private var base = ""
+    private var tapped = false
+    private var authorizing = false
+    private var active = false
+
+    struct Line: Decodable {
+        let id: Int
+        let text: String
+        let interrupt: Bool
+        let time: Double
+    }
+
+    func start(camera: String) {
+        guard poll == nil else { return }
+        active = true
+        let endpoint = AgentLink.defaultAddress(camera: camera)
+        if base != endpoint { lastID = 0 }
+        base = endpoint
+        poll = Task { [weak self] in
+            while !Task.isCancelled {
+                guard let self else { return }
+                if !self.listening {
+                    do {
+                        guard let url = URL(string: self.base + "/api/operator/recent?since=\(self.lastID)&n=20") else {
+                            throw URLError(.badURL)
+                        }
+                        var query = URLRequest(url: url)
+                        query.timeoutInterval = 3
+                        let (data, response) = try await URLSession.shared.data(for: query)
+                        guard !Task.isCancelled else { return }
+                        guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw URLError(.badServerResponse) }
+                        let lines = try JSONDecoder().decode([Line].self, from: data)
+                        for line in lines.sorted(by: { $0.id < $1.id }) where line.id > self.lastID {
+                            self.lastID = line.id
+                            guard !self.listening, Date().timeIntervalSince1970 * 1000 - line.time < 20_000 else { continue }
+                            if line.interrupt { self.speaker.stopSpeaking(at: .immediate) }
+                            try self.configureAudio()
+                            let utterance = AVSpeechUtterance(string: line.text)
+                            utterance.voice = AVSpeechSynthesisVoice(language: "en-US")
+                            utterance.rate = AVSpeechUtteranceDefaultSpeechRate
+                            utterance.volume = 0.75
+                            self.speaker.speak(utterance)
+                        }
+                        if !self.listening { self.status = "Coordinator voice connected" }
+                    } catch {
+                        if !Task.isCancelled { self.status = "Coordinator voice reconnecting…" }
+                    }
+                }
+                try? await Task.sleep(nanoseconds: 1_000_000_000)
+            }
+        }
+    }
+
+    private func configureAudio() throws {
+        let audio = AVAudioSession.sharedInstance()
+        try audio.setCategory(.playAndRecord, mode: .voiceChat, options: [.defaultToSpeaker, .allowBluetooth])
+        try audio.setActive(true)
+    }
+
+    func beginListening() {
+        guard active, !listening, !authorizing else { return }
+        authorizing = true
+        SFSpeechRecognizer.requestAuthorization { [weak self] authorization in
+            AVAudioSession.sharedInstance().requestRecordPermission { granted in
+                Task { @MainActor in
+                    guard let self else { return }
+                    self.authorizing = false
+                    guard self.active else { return }
+                    guard authorization == .authorized, granted else {
+                        self.status = "Allow microphone and speech access in Settings"; return
+                    }
+                    self.capture()
+                }
+            }
+        }
+    }
+
+    private func capture() {
+        guard let recognizer, recognizer.isAvailable else { status = "Speech recognition unavailable"; return }
+        speaker.stopSpeaking(at: .immediate)
+        transcript = ""
+        do {
+            try configureAudio()
+            let request = SFSpeechAudioBufferRecognitionRequest()
+            request.shouldReportPartialResults = true
+            self.request = request
+            let input = engine.inputNode
+            let format = input.outputFormat(forBus: 0)
+            guard format.sampleRate > 0 else { throw URLError(.cannotLoadFromNetwork) }
+            input.installTap(onBus: 0, bufferSize: 1024, format: format) { buffer, _ in request.append(buffer) }
+            tapped = true
+            listening = true
+            recognition = recognizer.recognitionTask(with: request) { [weak self] result, error in
+                Task { @MainActor in
+                    guard let self, self.listening else { return }
+                    if let result { self.transcript = result.bestTranscription.formattedString }
+                    if result?.isFinal == true { self.sendCommand() }
+                    else if error != nil { self.endCapture(); self.status = "Speech interrupted — try again" }
+                }
+            }
+            engine.prepare()
+            try engine.start()
+            status = "Listening — tap Send when finished"
+            timeout = Task { [weak self] in
+                try? await Task.sleep(nanoseconds: 20_000_000_000)
+                guard !Task.isCancelled else { return }
+                self?.sendCommand()
+            }
+        } catch { endCapture(); status = "Microphone unavailable" }
+    }
+
+    private func endCapture() {
+        listening = false
+        timeout?.cancel(); timeout = nil
+        engine.stop()
+        if tapped { engine.inputNode.removeTap(onBus: 0); tapped = false }
+        request?.endAudio(); request = nil
+        recognition?.cancel(); recognition = nil
+    }
+
+    func sendCommand() {
+        guard listening else { return }
+        let text = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
+        endCapture()
+        guard !text.isEmpty else { status = "No speech heard — try again"; return }
+        guard let token = AgentLink.configuration["AGENT_TOKEN"], !token.isEmpty else {
+            status = "Coordinator token missing from build configuration"; return
+        }
+        status = "Sending command…"
+        Task {
+            do {
+                guard let url = URL(string: base + "/api/operator/command") else { throw URLError(.badURL) }
+                var command = URLRequest(url: url)
+                command.httpMethod = "POST"
+                command.timeoutInterval = 5
+                command.setValue("application/json", forHTTPHeaderField: "Content-Type")
+                command.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+                command.httpBody = try JSONSerialization.data(withJSONObject: ["text": text])
+                let (_, response) = try await URLSession.shared.data(for: command)
+                guard (response as? HTTPURLResponse)?.statusCode == 202 else { throw URLError(.badServerResponse) }
+                status = "Command sent"
+            } catch { status = "Command could not be sent — check coordinator" }
+        }
+    }
+
+    func stop() {
+        active = false
+        poll?.cancel(); poll = nil
+        endCapture()
+        speaker.stopSpeaking(at: .immediate)
+        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+    }
+}
 
 /// Decides when a run of detector results is a person worth reporting. Pure value logic, no I/O:
 /// a result is a hit when it has a person at `minimumConfidence` or better; the trigger fires when
@@ -122,6 +291,22 @@ final class AgentLink: ObservableObject {
         config.timeoutIntervalForResource = 3
         config.waitsForConnectivity = false
         session = URLSession(configuration: config)
+        token = Self.configuration["AGENT_TOKEN"] ?? ""
+        enabled = !token.isEmpty
+        status = enabled ? .idle : .off
+    }
+
+    static var configuration: [String: String] {
+        var values: [String: String] = [:]
+        if let url = Bundle.main.url(forResource: "AgentConfiguration", withExtension: "plist"),
+           let data = try? Data(contentsOf: url),
+           let decoded = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: String] {
+            values = decoded
+        }
+        for key in ["AGENT_URL", "AGENT_TOKEN"] {
+            if let value = ProcessInfo.processInfo.environment[key] { values[key] = value }
+        }
+        return values
     }
 
     var coordinatorFeed: FeedState { status.feed }
@@ -130,6 +315,7 @@ final class AgentLink: ObservableObject {
 
     /// `http://<camera host>:8788`, the agent address used while the agent URL field is blank.
     static func defaultAddress(camera: String) -> String {
+        if let configured = configuration["AGENT_URL"], !configured.isEmpty { return configured }
         guard var url = URLComponents(string: camera), let host = url.host, !host.isEmpty else {
             return "http://prada.local:\(port)"
         }
@@ -154,7 +340,7 @@ final class AgentLink: ObservableObject {
         guard debouncer.observe(count: count, confidence: confidence, at: ProcessInfo.processInfo.systemUptime) else {
             return
         }
-        let base = address.trimmingCharacters(in: .whitespacesAndNewlines)
+        let base = Self.configuration["AGENT_URL"] ?? ""
         notify(base: base.isEmpty ? Self.defaultAddress(camera: camera) : base,
                count: count, confidence: confidence)
     }

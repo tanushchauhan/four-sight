@@ -124,6 +124,7 @@
 			buildPhases = (
 				C00100000000000000000001 /* Sources */,
                 C00100000000000000000009 /* Resources */,
+                C00100000000000000000030 /* Configure coordinator */,
 				C00100000000000000000003 /* Frameworks */,
 			);
 			buildRules = (
@@ -187,6 +188,21 @@
             runOnlyForDeploymentPostprocessing = 0;
         };
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+        C00100000000000000000030 /* Configure coordinator */ = {
+            isa = PBXShellScriptBuildPhase;
+            buildActionMask = 2147483647;
+            alwaysOutOfDate = 1;
+            files = ();
+            inputPaths = ("$(SRCROOT)/configure_agent.py",);
+            outputPaths = ("$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/AgentConfiguration.plist",);
+            name = "Configure coordinator";
+            runOnlyForDeploymentPostprocessing = 0;
+            shellPath = /bin/sh;
+            shellScript = "/usr/bin/python3 \"$SRCROOT/configure_agent.py\"";
+        };
+/* End PBXShellScriptBuildPhase section */
 /* Begin PBXSourcesBuildPhase section */
 		C00100000000000000000001 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
